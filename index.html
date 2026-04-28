@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
+  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
+  <title>Vocaboost</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./service-worker.js').then(registration => {
+        console.log('ServiceWorker registration successful.');
+      }).catch(err => {
+        console.log('ServiceWorker registration failed.');
+      });
+    }
+  </script>
+  <style>
+    .card {
+      background: #eef2ff;
+      border-radius: 12px;
+      align-items: center;
+      display: flex;
+      text-align: center;
+      justify-content: center;
+    }
+
+    .list {
+      background: white;
+      margin-top: 20px;
+      padding: 20px;
+      border-radius: 12px;
+    }
+
+    .wordbook {
+      display: flex;
+      justify-content: space-between;
+      min-height: 20px;
+      width: 100%;
+      margin-bottom: 5px;
+    }
+    .wordbook a {
+      display: block;
+      padding: 10px;
+      width: 100%;
+      border: solid thin #191970;
+      border-radius: 10px;
+    }
+
+    a {
+      text-decoration: none;
+      color: #191970;
+      font-weight: bold;
+    }
+
+    html,
+    body {
+      height: 100vw;
+      margin: 0;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      background: #eef2ff;
+    }
+
+    main {
+      flex: 1;
+      max-width: 1000px;
+      margin: 30px auto;
+      text-align: center;
+    }
+
+
+    #dashboard {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+      width: 100%;
+    }
+
+    #myBooks {
+      width: 42%;
+      min-height: 200px;
+      position: relative;
+    }
+
+    #noticeBox {
+      width: 42%;
+      min-height: 200px;
+    }
+
+    #noticeBox ul {
+      padding-left: 20px;
+      text-align: left;
+    }
+
+    #noticeBox li {
+      margin-bottom: 8px;
+    }
+
+    .maincard {
+      font-size: 20px;
+      border: solid 2px #191970;
+      background-color: #FFFFFF;
+      color: #191970;
+      width: 40%;
+      height: 100px;
+    }
+
+    .maincard1 {
+      font-size: 20px;
+      border: solid 2px #191970;
+      background-color: #FFFFFF;
+      color: #191970;
+      width: 40%;
+      height: 100px;
+      margin-right: 20px;
+    }
+
+    .maincard2 {
+      font-size: 20px;
+      border: solid 2px #191970;
+      background-color: #FFFFFF;
+      color: #191970;
+      width: 40%;
+      height: 100px;
+      margin-left: 20px;
+    }
+    .cardpicture1 {
+      height: 55%;
+    }
+    .cardpicture2 {
+      height: 55%;
+    }
+    .openword {
+      color: #000000;
+      font-weight: normal;
+    }
+    @media (max-width: 768px) {
+      html,body {
+        width: 100vw;
+        background-color: #FFFFFF;
+      }
+      .card {
+        background-color: #FFFFFF;
+      }
+      .myBooksh2 {
+        display: none;
+      }
+      #dashboard {
+        text-align :center;
+        width: 100%;
+        display: block;
+      }
+      #myBooks {
+        width:90%;
+        min-height: 200px;
+        font-size: 14px;
+      }
+      #noticeBox {
+        width:90%;
+        min-height: 200px;
+        border: solid;
+        border-radius: 10px;
+      }
+      .maincard1 {
+        height: 80px;
+      }
+      .maincard2 {
+        height: 80px;
+      }
+      .modal-content {
+        width: 90%;
+        margin: 0;
+        padding: 0;
+      }
+      .modal-title {
+        font-size: 14px;
+      }
+      .modalnaiyou {
+        font-size: 14px;
+      }
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0, 0, 0, 0.4);
+    }
+    .modal-content {
+      background-color: #fefefe;  /* モーダルウィンドウの背景色 */
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888888;
+      border-radius: 12px;
+      width: 40%;  /* モーダルウィンドウの横幅 */
+      text-align:center;
+      
+    }
+    .modal-title {
+      color: #800000; /* モーダルウィンドウの文字の色 */
+      font-size: 18px; /* モーダルウィンドウの文字の大きさ */
+      font-weight: bold;
+      line-height: 200%;
+      text-align: center;
+    }
+    .close-button {
+      color: #aaaaaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+    }
+    .close-button:hover,
+    .close-button:focus {
+      color: black;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .modallink{
+      text-decoration: underline;
+    }
+  </style>
+</head>
+
+<body>
+
+  <script src="//accaii.com/quiz1/script.js" async></script><noscript><img
+      src="//accaii.com/quiz1/script?guid=on"></noscript>
+
+
+  <header>
+    <p class="headertitle"><a href="index.html"><img src="./images/rogo.png" height="70vh"></a></p>
+    <div id="status" style="display:none">ログイン確認中...</div>
+    <div>
+      <button id="mypageBtn" class="header-btn" style="display:none" onclick="goPage('mypage.html')">マイページ</button>
+      <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
+      <button id="logoutBtn" class="header-btn" style="display:none" onclick="logout()">ログアウト</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="card">
+      <button onclick="goPage('create.html')" class="maincard1"><img src="./images/to-create.jpeg" class="cardpicture1"><br>作成</button>
+      <button onclick="goPage('list.html')" class="maincard2"><img src="./images/to-list.jpeg" class="cardpicture2"><br>検索</button>
+    </div>
+    <div id="dashboard" style="display:none">
+      <div id="myBooks" class="list">
+        <div id="loading-overlay">
+          <div class="spinner"></div>
+          <div class="loading-text">読み込み中...</div>
+        </div>
+        <h2 class="myBooksh2">自分の単語帳</h2>
+        <div id="bookList"></div>
+      </div>
+      <div id="noticeBox" class="list">
+        <h2>🔔 お知らせ</h2>
+        <ul id="noticeList">
+          <li>サイトの名前はアンケートの結果、Vocaboostに決定しました！</li>
+          <li>お問い合わせ（パスワードを忘れたなども）、追加してほしい機能があれば<a href="./contact.html">こちら</a>からお願いします。</li>
+          <li>頂いた意見は考査後順次実装していく予定です。</li>
+          <li>パソコンでの利用を推奨します。→(26/3/3 スマホからの閲覧に対応しました！(暫定対応))</li>
+        </ul>
+      </div>
+
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footertitle"><img src="./images/rogo.png" height="70vh"></div>
+      <div class="footer-links">
+        <a href="#" onclick="goPage('index.html')">ホーム</a>
+        <a href="#" onclick="goPage('list.html')">検索</a>
+        <a href="#" onclick="goPage('create.html')">作成</a>
+        <a href="#" onclick="goPage('mypage.html')">マイページ</a>
+        <a href="#" onclick="goPage('update.html')">更新履歴</a>
+        <a href="https://docs.google.com/forms/d/e/1FAIpQLSckfc0WFGQJx6woNFUHYZ9d2QV6k0xd29pZfV1SoTi7IpBYRQ/viewform?usp=header"
+          target="_blank" rel="noopener noreferrer">お問い合わせ</a>
+      </div>
+      <div class="copy">© 2026 TEAM-Minimal, Shiratae</div>
+    </div>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E",
+      authDomain: "quiz1-4ffdc.firebaseapp.com",
+      projectId: "quiz1-4ffdc",
+      storageBucket: "quiz1-4ffdc.firebasestorage.app",
+      messagingSenderId: "152062126332",
+      appId: "1:152062126332:web:845af237a1a76207214f79"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    const statusDiv = document.getElementById("status");
+    const loginBtn = document.getElementById("loginBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const mypageBtn = document.getElementById("mypageBtn");
+    const dashboardDiv = document.getElementById("dashboard");
+    const bookListDiv = document.getElementById("bookList");
+
+    let currentUser = null;
+
+    auth.onAuthStateChanged(user => {
+      currentUser = user;
+      if (user) {
+        statusDiv.textContent = "ログイン中: " + user.uid;
+        loginBtn.style.display = "none";
+        logoutBtn.style.display = "inline-block";
+        mypageBtn.style.display = "inline-block";
+        dashboardDiv.style.display = "flex";
+        loadMyBooks(user.uid);
+      } else {
+        statusDiv.textContent = "ログアウト中";
+        loginBtn.style.display = "inline-block";
+        logoutBtn.style.display = "none";
+        mypageBtn.style.display = "none";
+        dashboardDiv.style.display = "none";
+        hideLoading();
+      }
+    });
+
+    function showLoading() {
+      const overlay = document.getElementById('loading-overlay');
+      if (overlay) {
+        overlay.classList.remove('hidden');
+      }
+    }
+
+    function hideLoading() {
+      const overlay = document.getElementById('loading-overlay');
+      if (overlay) {
+        overlay.classList.add('hidden');
+      }
+    }
+
+    function goPage(page) {
+      if (page === "index.html") {
+        location.href = "index.html";
+        return;
+      }
+      if (currentUser) {
+        location.href = page;
+      } else {
+        alert("ログインしてください");
+        location.href = "login.html";
+      }
+    }
+
+    function logout() {
+      auth.signOut();
+    }
+
+    function loadMyBooks(uid) {
+      showLoading();
+      db.collection("wordbooks")
+        .where("owner", "==", uid)
+        .get()
+        .then(snapshot => {
+          bookListDiv.innerHTML = "";
+
+          if (snapshot.empty) {
+            bookListDiv.innerHTML = "<p>まだ単語帳がありません</p>";
+            hideLoading();
+            return;
+          }
+
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            const div = document.createElement("div");
+            div.className = "wordbook";
+            div.innerHTML = `
+          <a href="view.html?id=${doc.id}" class="openword"><span>${data.title}</span></a>
+        `;
+            bookListDiv.appendChild(div);
+          });
+          hideLoading();
+        })
+        .catch(err => {
+          hideLoading();
+          alert("読み込みエラー: " + err.message);
+        });
+    }
+  </script>
+</body>
+
+</html>

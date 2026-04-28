@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
+  <title>マイページ</title>
+  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
+  <link rel="stylesheet" type="text/css" href="style.css">
+
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card {
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+
+    input {
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .notice {
+      color: red;
+    }
+
+    .success {
+      color: green;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <p class="headertitle"><a href="index.html"><img src="./images/rogo.png" height="70vh"></a></p>
+    <div id="status" style="display:none">ログイン確認中...</div>
+    <div>
+      <button id="mypageBtn" class="header-btn" style="display:none" onclick="goPage('mypage.html')">マイページ</button>
+      <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
+      <button id="logoutBtn" class="header-btn" style="display:none" onclick="logout()">ログアウト</button>
+    </div>
+  </header>
+
+  <main>
+
+    <div class="card">
+      <h2>ユーザー情報</h2>
+      <p>UID: <span id="uid"></span></p>
+      <p>Email: <span id="email"></span></p>
+      <p>ユーザー名: <span id="usernameText">未設定</span></p>
+      <p>作成した単語帳数: <span id="bookCount">0</span></p>
+    </div>
+
+    <div class="card">
+      <h2>ユーザー名設定・変更</h2>
+      <input id="usernameInput" placeholder="新しいユーザー名">
+      <button onclick="updateUsername()">変更する</button>
+      <div id="nameMsg" class="notice"></div>
+    </div>
+
+    <div class="card">
+      <h2>パスワード変更</h2>
+      <input type="password" id="currentPass" placeholder="現在のパスワード">
+      <input type="password" id="newPass" placeholder="新しいパスワード">
+      <input type="password" id="newPassConfirm" placeholder="新しいパスワード（確認）">
+      <button onclick="changePassword()">変更する</button>
+      <div id="passMsg" class="notice"></div>
+    </div>
+
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div><img src="./images/rogo.png" height="70vh"></div>
+      <div class="footer-links">
+        <a href="index.html">ホーム</a>
+        <a href="list.html">公開単語帳</a>
+        <a href="create.html">作成</a>
+        <a href="mypage.html">マイページ</a>
+        <a href="update.html">更新履歴</a>
+        <a href="contact.html">お問い合わせ</a>
+      </div>
+      <div class="copy">© 2026 TEAM-Minimal, Shiratae</div>
+    </div>
+  </footer>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    /* ===== Firebase設定（完全版） ===== */
+    const firebaseConfig = {
+      apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E",
+      authDomain: "quiz1-4ffdc.firebaseapp.com",
+      projectId: "quiz1-4ffdc",
+      storageBucket: "quiz1-4ffdc.firebasestorage.app",
+      messagingSenderId: "152062126332",
+      appId: "1:152062126332:web:845af237a1a76207214f79"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    let currentUser = null;
+
+    const statusDiv = document.getElementById("status");
+    const loginBtn = document.getElementById("loginBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const mypageBtn = document.getElementById("mypageBtn");
+
+    /* ===== ログインチェック ===== */
+    auth.onAuthStateChanged(async user => {
+      if (!user) {
+        location.href = "login.html";
+        return;
+      }
+
+      currentUser = user;
+
+      if (user) {
+        statusDiv.textContent = "ログイン中: " + user.uid;
+        loginBtn.style.display = "none";
+        logoutBtn.style.display = "inline-block";
+        mypageBtn.style.display = "inline-block";
+
+        document.getElementById("uid").textContent = user.uid;
+        document.getElementById("email").textContent = user.email;
+        document.getElementById("usernameText").textContent = user.displayName || "未設定";
+
+        loadBookCount();
+        cleanupEmptyBooks();
+      } else {
+        statusDiv.textContent = "ログアウト中";
+        loginBtn.style.display = "inline-block";
+        logoutBtn.style.display = "none";
+        mypageBtn.style.display = "none";
+      }
+    });
+
+    function goPage(page) {
+      if (page === "index.html") {
+        location.href = "index.html";
+        return;
+      }
+      if (currentUser) {
+        location.href = page;
+      } else {
+        alert("ログインしてください");
+        location.href = "login.html";
+      }
+    }
+
+    function logout() {
+      auth.signOut();
+    }
+
+    /* ===== 作成単語帳数 ===== */
+    async function loadBookCount() {
+      try {
+        const snap = await db.collection("wordbooks")
+          .where("owner", "==", currentUser.uid)
+          .get();
+
+        document.getElementById("bookCount").textContent = snap.size;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    /* ===== 空の単語帳を自動削除 (DBからも完全に消去) ===== */
+    async function cleanupEmptyBooks() {
+      try {
+        const snap = await db.collection("wordbooks")
+          .where("owner", "==", currentUser.uid)
+          .get();
+
+        const now = Date.now();
+        const ONE_HOUR = 60 * 60 * 1000;
+
+        for (const doc of snap.docs) {
+          const data = doc.data();
+
+          // 単語サブコレクションの数を確認
+          const wordsSnap = await db.collection("wordbooks").doc(doc.id).collection("words").get();
+
+          if (wordsSnap.empty) {
+            // 作成直後のものを消さないよう、1時間以上経過しているかチェック
+            const createdAt = data.createdAt ? data.createdAt.toDate().getTime() : 0;
+
+            if (now - createdAt > ONE_HOUR) {
+              await db.collection("wordbooks").doc(doc.id).delete();
+              console.log("Cleanup: Deleted empty book", doc.id);
+            }
+          }
+        }
+        // 削除後にカウントを更新
+        loadBookCount();
+      } catch (e) {
+        console.warn("Cleanup failed:", e);
+      }
+    }
+
+    /* ===== ユーザー名変更 ===== */
+    async function updateUsername() {
+      const newName = document.getElementById("usernameInput").value.trim();
+      const msg = document.getElementById("nameMsg");
+
+      if (!newName) {
+        msg.textContent = "ユーザー名を入力してください";
+        msg.className = "notice";
+        return;
+      }
+
+      try {
+        await currentUser.updateProfile({
+          displayName: newName
+        });
+
+        await db.collection("users").doc(currentUser.uid).set({
+          username: newName
+        });
+
+        document.getElementById("usernameText").textContent = newName;
+        msg.textContent = "ユーザー名を変更しました";
+        msg.className = "success";
+        document.getElementById("usernameInput").value = "";
+      } catch (e) {
+        msg.textContent = "エラー: " + e.message;
+        msg.className = "notice";
+      }
+    }
+
+    /* ===== パスワード変更 ===== */
+    async function changePassword() {
+      const current = document.getElementById("currentPass").value;
+      const newPass = document.getElementById("newPass").value;
+      const newPassConfirm = document.getElementById("newPassConfirm").value;
+      const msg = document.getElementById("passMsg");
+
+      if (!current || !newPass || !newPassConfirm) {
+        msg.textContent = "すべて入力してください";
+        msg.className = "notice";
+        return;
+      }
+
+      if (newPass !== newPassConfirm) {
+        msg.textContent = "新しいパスワードが一致しません";
+        msg.className = "notice";
+        return;
+      }
+
+      try {
+        const cred = firebase.auth.EmailAuthProvider.credential(
+          currentUser.email,
+          current
+        );
+
+        await currentUser.reauthenticateWithCredential(cred);
+        await currentUser.updatePassword(newPass);
+
+        msg.textContent = "パスワードを変更しました";
+        msg.className = "success";
+
+        document.getElementById("currentPass").value = "";
+        document.getElementById("newPass").value = "";
+        document.getElementById("newPassConfirm").value = "";
+      } catch (e) {
+        msg.textContent = "エラー: " + e.message;
+        msg.className = "notice";
+      }
+    }
+  </script>
+
+</body>
+
+</html>

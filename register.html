@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
+<title>新規登録</title>
+<link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+<link rel="icon" type="image/x-icon" href="./images/favicon.ico">
+<link rel="stylesheet" type="text/css" href="style.css">
+<link rel="stylesheet" type="text/css" href="login.css">
+</head>
+<body>
+
+<div class="card">
+
+<h2>新規登録</h2>
+
+<form onsubmit="register(); return false;">
+
+<input id="username" placeholder="ユーザー名">
+
+<div class="mailaddress">
+    <input id="emailHead" placeholder="メール">
+    <div class="domain">@edu.nishiyamato.ed.jp</div>
+</div>
+<input id="password" type="password" placeholder="パスワード">
+
+<button type="submit">登録</button>
+
+<div class="notice" id="msg"></div>
+
+<div class="link">
+  すでに登録済みの方は  
+  <a href="login.html">ログイン</a>
+</div>
+
+</form>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script>
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E",
+  authDomain: "quiz1-4ffdc.firebaseapp.com",
+  projectId: "quiz1-4ffdc"
+};
+
+firebase.initializeApp(firebaseConfig);
+
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+async function register(){
+
+  const username = document.getElementById("username").value.trim();
+  const head = document.getElementById("emailHead").value.trim();
+  const pass = document.getElementById("password").value;
+  const msg = document.getElementById("msg");
+
+  msg.textContent = "";
+
+  if(!username || !head || !pass){
+    msg.textContent = "すべて入力してください";
+    return;
+  }
+
+  const email = head + "@edu.nishiyamato.ed.jp";
+
+  try{
+    const userCredential =
+      await auth.createUserWithEmailAndPassword(email,pass);
+
+    const user = userCredential.user;
+
+    await user.updateProfile({
+      displayName: username
+    });
+
+    await db.collection("users").doc(user.uid).set({
+      email: email,
+      username: username,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    alert("登録完了しました！");
+    location.href="login.html";
+
+  }catch(e){
+    msg.textContent = "登録失敗：" + e.message;
+  }
+
+}
+
+</script>
+
+</body>
+</html>

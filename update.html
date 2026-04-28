@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
+  <title>更新履歴</title>
+  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <style>
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      text-align: left;
+    }
+
+    .date {
+      font-size: 13px;
+      color: #666;
+    }
+
+    .version {
+      font-weight: bold;
+      font-size: 16px;
+    }
+
+    ul {
+      margin-top: 8px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <p class="headertitle"><a href="index.html"><img src="./images/rogo.png" height="70vh"></a></p>
+    <div id="status" style="display:none">ログイン確認中...</div>
+    <div>
+      <button id="mypageBtn" class="header-btn" style="display:none" onclick="goPage('mypage.html')">マイページ</button>
+      <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
+      <button id="logoutBtn" class="header-btn" style="display:none" onclick="logout()">ログアウト</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="card">
+      <div class="version">v1.2.1</div>
+      <div class="date">2026/3/4</div>
+      <ul>
+        <li>単語帳の詳細情報表示を強化</li>
+        <li>単語帳の「説明文」機能を追加（作成・編集時に設定可能）</li>
+        <li>閲覧画面に「単語数」を表示</li>
+        <li>作成者名にプロフィールへのリンクを追加（閲覧画面・検索画面）</li>
+        <li>ホーム画面に読み込み中アニメーションを追加</li>
+        <li>その他UIの微調整と安定性の向上</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="version">v1.2.0</div>
+      <div class="date">2026/3/3</div>
+      <ul>
+        <li><b>レスポンシブ対応</b></li>
+        <li>他人のユーザーページが開けないバグを修正</li>
+        <li>検索ページで読み込みが遅い問題を修正</li>
+        <li>単語帳数などがlist.htmlでセンタリングされるのを修正</li>
+        <li>その他軽微なバグを修正</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="version">v1.1.1</div>
+      <div class="date">2026/3/3</div>
+      <ul>
+        <li>検索ページに読み込み中アニメーションを追加</li>
+        <li>検索ページに並び替え機能を追加</li>
+        <li>パスワード変更で新しいパスワードを2回要求するように変更</li>
+        <li>全ページにマイページ/ログアウトボタンを実装</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="version">v1.1.0</div>
+      <div class="date">2026/2/26</div>
+      <ul>
+        <li>リリース</li>
+        <li>お問い合わせページを追加</li>
+        <li>削除機能が使えないバグを修正</li>
+        <li>ヘッダーの高さを修正</li>
+        <li>フッターの位置を修正</li>
+        <li>その他デザインを一部変更</li>
+      </ul>
+    </div>
+    <br>
+    <div class="card">
+      <div class="version">v1.0.1</div>
+      <div class="date">2026/02/15</div>
+      <ul>
+        <li>サイトのデザインを変更</li>
+      </ul>
+    </div>
+    <br>
+    <div class="card">
+      <div class="version">v1.0.0</div>
+      <div class="date">2026/02/08</div>
+      <ul>
+        <li>サイトを公開</li>
+      </ul>
+    </div>
+
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footertitle"><img src="./images/rogo.png" height="70vh"></div>
+      <div class="footer-links">
+        <a href="index.html">ホーム</a>
+        <a href="list.html">検索</a>
+        <a href="create.html">作成</a>
+        <a href="mypage.html">マイページ</a>
+        <a href="update.html">更新履歴</a>
+        <a href="contact.html">お問い合わせ</a>
+      </div>
+      <div class="copy">© 2026 TEAM-Minimal, Shiratae</div>
+    </div>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E",
+      authDomain: "quiz1-4ffdc.firebaseapp.com",
+      projectId: "quiz1-4ffdc"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    let currentUser = null;
+
+    const statusDiv = document.getElementById("status");
+    const loginBtn = document.getElementById("loginBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const mypageBtn = document.getElementById("mypageBtn");
+
+    auth.onAuthStateChanged(user => {
+      currentUser = user;
+      if (user) {
+        statusDiv.textContent = "ログイン中: " + user.uid;
+        loginBtn.style.display = "none";
+        logoutBtn.style.display = "inline-block";
+        mypageBtn.style.display = "inline-block";
+      } else {
+        statusDiv.textContent = "ログアウト中";
+        loginBtn.style.display = "inline-block";
+        logoutBtn.style.display = "none";
+        mypageBtn.style.display = "none";
+      }
+    });
+
+    function goPage(page) {
+      if (page === "index.html") {
+        location.href = "index.html";
+        return;
+      }
+      if (currentUser) {
+        location.href = page;
+      } else {
+        alert("ログインしてください");
+        location.href = "login.html";
+      }
+    }
+
+    function logout() {
+      auth.signOut();
+    }
+  </script>
+
+</body>
+
+</html>

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+  <title>ユーザー情報</title>
+  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <style>
+    .card {
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+
+    .wordbook {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    a {
+      text-decoration: none;
+      color: #191970;
+      font-weight: bold;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    main {
+      flex: 1;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <p class="headertitle">
+      <a href="index.html"><img src="./images/rogo.png" height="70vh"></a>
+    </p>
+    <div id="status" style="display:none">ログイン確認中...</div>
+    <div>
+      <button id="mypageBtn" class="header-btn" style="display:none" onclick="goPage('mypage.html')">マイページ</button>
+      <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
+      <button id="logoutBtn" class="header-btn" style="display:none" onclick="logout()">ログアウト</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>ユーザー情報</h2>
+      <p id="userNameText">読み込み中...</p>
+    </div>
+
+    <div class="card">
+      <h3>公開している単語帳</h3>
+      <div id="bookList"></div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footertitle"><img src="./images/rogo.png" height="70vh">
+      </div>
+      <div class="footer-links">
+        <a href="index.html">ホーム</a>
+        <a href="list.html">検索</a>
+        <a href="create.html">作成</a>
+        <a href="mypage.html">マイページ</a>
+        <a href="update.html">更新履歴</a>
+        <a href="contact.html">お問い合わせ</a>
+      </div>
+      <div class="copy">© 2026 TEAM-Minimal, Shiratae</div>
+    </div>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E",
+        authDomain: "quiz1-4ffdc.firebaseapp.com",
+        projectId: "quiz1-4ffdc",
+        storageBucket: "quiz1-4ffdc.firebasestorage.app",
+        messagingSenderId: "152062126332",
+        appId: "1:152062126332:web:845af237a1a76207214f79"
+      };
+
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
+      const auth = firebase.auth();
+      let currentUser = null;
+
+      const statusDiv = document.getElementById("status");
+      const loginBtn = document.getElementById("loginBtn");
+      const logoutBtn = document.getElementById("logoutBtn");
+      const mypageBtn = document.getElementById("mypageBtn");
+
+      auth.onAuthStateChanged(user => {
+        currentUser = user;
+        if (user) {
+          statusDiv.textContent = "ログイン中: " + user.uid;
+          loginBtn.style.display = "none";
+          logoutBtn.style.display = "inline-block";
+          mypageBtn.style.display = "inline-block";
+        } else {
+          statusDiv.textContent = "ログアウト中";
+          loginBtn.style.display = "inline-block";
+          logoutBtn.style.display = "none";
+          mypageBtn.style.display = "none";
+        }
+      });
+
+      window.goPage = function (page) {
+        if (page === "index.html") {
+          location.href = "index.html";
+          return;
+        }
+        if (currentUser) {
+          location.href = page;
+        } else {
+          alert("ログインしてください");
+          location.href = "login.html";
+        }
+      };
+
+      window.logout = function () {
+        auth.signOut();
+      };
+
+      const params = new URLSearchParams(location.search);
+      const uid = params.get("id");
+
+      const userNameText = document.getElementById("userNameText");
+      const bookList = document.getElementById("bookList");
+
+      if (!uid) {
+        if (userNameText) {
+          userNameText.textContent = "ユーザーIDがありません";
+        }
+        return;
+      }
+
+      async function loadUser() {
+        try {
+          const userDoc = await db.collection("users").doc(uid).get();
+
+          if (!userDoc.exists) {
+            if (userNameText) {
+              userNameText.textContent = "ユーザーが見つかりません";
+            }
+            return;
+          }
+
+          const userData = userDoc.data();
+          const username = userData.username || "名無し";
+
+          if (userNameText) {
+            userNameText.textContent = "ユーザー名: " + username;
+          }
+
+          loadBooks(uid);
+
+        } catch (e) {
+          console.error(e);
+          if (userNameText) {
+            userNameText.textContent = "読み込みエラー";
+          }
+        }
+      }
+
+      async function loadBooks(uid) {
+        try {
+          const snap = await db.collection("wordbooks")
+            .where("owner", "==", uid)
+            .where("isPublic", "==", true)
+            .get();
+
+          if (!bookList) return;
+
+          if (snap.empty) {
+            bookList.innerHTML = "<p>公開単語帳はありません</p>";
+            return;
+          }
+
+          snap.forEach(doc => {
+            const b = doc.data();
+            const div = document.createElement("div");
+            div.className = "wordbook";
+
+            const span = document.createElement("span");
+            span.textContent = b.title;
+
+            const link = document.createElement("a");
+            link.href = "view.html?id=" + doc.id;
+            link.textContent = "開く";
+
+            div.appendChild(span);
+            div.appendChild(link);
+            bookList.appendChild(div);
+          });
+
+        } catch (e) {
+          console.error(e);
+          if (bookList) {
+            bookList.innerHTML = "<p>単語帳の読み込みに失敗しました</p>";
+          }
+        }
+      }
+
+      loadUser();
+
+    });
+  </script>
+
+</body>
+
+</html>

@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
+  <title>検索</title>
+  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <style>
+    .tabArea {
+      margin-bottom: 15px;
+    }
+
+    .tab {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 10px;
+      margin: 0 5px;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    .active {
+      background: #191970;
+      color: white;
+    }
+
+    .inactive {
+      background: #ddd;
+    }
+
+    input {
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+      width: 100%;
+      max-width: 300px;
+      box-sizing: border-box;
+    }
+
+    @media (max-width: 768px) {
+      .card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .card button {
+        align-self: flex-end;
+      }
+
+      div[style*="margin-bottom:15px;"] {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        align-items: center;
+      }
+
+      input,
+      select {
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+      }
+    }
+
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      text-align: left;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .owner {
+      color: #666;
+      font-size: 13px;
+    }
+
+    .owner a {
+      color: #191970;
+      text-decoration: underline;
+    }
+
+    .count {
+      font-size: 13px;
+      color: #333;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <p class="headertitle"><a href="index.html"><img src="./images/rogo.png" height="70vh"></a></p>
+    <div id="status" style="display:none">ログイン確認中...</div>
+    <div>
+      <button id="mypageBtn" class="header-btn" style="display:none" onclick="goPage('mypage.html')">マイページ</button>
+      <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
+      <button id="logoutBtn" class="header-btn" style="display:none" onclick="logout()">ログアウト</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="tabArea">
+      <button id="bookTab" class="tab active" onclick="showBooks()">単語帳</button>
+      <button id="userTab" class="tab inactive" onclick="showUsers()">ユーザー</button>
+    </div>
+
+    <div style="margin-bottom:15px;">
+      <input id="search" placeholder="検索" oninput="render()">
+      <select id="sort" onchange="render()"
+        style="padding:10px; border-radius:10px; border:1px solid #ccc; font-size:14px; margin-left:5px; cursor:pointer;">
+        <option value="name">名称順</option>
+        <option value="count">公開単語帳作成数順</option>
+      </select>
+    </div>
+
+    <div id="list" style="position: relative; min-height: 200px;">
+      <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">読み込み中...</div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div><img src="./images/rogo.png" height="70vh"></div>
+      <div class="footer-links">
+        <a href="index.html">ホーム</a>
+        <a href="list.html">検索</a>
+        <a href="create.html">作成</a>
+        <a href="mypage.html">マイページ</a>
+        <a href="update.html">更新履歴</a>
+        <a href="contact.html">お問い合わせ</a>
+      </div>
+      <div class="copy">© 2026 TEAM-Minimal, Shiratae</div>
+    </div>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E",
+      authDomain: "quiz1-4ffdc.firebaseapp.com",
+      projectId: "quiz1-4ffdc",
+      storageBucket: "quiz1-4ffdc.firebasestorage.app",
+      messagingSenderId: "152062126332",
+      appId: "1:152062126332:web:845af237a1a76207214f79"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let mode = "book"; // book / user
+    let books = [];
+    let users = [];
+    let currentUser = null;
+    let usersLoaded = false; // ★ ユーザーデータ読み込み済みフラグ
+
+    const statusDiv = document.getElementById("status");
+    const loginBtn = document.getElementById("loginBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const mypageBtn = document.getElementById("mypageBtn");
+
+    firebase.auth().onAuthStateChanged(user => {
+      currentUser = user;
+      if (user) {
+        statusDiv.textContent = "ログイン中: " + user.uid;
+        loginBtn.style.display = "none";
+        logoutBtn.style.display = "inline-block";
+        mypageBtn.style.display = "inline-block";
+      } else {
+        statusDiv.textContent = "ログアウト中";
+        loginBtn.style.display = "inline-block";
+        logoutBtn.style.display = "none";
+        mypageBtn.style.display = "none";
+      }
+    });
+
+    function goPage(page) {
+      if (page === "index.html") {
+        location.href = "index.html";
+        return;
+      }
+      if (currentUser) {
+        location.href = page;
+      } else {
+        alert("ログインしてください");
+        location.href = "login.html";
+      }
+    }
+
+    function logout() {
+      firebase.auth().signOut();
+    }
+
+    async function load() {
+      showLoading();
+      // 公開単語帳を一度に全取得
+      const snap = await db.collection("wordbooks")
+        .where("isPublic", "==", true)
+        .get();
+
+      // ★ 通信の並列化 (Parallel Fetch)
+      const bookPromises = snap.docs.map(async (d) => {
+        const data = d.data();
+        let count = data.wordCount;
+
+        // wordCount がない古いデータのための補完ロジック (並列実行される)
+        if (count === undefined) {
+          try {
+            const wordSnap = await db.collection("wordbooks").doc(d.id).collection("words").get();
+            count = wordSnap.size;
+            // 非同期で更新（待機しない）
+            db.collection("wordbooks").doc(d.id).update({ wordCount: count });
+          } catch (e) {
+            count = 0;
+          }
+        }
+
+        return {
+          id: d.id,
+          title: data.title,
+          ownerName: data.ownerName || "不明",
+          ownerId: data.owner,
+          count: count
+        };
+      });
+
+      books = await Promise.all(bookPromises);
+
+      render();
+      hideLoading();
+    }
+
+    function showLoading() {
+      const overlay = document.getElementById('loading-overlay');
+      if (overlay) overlay.classList.remove('hidden');
+    }
+
+    function hideLoading() {
+      const overlay = document.getElementById('loading-overlay');
+      if (overlay) {
+        overlay.classList.add('hidden');
+      }
+    }
+
+    function showBooks() {
+      mode = "book";
+      document.getElementById("bookTab").className = "tab active";
+      document.getElementById("userTab").className = "tab inactive";
+      render();
+    }
+
+    async function showUsers() {
+      mode = "user";
+      document.getElementById("bookTab").className = "tab inactive";
+      document.getElementById("userTab").className = "tab active";
+
+      if (!usersLoaded) {
+        showLoading();
+        try {
+          // ユーザーごとの公開単語帳数を再計算
+          const userBookCounts = {};
+          books.forEach(b => {
+            if (b.ownerId) {
+              userBookCounts[b.ownerId] = (userBookCounts[b.ownerId] || 0) + 1;
+            }
+          });
+
+          const snapUsers = await db.collection("users").get();
+          users = snapUsers.docs.map(d => ({
+            id: d.id,
+            username: d.data().username || "名無し",
+            bookCount: userBookCounts[d.id] || 0
+          }));
+          usersLoaded = true;
+        } catch (e) {
+          console.error("User load failed:", e);
+        }
+        hideLoading();
+      }
+      render();
+    }
+
+    function render() {
+      const q = document.getElementById("search").value.toLowerCase();
+      const sort = document.getElementById("sort").value;
+      const area = document.getElementById("list");
+      area.innerHTML = "";
+
+      if (mode === "book") {
+        let filtered = books.filter(b => b.title.toLowerCase().includes(q));
+
+        // ソート
+        if (sort === "name") {
+          filtered.sort((a, b) => a.title.localeCompare(b.title, 'ja'));
+        } else if (sort === "count") {
+          filtered.sort((a, b) => b.count - a.count);
+        }
+
+        filtered.forEach(b => {
+          const div = document.createElement("div");
+          div.className = "card";
+          div.innerHTML = `
+        <div>
+          <div class="title">${b.title}</div>
+          <div class="owner">作成者：<a href="user.html?id=${b.ownerId}">${b.ownerName}</a></div>
+          <div class="count">単語数：${b.count}</div>
+        </div>
+        <button onclick="location.href='view.html?id=${b.id}'">開く</button>
+      `;
+          area.appendChild(div);
+        });
+      } else {
+        let filtered = users.filter(u => u.username.toLowerCase().includes(q));
+
+        // ソート
+        if (sort === "name") {
+          filtered.sort((a, b) => a.username.localeCompare(b.username, 'ja'));
+        } else if (sort === "count") {
+          filtered.sort((a, b) => b.bookCount - a.bookCount);
+        }
+
+        filtered.forEach(u => {
+          const div = document.createElement("div");
+          div.className = "card";
+          div.innerHTML = `
+        <div>
+          <div class="title">${u.username}</div>
+          <div class="count">作成した単語帳数：${u.bookCount}</div>
+        </div>
+        <button onclick="location.href='user.html?id=${u.id}'">見る</button>
+      `;
+          area.appendChild(div);
+        });
+      }
+    }
+
+    load();
+  </script>
+
+</body>
+
+</html>
