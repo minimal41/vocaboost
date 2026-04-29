@@ -19,8 +19,54 @@
       min-height: 200px;
     }
 
+    #front{
+      font-size:30px;
+      min-height: 100px;
+    }
+
     #back {
       font-size: 25px;
+      min-height: 60px;
+    }
+    #quizCard {
+      display: flex;
+      flex-direction: column;
+      min-height: 340px;
+    }
+
+    #quizContent {
+      flex-grow: 1;
+      min-height: 120px;
+    }
+
+    #progress {
+      margin-top: auto;
+    }
+
+    #progressWrap {
+      width: 100%;
+      height: 12px;
+      background: #eee;
+      border-radius: 10px;
+      margin-top: 15px;
+      overflow: hidden;
+    }
+
+    #progressBar {
+      height: 100%;
+      width: 0%;
+      background: #191970;
+      transition: 0.3s;
+    }
+
+    #progressText {
+      font-size: 14px;
+      margin-top: 5px;
+    }
+
+    /* 高さブレ防止（これ重要） */
+    #back {
+      min-height: 30px;
     }
   </style>
 </head>
@@ -38,10 +84,21 @@
     </div>
   </header>
   <main>
-    <div class="card">
-      <h2 id="front"></h2>
-      <p id="back" style="display:none"></p>
-      <button onclick="showBack()">答えを見る (Enter)</button>
+    <div class="card" id="quizCard">
+
+      <div id="quizContent">
+        <h2 id="front"></h2>
+        <p id="back" style="display:none"></p>
+        <button onclick="showBack()">答えを見る (Enter)</button>
+      </div>
+
+      <div id="progress">
+        <div id="progressWrap">
+          <div id="progressBar"></div>
+        </div>
+        <p id="progressText"></p>
+      </div>
+
     </div>
 
     <div class="card" id="end" style="display:none">
@@ -116,6 +173,8 @@
 
     const id = new URLSearchParams(location.search).get("id");
     let words = [], i = 0, show = false;
+    const quizCard = document.getElementById("quizCard");
+    const endCard = document.getElementById("end");
 
     const qWords = query(collection(db, "wordbooks", id, "words"), orderBy("createdAt"));
     const snap = await getDocs(qWords);
@@ -124,14 +183,18 @@
 
     function render() {
       if (i >= words.length) {
-        document.querySelector(".card").style.display = "none";
-        end.style.display = "block";
+        quizCard.style.display = "none";
+        endCard.style.display = "block";
         return;
       }
       front.textContent = words[i].front;
       back.textContent = words[i].back;
       back.style.display = "none";
       show = false;
+      const progress = Math.round(i / words.length * 100);
+      document.getElementById("progressBar").style.width = progress + "%";
+      document.getElementById("progressText").textContent =
+        `${i}/${words.length} 問`;
     }
 
     window.showBack = () => {
@@ -147,8 +210,10 @@
     window.restart = () => {
       i = 0;
       words.sort(() => Math.random() - 0.5);
-      end.style.display = "none";
-      document.querySelector(".card").style.display = "block";
+
+      endCard.style.display = "none";
+      quizCard.style.display = "flex"; // ←ここ重要（blockじゃない）
+
       render();
     };
 
