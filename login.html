@@ -28,7 +28,7 @@
 
   <div class="link">
     登録がまだの方は  
-    <a href="register.html">こちら</a>
+    <a id="registerLink">こちら</a>
   </div>
 
 </form>
@@ -45,6 +45,8 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const auth=firebase.auth();
+const params = new URLSearchParams(location.search);
+const redirect = params.get("redirect");
 
 function login(){
   const input=document.getElementById("emailHead").value.trim();
@@ -75,11 +77,23 @@ function login(){
 
   auth.signInWithEmailAndPassword(email,pass)
     .then(()=>{
-      location.href="index.html";
+      if (redirect) {
+        location.href = redirect;
+      } else {
+        location.href = "index.html";
+      }
     })
     .catch(e=>{
       msg.textContent="ログイン失敗："+e.message;
     });
+}
+
+const registerLink = document.getElementById("registerLink");
+
+if (redirect) {
+  registerLink.href = `register.html?redirect=${encodeURIComponent(redirect)}`;
+} else {
+  registerLink.href = "register.html";
 }
 </script>
 

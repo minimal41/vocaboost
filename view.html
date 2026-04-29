@@ -72,6 +72,7 @@
       margin-left: 5px;
       margin-right: 5px;
       margin-bottom: 10px;
+      cursor: pointer;
     }
 
     .word {
@@ -103,8 +104,8 @@
       <div id="description" style="display:none"></div>
       <div id="btn3">
         <a class="btn" id="editBtn" style="display:none">編集</a>
-        <a class="btn" id="flashBtn">暗記</a>
-        <a class="btn" id="testBtn">テスト</a>
+        <a class="btn" id="flashBtn" onclick="goStudy('flash.html')">暗記</a>
+        <a class="btn" id="testBtn" onclick="goStudy('test.html')">テスト</a>
       </div>
       <div id="words"></div>
     </div>
@@ -204,8 +205,14 @@
       wordsDiv.innerHTML += `<div class="word">${d.data().front} - ${d.data().back}</div>`;
     });
 
-    document.getElementById("flashBtn").href = `flash.html?id=${id}`;
-    document.getElementById("testBtn").href = `test.html?id=${id}`;
+    window.goStudy = (page) => {
+      if (currentUser) {
+        location.href = `${page}?id=${id}`;
+      } else {
+        const redirect = `${page}?id=${id}`;
+        location.href = `login.html?redirect=${encodeURIComponent(redirect)}`;
+      }
+    };
 
     onAuthStateChanged(auth, user => {
       currentUser = user;

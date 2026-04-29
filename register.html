@@ -31,7 +31,7 @@
 
 <div class="link">
   すでに登録済みの方は  
-  <a href="login.html">ログイン</a>
+  <a id="loginLink">ログイン</a>
 </div>
 
 </form>
@@ -53,6 +53,8 @@ firebase.initializeApp(firebaseConfig);
 
 const auth = firebase.auth();
 const db = firebase.firestore();
+const params = new URLSearchParams(location.search);
+const redirect = params.get("redirect");
 
 async function register(){
 
@@ -87,7 +89,12 @@ async function register(){
     });
 
     alert("登録完了しました！");
-    location.href="login.html";
+
+    if (redirect) {
+      location.href = redirect;
+    } else {
+      location.href = "index.html";
+    }
 
   }catch(e){
     msg.textContent = "登録失敗：" + e.message;
@@ -95,6 +102,14 @@ async function register(){
 
 }
 
+const loginLink = document.getElementById("loginLink");
+
+if (redirect) {
+  loginLink.href = `login.html?redirect=${encodeURIComponent(redirect)}`;
+} else {
+  loginLink.href = "login.html";
+}
+await auth.signInWithEmailAndPassword(email, pass);
 </script>
 
 </body>

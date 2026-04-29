@@ -125,7 +125,7 @@
       <p id="resultfont">結果</p>
       <p id="score"></p>
       <button onclick="restart()">もう一回</button>
-      <button onclick="history.back(); return false;">戻る</button>
+      <button onclick="goBack()">戻る</button>
     </div>
   </div>
 
@@ -277,6 +277,10 @@
     document.addEventListener("keydown", e => {
       if (e.key === "Enter" && quiz.style.display === "block") check();
     });
+    
+    window.goBack = () => {
+      location.href = `view.html?id=${id}`;
+    };
   </script>
 </body>
 

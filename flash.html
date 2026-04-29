@@ -47,7 +47,7 @@
     <div class="card" id="end" style="display:none">
       <h2>終了！</h2>
       <button onclick="restart()">もう一回</button>
-      <button onclick="history.back(); return false;">戻る</button>
+      <button onclick="goBack()">戻る</button>
     </div>
   </main>
   <footer>
@@ -157,6 +157,10 @@
     });
 
     render();
+
+    window.goBack = () => {
+      location.href = `view.html?id=${id}`;
+    };
   </script>
 </body>
 
