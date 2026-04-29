@@ -75,6 +75,7 @@
 
     #result {
       font-size: 20px;
+      min-height: 30px;
     }
 
     #start {
@@ -104,6 +105,12 @@
       font-size: 14px;
       margin-top: 5px;
     }
+
+    #quizContent {
+      flex-grow: 1;
+      min-height: 200px;
+    }
+
 
     @media (max-width: 768px) {
       .card {
@@ -153,16 +160,23 @@
   <!-- クイズ -->
   <div class="main">
     <div class="card" id="quiz" style="display:none">
-      <h2 id="q"></h2>
-      <input id="ans" placeholder="答えを入力" autocomplete="off"><br>
-      <p id="result"></p>
-      <button onclick="check()">回答 (Enter)</button>
+
+      <!-- 上のコンテンツ -->
+      <div id="quizContent">
+        <h2 id="q"></h2>
+        <input id="ans" placeholder="答えを入力" autocomplete="off"><br>
+        <p id="result"></p>
+        <button onclick="check()">回答 (Enter)</button>
+      </div>
+
+      <!-- 下固定 -->
       <div id="progress">
-      <div id="progressWrap">
-        <div id="progressBar"></div>
+        <div id="progressWrap">
+          <div id="progressBar"></div>
+        </div>
+        <p id="progressText"></p>
       </div>
-      <p id="progressText"></p>
-      </div>
+
     </div>
   </div>
 
