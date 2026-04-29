@@ -375,7 +375,7 @@
       showLoading();
       db.collection("wordbooks")
         .where("owner", "==", uid)
-        .orderBy("createdAt", "asc")
+        .orderBy("createdAt", "desc")
         .get()
         .then(snapshot => {
           bookListDiv.innerHTML = "";
