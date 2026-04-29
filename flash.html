@@ -84,7 +84,18 @@
     </div>
   </header>
   <main>
-    <div class="card" id="quizCard">
+    <div class="card" id="start">
+      <h2>フラッシュカード設定</h2>
+
+      <label>
+        <input type="checkbox" id="randomCheck">ランダム出題
+      </label><br><br>
+
+      <button onclick="startFlash()">▶ スタート</button>
+      <br><br>
+      <button onclick="goBack()">戻る</button>
+    </div>
+    <div class="card" id="quizCard" style="display:none">
 
       <div id="quizContent">
         <h2 id="front"></h2>
@@ -179,7 +190,6 @@
     const qWords = query(collection(db, "wordbooks", id, "words"), orderBy("createdAt"));
     const snap = await getDocs(qWords);
     snap.forEach(d => words.push(d.data()));
-    words.sort(() => Math.random() - 0.5);
 
     function render() {
       if (i >= words.length) {
@@ -209,10 +219,11 @@
 
     window.restart = () => {
       i = 0;
-      words.sort(() => Math.random() - 0.5);
+
+      applyOrder();
 
       endCard.style.display = "none";
-      quizCard.style.display = "flex"; // ←ここ重要（blockじゃない）
+      quizCard.style.display = "flex";
 
       render();
     };
@@ -221,10 +232,26 @@
       if (e.key === "Enter") showBack();
     });
 
-    render();
 
     window.goBack = () => {
       location.href = `view.html?id=${id}`;
+    };
+
+    function applyOrder() {
+      const random = document.getElementById("randomCheck").checked;
+
+      if (random) {
+        words.sort(() => Math.random() - 0.5);
+      }
+    }
+
+    window.startFlash = () => {
+      applyOrder();
+
+      document.getElementById("start").style.display = "none";
+      quizCard.style.display = "flex";
+
+      render();
     };
   </script>
 </body>

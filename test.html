@@ -80,7 +80,7 @@
     }
 
     #start {
-      height: 280px;
+      height: 400px;
     }
     #progress {
       margin-top: auto;
@@ -155,10 +155,14 @@
       <label>
         <input type="checkbox" id="skipCheck" checked>正解済みをスキップ
       </label><br><br>
+      <label>
+        <input type="checkbox" id="randomCheck">ランダム出題する
+      </label><br><br>
 
       <button onclick="resetLearned()">🔄 学習データをリセット</button><br><br>
 
-      <button onclick="startTest()">▶ スタート</button>
+      <button onclick="startTest()">▶ スタート</button><br><br>
+      <button onclick="goBack()">戻る</button>
       <p id="startMsg" style="color:red"></p>
     </div>
   </div>
@@ -285,12 +289,18 @@
 
     function makeList() {
       const skip = document.getElementById("skipCheck").checked;
+      const random = document.getElementById("randomCheck").checked;
+
       if (skip) {
         filteredWords = words.filter(w => !learned[id].includes(w.front));
       } else {
         filteredWords = [...words];
       }
-      filteredWords.sort(() => Math.random() - 0.5);
+
+      // ★ ランダムONのときだけシャッフル
+      if (random) {
+        filteredWords.sort(() => Math.random() - 0.5);
+      }
     }
 
     function render() {
