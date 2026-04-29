@@ -18,7 +18,7 @@
 
     .card {
       background: white;
-      max-width: 600px;
+      max-width: 50%;
       margin: 30px auto;
       padding: 30px;
       border-radius: 12px;
@@ -50,7 +50,10 @@
     }
 
     #quiz {
-      min-height: 280px;
+      min-height: 340px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
     }
 
     #end {
@@ -77,6 +80,46 @@
     #start {
       width: 50%;
       height: 280px;
+    }
+    #progress {
+      margin-top: auto;
+    }
+
+    #progressWrap {
+      width: 100%;
+      height: 12px;
+      background: #eee;
+      border-radius: 10px;
+      margin-top: 15px;
+      overflow: hidden;
+    }
+
+    #progressBar {
+      height: 100%;
+      width: 0%;
+      background: #191970;
+      transition: 0.3s;
+    }
+
+    #progressText {
+      font-size: 14px;
+      margin-top: 5px;
+    }
+
+    @media (max-width: 768px) {
+      .card {
+        max-width:60%;
+        border-radius: 0;
+      }
+      #q{
+        font-size:16px;
+      }
+      #result{
+        font-size:16px;
+      }
+      #ans{
+        font-size:14px;
+      }
     }
   </style>
 </head>
@@ -116,6 +159,12 @@
       <input id="ans" placeholder="答えを入力" autocomplete="off"><br>
       <p id="result"></p>
       <button onclick="check()">回答 (Enter)</button>
+      <div id="progress">
+      <div id="progressWrap">
+        <div id="progressBar"></div>
+      </div>
+      <p id="progressText"></p>
+      </div>
     </div>
   </div>
 
@@ -238,6 +287,14 @@
       ans.value = "";
       result.textContent = "";
       phase = 0;
+      if (filteredWords.length > 0) {
+        const progress = Math.round(i / filteredWords.length * 100);
+        document.getElementById("progressBar").style.width = progress + "%";
+      }
+      const progress = Math.round(i / filteredWords.length * 100);
+      document.getElementById("progressBar").style.width = progress + "%";
+      document.getElementById("progressText").textContent =
+        `${i}/${filteredWords.length} 問`;
     }
 
     window.check = () => {
@@ -277,7 +334,7 @@
     document.addEventListener("keydown", e => {
       if (e.key === "Enter" && quiz.style.display === "block") check();
     });
-    
+
     window.goBack = () => {
       location.href = `view.html?id=${id}`;
     };
