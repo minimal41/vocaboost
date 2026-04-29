@@ -194,7 +194,7 @@
       const progress = Math.round(i / words.length * 100);
       document.getElementById("progressBar").style.width = progress + "%";
       document.getElementById("progressText").textContent =
-        `${i}/${words.length} 問`;
+        `${i+1}/${words.length} 問`;
     }
 
     window.showBack = () => {

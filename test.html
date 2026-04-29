@@ -311,7 +311,7 @@
       const progress = Math.round(i / filteredWords.length * 100);
       document.getElementById("progressBar").style.width = progress + "%";
       document.getElementById("progressText").textContent =
-        `${i}/${filteredWords.length} 問`;
+        `${i+1}/${filteredWords.length} 問`;
     }
 
     window.check = () => {
