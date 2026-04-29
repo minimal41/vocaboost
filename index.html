@@ -401,6 +401,26 @@
           alert("読み込みエラー: " + err.message);
         });
     }
+    async function addCreatedAtToOldData() {
+      const snapshot = await db.collection("wordbooks").get();
+
+      let count = 0;
+
+      for (const doc of snapshot.docs) {
+        const data = doc.data();
+
+        // createdAt が無いものだけ追加
+        if (!data.createdAt) {
+          await db.collection("wordbooks").doc(doc.id).update({
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          count++;
+          console.log("追加:", doc.id);
+        }
+      }
+
+      alert(count + " 件に createdAt を追加しました");
+    }
   </script>
 </body>
 
