@@ -124,6 +124,7 @@
       <input id="search" placeholder="検索" oninput="render()">
       <select id="sort" onchange="render()"
         style="padding:10px; border-radius:10px; border:1px solid #ccc; font-size:14px; margin-left:5px; cursor:pointer;">
+        <option value="created">作成順（新しい）</option>
         <option value="name">名称順</option>
         <option value="count">公開単語帳作成数順</option>
       </select>
@@ -241,7 +242,8 @@
           title: data.title,
           ownerName: data.ownerName || "不明",
           ownerId: data.owner,
-          count: count
+          count: count,
+          createdAt: data.createdAt || null
         };
       });
 
@@ -311,7 +313,13 @@
         let filtered = books.filter(b => b.title.toLowerCase().includes(q));
 
         // ソート
-        if (sort === "name") {
+        if (sort === "created") {
+          filtered.sort((a, b) => {
+            if (!a.createdAt) return 1;
+            if (!b.createdAt) return -1;
+            return b.createdAt.seconds - a.createdAt.seconds;
+          });
+        } else if (sort === "name") {
           filtered.sort((a, b) => a.title.localeCompare(b.title, 'ja'));
         } else if (sort === "count") {
           filtered.sort((a, b) => b.count - a.count);
