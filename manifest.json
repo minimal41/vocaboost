@@ -1,6 +1,6 @@
 {
-  "name": "単語帳",
-  "short_name": "単語帳",
+  "name": "Vocaboost",
+  "short_name": "Vocaboost",
   "theme_color": "#FFFFFF",
   "background_color": "#FFFFFF",
   "display": "standalone",
