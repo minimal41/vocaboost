@@ -76,13 +76,39 @@
       box-sizing: border-box;
       resize: vertical;
     }
+    .titleInput {
+      width: 100%;
+      font-size: 28px;
+      font-weight: bold;
+      border: none;
+      border-bottom: 2px solid #ddd;
+      padding: 10px 0;
+      outline: none;
+      box-sizing: border-box;
+    }
+
+    .editInput {
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    .frontInput,
+    .backInput {
+      width: 35%;
+    }
+
+    .deleteCheck {
+      transform: scale(1.2);
+    }
   </style>
 </head>
 
 <body>
 
   <header>
-    <p class="headertitle"><img src="./images/rogo.png" height="70vh"></p>
+    <p class="headertitle"><a href="index.html"><img src="./images/rogo.png" height="70vh"></a></p>
     <div id="status" style="display:none">ログイン確認中...</div>
     <div>
       <button id="mypageBtn" class="header-btn" style="display:none" onclick="goPage('mypage.html')">マイページ</button>
@@ -93,7 +119,7 @@
 
   <main>
     <div class="card">
-      <h2 id="title">読み込み中...</h2>
+      <input id="title" class="titleInput" placeholder="タイトル">
       <textarea id="description" placeholder="説明文を入力してください"></textarea>
       <div id="owner" style="margin-top:10px; color:#666; font-size:13px;"></div>
       <button class="danger" onclick="deleteBook()" style="margin-top:15px;">この単語帳を削除</button>
@@ -112,7 +138,12 @@
     </div>
 
     <div class="card">
-      <h3>単語一覧</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3>単語一覧</h3>
+        <button class="danger" onclick="deleteSelectedWords()">
+          選択削除
+        </button>
+      </div>
       <div id="wordList"></div>
     </div>
 
@@ -125,7 +156,7 @@
 
     <!-- 追加：保存ボタン -->
     <div class="card" style="text-align:center;">
-      <button onclick="saveBook();history.back(); return false;">保存</button>
+      <button onclick="saveAndBack()">保存</button>
     </div>
 
   </main>
@@ -228,14 +259,19 @@
         return;
       }
 
-      document.getElementById("title").textContent = data.title;
+      document.getElementById("title").value = data.title;
       document.getElementById("description").value = data.description || "";
       document.getElementById("owner").textContent = "作成者: " + data.ownerName;
       loadWords();
     }
 
     async function loadWords() {
-      const snap = await db.collection("wordbooks").doc(bookId).collection("words").orderBy("createdAt").get();
+      const snap = await db.collection("wordbooks")
+        .doc(bookId)
+        .collection("words")
+        .orderBy("createdAt")
+        .get();
+
       const area = document.getElementById("wordList");
       area.innerHTML = "";
 
@@ -246,16 +282,25 @@
         div.className = "wordItem";
         div.id = "word_" + doc.id;
 
-        const span = document.createElement("span");
-        span.textContent = w.front + " → " + w.back;
+        div.innerHTML = `
+          <input type="checkbox" class="deleteCheck" value="${doc.id}">
 
-        const btn = document.createElement("button");
-        btn.textContent = "削除";
-        btn.className = "danger";
-        btn.onclick = () => deleteWord(doc.id);
+          <input class="editInput frontInput"
+            value="${escapeHtml(w.front)}"
+            onchange="updateWord('${doc.id}')"
+            data-type="front">
 
-        div.appendChild(span);
-        div.appendChild(btn);
+          →
+
+          <input class="editInput backInput"
+            value="${escapeHtml(w.back)}"
+            onchange="updateWord('${doc.id}')"
+            data-type="back">
+
+          <button class="danger" onclick="deleteWord('${doc.id}')">
+            削除
+          </button>
+        `;
 
         area.appendChild(div);
       });
@@ -313,8 +358,11 @@
     }
 
     async function saveBook() {
+      const title = document.getElementById("title").value.trim();
       const desc = document.getElementById("description").value.trim();
+
       await db.collection("wordbooks").doc(bookId).update({
+        title: title,
         description: desc,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
@@ -393,6 +441,80 @@
         front.focus();
       }
     });
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    async function updateWord(id) {
+      const row = document.getElementById("word_" + id);
+
+      const inputs = row.querySelectorAll(".editInput");
+
+      let front = "";
+      let back = "";
+
+      inputs.forEach(input => {
+        if (input.dataset.type === "front") {
+          front = input.value.trim();
+        } else {
+          back = input.value.trim();
+        }
+      });
+
+      await db.collection("wordbooks")
+        .doc(bookId)
+        .collection("words")
+        .doc(id)
+        .update({
+          front,
+          back
+        });
+    }
+
+    async function deleteSelectedWords() {
+      const checks = document.querySelectorAll(".deleteCheck:checked");
+
+      if (checks.length === 0) {
+        alert("選択してください");
+        return;
+      }
+
+      if (!confirm(`${checks.length}個の単語を削除しますか？`)) {
+        return;
+      }
+
+      const batch = db.batch();
+
+      checks.forEach(check => {
+        const ref = db.collection("wordbooks")
+          .doc(bookId)
+          .collection("words")
+          .doc(check.value);
+
+        batch.delete(ref);
+      });
+
+      batch.update(
+        db.collection("wordbooks").doc(bookId),
+        {
+          wordCount: firebase.firestore.FieldValue.increment(-checks.length)
+        }
+      );
+
+      await batch.commit();
+
+      loadWords();
+    }
+
+    async function saveAndBack() {
+      await saveBook();
+      history.back();
+    }
   </script>
 
 </body>
