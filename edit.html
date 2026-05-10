@@ -76,6 +76,7 @@
       box-sizing: border-box;
       resize: vertical;
     }
+
     .titleInput {
       width: 100%;
       font-size: 28px;
@@ -85,6 +86,11 @@
       padding: 10px 0;
       outline: none;
       box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+
+    .titleInput:focus {
+      border-bottom: 2px solid #191970;
     }
 
     .editInput {
