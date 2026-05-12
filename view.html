@@ -97,6 +97,11 @@
         font-size: 14px;
       }
     }
+    #description a {
+      color: #191970;
+      text-decoration: underline;
+      word-break: break-all;
+    }
   </style>
 </head>
 
@@ -207,11 +212,18 @@
     document.getElementById("detailInfo").innerHTML = details.join(" | ");
 
     // 説明文の表示
-    if (book.description) {
-      const descDiv = document.getElementById("description");
-      descDiv.textContent = book.description;
-      descDiv.style.display = "block";
-    }
+if (book.description) {
+  const descDiv = document.getElementById("description");
+
+  // URLをリンク化
+  const linkedText = book.description.replace(
+    /(https?:\/\/[^\s]+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+  );
+
+  descDiv.innerHTML = linkedText;
+  descDiv.style.display = "block";
+}
 
     const wordsDiv = document.getElementById("words");
     const qWords = query(collection(db, "wordbooks", id, "words"), orderBy("createdAt"));
