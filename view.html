@@ -216,10 +216,20 @@ if (book.description) {
   const descDiv = document.getElementById("description");
 
   // URLをリンク化
-  const linkedText = book.description.replace(
-    /(https?:\/\/[^\s]+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
-  );
+const linkedText = book.description.replace(
+  /(https?:\/\/[^\s]+)/g,
+  (url) => {
+    const internalPrefix = "https://minimal41.github.io/vocaboost/view.html";
+
+    // 同サイトのview.htmlなら同タブ
+    if (url.startsWith(internalPrefix)) {
+      return `<a href="${url}">${url}</a>`;
+    }
+
+    // それ以外は別タブ
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+  }
+);
 
   descDiv.innerHTML = linkedText;
   descDiv.style.display = "block";
