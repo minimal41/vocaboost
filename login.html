@@ -3,111 +3,99 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
-<title>ログイン</title>
+<title>パスワード再設定</title>
+
 <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
 <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
+
 <link rel="stylesheet" type="text/css" href="style.css">
 <link rel="stylesheet" type="text/css" href="login.css">
 </head>
+
 <body>
 
 <div class="card">
-  <h2>ログイン</h2>
 
-<form onsubmit="login(); return false;">
+  <h2>パスワード再設定</h2>
 
-  <div class="mailaddress">
-    <input id="emailHead" placeholder="メール">
-    <div class="domain">@edu.nishiyamato.ed.jp</div>
-  </div>
-  <input id="password" type="password" placeholder="パスワード">
+  <form onsubmit="resetPassword(); return false;">
 
-  <button type="submit">ログイン</button>
-  <div class="link">
-    <a href="#" onclick="resetPassword(); return false;">
-      パスワードを忘れた場合
-    </a>
-  </div>
+    <div class="mailaddress">
+      <input id="emailHead" placeholder="メール">
+      <div class="domain">@edu.nishiyamato.ed.jp</div>
+    </div>
 
-  <div class="notice" id="msg"></div>
+    <input
+      id="password"
+      type="password"
+      placeholder="新しいパスワード"
+    >
 
-  <div class="link">
-    登録がまだの方は  
-    <a id="registerLink">こちら</a>
-  </div>
+    <input
+      id="password2"
+      type="password"
+      placeholder="新しいパスワード（確認）"
+    >
 
-</form>
+    <button type="submit">
+      パスワードを変更
+    </button>
+
+    <div class="notice" id="msg"></div>
+
+    <div class="link">
+      <a href="login.html">
+        ログインに戻る
+      </a>
+    </div>
+
+  </form>
+
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
 <script>
+
 const firebaseConfig = {
   apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E",
   authDomain: "quiz1-4ffdc.firebaseapp.com",
   projectId: "quiz1-4ffdc"
 };
+
 firebase.initializeApp(firebaseConfig);
-const auth=firebase.auth();
+
+const auth = firebase.auth();
+
 const params = new URLSearchParams(location.search);
-const redirect = params.get("redirect");
 
-function login(){
-  const input=document.getElementById("emailHead").value.trim();
-  const pass=document.getElementById("password").value;
-  const msg=document.getElementById("msg");
+const oobCode = params.get("oobCode");
 
-  if(!input || !pass){
-    msg.textContent="すべて入力してください";
+window.resetPassword = async function(){
+
+  const input =
+    document.getElementById("emailHead").value.trim();
+
+  const pass =
+    document.getElementById("password").value;
+
+  const pass2 =
+    document.getElementById("password2").value;
+
+  const msg =
+    document.getElementById("msg");
+
+  msg.textContent = "";
+
+  if(!input || !pass || !pass2){
+    msg.textContent = "すべて入力してください";
     return;
   }
 
-  let email="";
-
-  if(input === "hachikou1616@gmail.com"){
-    email = input;
-  }
-  else if(input.includes("@")){
-    if(input.endsWith("@edu.nishiyamato.ed.jp")){
-      email = input;
-    }else{
-      msg.textContent="このメールアドレスは使用できません";
-      return;
-    }
-  }
-  else{
-    email = input + "@edu.nishiyamato.ed.jp";
-  }
-
-  auth.signInWithEmailAndPassword(email,pass)
-    .then(()=>{
-      if (redirect) {
-        location.href = redirect;
-      } else {
-        location.href = "index.html";
-      }
-    })
-    .catch(e=>{
-      msg.textContent="ログイン失敗："+e.message;
-    });
-}
-
-const registerLink = document.getElementById("registerLink");
-
-if (redirect) {
-  registerLink.href = `register.html?redirect=${encodeURIComponent(redirect)}`;
-} else {
-  registerLink.href = "register.html";
-}
-
-function resetPassword(){
-
-  const input = document.getElementById("emailHead").value.trim();
-  const msg = document.getElementById("msg");
-
-  if(!input){
-    msg.textContent = "メールアドレスを入力してください";
+  if(pass !== pass2){
+    msg.textContent =
+      "パスワードが一致しません";
     return;
   }
 
@@ -119,16 +107,31 @@ function resetPassword(){
     email = input + "@edu.nishiyamato.ed.jp";
   }
 
-  auth.sendPasswordResetEmail(email)
-    .then(()=>{
-      msg.textContent =
-        "パスワード再設定メールを送信しました";
-    })
-    .catch((error)=>{
-      msg.textContent =
-        "送信失敗：" + error.message;
-    });
-}
+  try{
+
+    await auth.confirmPasswordReset(
+      oobCode,
+      pass
+    );
+
+    msg.textContent =
+      "パスワードを変更しました";
+
+    setTimeout(()=>{
+      location.href = "login.html";
+    },1500);
+
+  }catch(e){
+
+    msg.textContent =
+      "エラー：" + e.message;
+
+    console.error(e);
+
+  }
+
+};
+
 </script>
 
 </body>
