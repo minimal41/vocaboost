@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>パスワード再設定</title>
+</head>
+<body>
+
+<h2>新しいパスワード</h2>
+
+<input type="password" id="newPassword" placeholder="新しいパスワード">
+<input type="password" id="confirmPassword" placeholder="確認用">
+<button onclick="resetPassword()">変更</button>
+
+<div id="msg"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+<script>
+
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_DOMAIN",
+  projectId: "YOUR_PROJECT_ID"
+};
+
+firebase.initializeApp(firebaseConfig);
+
+const auth = firebase.auth();
+
+const params = new URLSearchParams(location.search);
+
+const oobCode = params.get("oobCode");
+
+async function resetPassword(){
+
+  const password =
+    document.getElementById("newPassword").value;
+
+  const msg = document.getElementById("msg");
+
+  if(!password){
+    msg.textContent = "パスワードを入力してください";
+    return;
+  }
+
+  try{
+
+    await auth.confirmPasswordReset(
+      oobCode,
+      password
+    );
+
+    msg.textContent =
+      "パスワードを変更しました";
+
+  }catch(e){
+
+    msg.textContent =
+      "エラー：" + e.message;
+
+  }
+}
+
+if(password !== confirm){
+  msg.textContent = "パスワードが一致しません";
+  return;
+}
+</script>
+
+</body>
+</html>
