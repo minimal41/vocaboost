@@ -2,22 +2,56 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>パスワード再設定</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
+<title>パスワード再設定</title>
+
 <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
 <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
+
 <link rel="stylesheet" type="text/css" href="style.css">
 <link rel="stylesheet" type="text/css" href="login.css">
 </head>
+
 <body>
 
-<h2>新しいパスワード</h2>
+<div class="card">
 
-<input type="password" id="newPassword" placeholder="新しいパスワード">
-<input type="password" id="confirmPassword" placeholder="確認用">
-<button onclick="resetPassword()">変更</button>
+  <h2>パスワード再設定</h2>
 
-<div id="msg"></div>
+  <form onsubmit="resetPassword(); return false;">
+
+    <div class="mailaddress">
+      <input id="emailHead" placeholder="メール">
+      <div class="domain">@edu.nishiyamato.ed.jp</div>
+    </div>
+
+    <input
+      id="password"
+      type="password"
+      placeholder="新しいパスワード"
+    >
+
+    <input
+      id="password2"
+      type="password"
+      placeholder="新しいパスワード（確認）"
+    >
+
+    <button type="submit">
+      パスワードを変更
+    </button>
+
+    <div class="notice" id="msg"></div>
+
+    <div class="link">
+      <a href="login.html">
+        ログインに戻る
+      </a>
+    </div>
+
+  </form>
+
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -25,9 +59,9 @@
 <script>
 
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_DOMAIN",
-  projectId: "YOUR_PROJECT_ID"
+  apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E",
+  authDomain: "quiz1-4ffdc.firebaseapp.com",
+  projectId: "quiz1-4ffdc"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -40,25 +74,52 @@ const oobCode = params.get("oobCode");
 
 window.resetPassword = async function(){
 
-  const password =
-    document.getElementById("newPassword").value;
+  const input =
+    document.getElementById("emailHead").value.trim();
 
-  const msg = document.getElementById("msg");
+  const pass =
+    document.getElementById("password").value;
 
-  if(!password){
-    msg.textContent = "パスワードを入力してください";
+  const pass2 =
+    document.getElementById("password2").value;
+
+  const msg =
+    document.getElementById("msg");
+
+  msg.textContent = "";
+
+  if(!input || !pass || !pass2){
+    msg.textContent = "すべて入力してください";
     return;
+  }
+
+  if(pass !== pass2){
+    msg.textContent =
+      "パスワードが一致しません";
+    return;
+  }
+
+  let email = "";
+
+  if(input.includes("@")){
+    email = input;
+  }else{
+    email = input + "@edu.nishiyamato.ed.jp";
   }
 
   try{
 
     await auth.confirmPasswordReset(
       oobCode,
-      password
+      pass
     );
 
     msg.textContent =
       "パスワードを変更しました";
+
+    setTimeout(()=>{
+      location.href = "login.html";
+    },1500);
 
   }catch(e){
 
@@ -68,12 +129,9 @@ window.resetPassword = async function(){
     console.error(e);
 
   }
-}
 
-if(password !== confirm){
-  msg.textContent = "パスワードが一致しません";
-  return;
-}
+};
+
 </script>
 
 </body>
