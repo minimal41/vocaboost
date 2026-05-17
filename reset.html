@@ -33,7 +33,7 @@ const params = new URLSearchParams(location.search);
 
 const oobCode = params.get("oobCode");
 
-async function resetPassword(){
+window.resetPassword = async function(){
 
   const password =
     document.getElementById("newPassword").value;
@@ -59,6 +59,8 @@ async function resetPassword(){
 
     msg.textContent =
       "エラー：" + e.message;
+
+    console.error(e);
 
   }
 }
