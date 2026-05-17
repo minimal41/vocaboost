@@ -24,7 +24,7 @@
 
   <button type="submit">ログイン</button>
   <div class="link">
-    <a href="#" onclick="resetPassword(); return false;">
+    <a href="forgot.html">
       パスワードを忘れた場合
     </a>
   </div>
@@ -99,35 +99,6 @@ if (redirect) {
   registerLink.href = `register.html?redirect=${encodeURIComponent(redirect)}`;
 } else {
   registerLink.href = "register.html";
-}
-
-function resetPassword(){
-
-  const input = document.getElementById("emailHead").value.trim();
-  const msg = document.getElementById("msg");
-
-  if(!input){
-    msg.textContent = "メールアドレスを入力してください";
-    return;
-  }
-
-  let email = "";
-
-  if(input.includes("@")){
-    email = input;
-  }else{
-    email = input + "@edu.nishiyamato.ed.jp";
-  }
-
-  auth.sendPasswordResetEmail(email)
-    .then(()=>{
-      msg.textContent =
-        "パスワード再設定メールを送信しました";
-    })
-    .catch((error)=>{
-      msg.textContent =
-        "送信失敗：" + error.message;
-    });
 }
 </script>
 
