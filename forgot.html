@@ -96,7 +96,8 @@ window.sendResetMail = async function(){
     await auth.sendPasswordResetEmail(email);
 
     msg.textContent =
-      "再設定メールを送信しました";
+      "再設定メールを送信しました\nメールが届かない場合は迷惑メールフォルダをご確認ください";
+    msg.style.whiteSpace = "pre-wrap";
 
   }catch(e){
 
