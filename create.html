@@ -88,6 +88,19 @@
       border: none;
       cursor: pointer;
     }
+
+    .editInput {
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    .frontInput,
+    .backInput {
+      width: 35%;
+      max-width: 250px;
+    }
   </style>
 </head>
 
@@ -272,10 +285,32 @@
 
     function addWordToList(id, f, b) {
       const div = document.createElement("div");
+
       div.className = "wordItem";
       div.id = "word_" + id;
-      div.innerHTML = `${f} → ${b}
-    <button class="smallBtn" onclick="deleteWord('${id}')">削除</button>`;
+
+      div.innerHTML = `
+        <input
+          class="editInput frontInput"
+          value="${escapeHtml(f)}"
+          data-type="front"
+          onchange="updateWord('${id}')"
+        >
+
+        <span>→</span>
+
+        <input
+          class="editInput backInput"
+          value="${escapeHtml(b)}"
+          data-type="back"
+          onchange="updateWord('${id}')"
+        >
+
+        <button class="smallBtn" onclick="deleteWord('${id}')">
+          削除
+        </button>
+      `;
+
       document.getElementById("wordList").appendChild(div);
     }
 
@@ -371,6 +406,40 @@
         front.focus();
       }
     });
+
+    async function updateWord(id) {
+      const row = document.getElementById("word_" + id);
+
+      const inputs = row.querySelectorAll(".editInput");
+
+      let front = "";
+      let back = "";
+
+      inputs.forEach(input => {
+        if (input.dataset.type === "front") {
+          front = input.value.trim();
+        } else {
+          back = input.value.trim();
+        }
+      });
+
+      await db.collection("wordbooks")
+        .doc(bookId)
+        .collection("words")
+        .doc(id)
+        .update({
+          front,
+          back
+        });
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
   </script>
 
 </body>
