@@ -284,6 +284,13 @@
         msg.className = "notice";
       }
     }
+
+    window.addEventListener("load", () => {
+      setTimeout(() => {
+        document.getElementById("usernameInput").value = "";
+      }, 100);
+    });
+
   </script>
 
 </body>
