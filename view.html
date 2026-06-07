@@ -102,30 +102,6 @@
       text-decoration: underline;
       word-break: break-all;
     }
-    .editBtn{
-        -webkit-user-select: none; /* Safari用 */
-        -moz-user-select: none;    /* Firefox用 */
-        -ms-user-select: none;     /* IE/Edge用 */
-        user-select: none;         /* 標準 */
-        -webkit-tap-highlight-color: transparent;
-        -webkit-touch-callout: none;
-    }
-    .flashBtn{
-        -webkit-user-select: none; /* Safari用 */
-        -moz-user-select: none;    /* Firefox用 */
-        -ms-user-select: none;     /* IE/Edge用 */
-        user-select: none;         /* 標準 */
-        -webkit-tap-highlight-color: transparent;
-        -webkit-touch-callout: none;
-    }
-    .testBtn{
-        -webkit-user-select: none; /* Safari用 */
-        -moz-user-select: none;    /* Firefox用 */
-        -ms-user-select: none;     /* IE/Edge用 */
-        user-select: none;         /* 標準 */
-        -webkit-tap-highlight-color: transparent;
-        -webkit-touch-callout: none;
-    }
   </style>
 </head>
 
@@ -147,9 +123,9 @@
       <div id="detailInfo" class="detail-info"></div>
       <div id="description" style="display:none"></div>
       <div id="btn3">
-        <a class="btn" id="editBtn" style="display:none" onselectstart="return false">編集</a>
-        <a class="btn" id="flashBtn" onclick="goStudy('flash.html')" onselectstart="return false">暗記</a>
-        <a class="btn" id="testBtn" onclick="goStudy('test.html')" onselectstart="return false">テスト</a>
+        <a class="btn" id="editBtn" style="display:none">編集</a>
+        <a class="btn" id="flashBtn" onclick="goStudy('flash.html')">暗記</a>
+        <a class="btn" id="testBtn" onclick="goStudy('test.html')">テスト</a>
       </div>
       <div id="words"></div>
     </div>
@@ -181,6 +157,7 @@
     const db = getFirestore(app);
 
     const id = new URLSearchParams(location.search).get("id");
+    const cacheKey = `book_${id}`;
     let owner;
     let currentUser = null;
 
@@ -188,6 +165,15 @@
     const loginBtn = document.getElementById("loginBtn");
     const logoutBtn = document.getElementById("logoutBtn");
     const mypageBtn = document.getElementById("mypageBtn");
+
+    const savedUser =
+      JSON.parse(localStorage.getItem("cachedUser"));
+
+    if (savedUser) {
+      mypageBtn.style.display = "inline-block";
+      logoutBtn.style.display = "inline-block";
+      loginBtn.style.display = "none";
+    }
 
     window.goPage = (page) => {
       if (page === "index.html") {
@@ -203,68 +189,147 @@
     };
 
     window.logout = () => {
+
+      localStorage.removeItem("cachedUser");
+
       auth.signOut();
     };
 
-    const bookSnap = await getDoc(doc(db, "wordbooks", id));
+    // キャッシュがあれば先に表示
+    const cachedBook = localStorage.getItem(cacheKey);
+
+    if (cachedBook) {
+      try {
+        const data = JSON.parse(cachedBook);
+
+        document.getElementById("title").textContent = data.title || "";
+        document.getElementById("detailInfo").innerHTML = data.detailHtml || "";
+        document.getElementById("words").innerHTML = data.wordsHtml || "";
+
+        if (data.descriptionHtml) {
+          const desc = document.getElementById("description");
+          desc.innerHTML = data.descriptionHtml;
+          desc.style.display = "block";
+        }
+
+        // 自分の単語帳なら編集ボタンを即表示
+        const savedUser =
+          JSON.parse(localStorage.getItem("cachedUser"));
+
+        if (
+          savedUser &&
+          data.owner &&
+          savedUser.uid === data.owner
+        ) {
+          const editBtn = document.getElementById("editBtn");
+
+          editBtn.style.display = "inline";
+          editBtn.href = `edit.html?id=${id}`;
+        }
+
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    const qWords = query(
+      collection(db, "wordbooks", id, "words"),
+      orderBy("createdAt")
+    );
+
+    // 単語帳情報と単語一覧を同時取得
+    const [bookSnap, wSnap] = await Promise.all([
+      getDoc(doc(db, "wordbooks", id)),
+      getDocs(qWords)
+    ]);
+
     if (!bookSnap.exists()) {
       alert("単語帳が見つかりません");
       location.href = "index.html";
     }
+
     const book = bookSnap.data();
     owner = book.owner;
+
     document.getElementById("title").textContent = book.title;
 
-    // 詳細情報の表示
+    // 詳細情報
     const details = [];
-    if (book.ownerName) details.push(`作成者: <a href="user.html?id=${owner}">${book.ownerName}</a>`);
 
-    // 日時のフォーマット (YYYY/MM/DD)
-    const updateDate = book.updatedAt ? book.updatedAt.toDate() : (book.createdAt ? book.createdAt.toDate() : null);
+    if (book.ownerName) {
+      details.push(`作成者: <a href="user.html?id=${owner}">${book.ownerName}</a>`);
+    }
+
+    const updateDate =
+      book.updatedAt
+        ? book.updatedAt.toDate()
+        : (book.createdAt ? book.createdAt.toDate() : null);
+
     if (updateDate) {
       const y = updateDate.getFullYear();
       const m = updateDate.getMonth() + 1;
       const d = updateDate.getDate();
+
       details.push(`最終更新: ${y}/${m}/${d}`);
     }
 
-    // 単語数
     if (book.wordCount !== undefined) {
       details.push(`計 ${book.wordCount} 単語`);
     }
 
-    document.getElementById("detailInfo").innerHTML = details.join(" | ");
+    document.getElementById("detailInfo").innerHTML =
+      details.join(" | ");
 
-    // 説明文の表示
-if (book.description) {
-  const descDiv = document.getElementById("description");
+    if (book.description) {
 
-  // URLをリンク化
-const linkedText = book.description.replace(
-  /(https?:\/\/[^\s]+)/g,
-  (url) => {
-    const internalPrefix = "https://minimal41.github.io/vocaboost/view.html";
+      const descDiv = document.getElementById("description");
 
-    // 同サイトのview.htmlなら同タブ
-    if (url.startsWith(internalPrefix)) {
-      return `<a href="${url}">${url}</a>`;
+      const linkedText = book.description.replace(
+        /(https?:\/\/[^\s]+)/g,
+        (url) => {
+
+          const internalPrefix =
+            "https://minimal41.github.io/vocaboost/view.html";
+
+          if (url.startsWith(internalPrefix)) {
+            return `<a href="${url}">${url}</a>`;
+          }
+
+          return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+        }
+      );
+
+      descDiv.innerHTML = linkedText;
+      descDiv.style.display = "block";
     }
 
-    // それ以外は別タブ
-    return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
-  }
-);
-
-  descDiv.innerHTML = linkedText;
-  descDiv.style.display = "block";
-}
-
     const wordsDiv = document.getElementById("words");
-    const qWords = query(collection(db, "wordbooks", id, "words"), orderBy("createdAt"));
-    const wSnap = await getDocs(qWords);
+
+    let wordsHtml = "";
+
     wSnap.forEach(d => {
-      wordsDiv.innerHTML += `<div class="word">${d.data().front} - ${d.data().back}</div>`;
+      const data = d.data();
+
+      wordsHtml += `
+        <div class="word">
+          ${data.front} - ${data.back}
+        </div>
+      `;
     });
+
+    wordsDiv.innerHTML = wordsHtml;
+
+    // 最新データをキャッシュ保存
+    localStorage.setItem(
+      cacheKey,
+      JSON.stringify({
+        owner: owner,
+        title: book.title,
+        detailHtml: document.getElementById("detailInfo").innerHTML,
+        descriptionHtml: document.getElementById("description").innerHTML,
+        wordsHtml
+      })
+    );
 
     window.goStudy = (page) => {
       if (currentUser) {
@@ -277,7 +342,15 @@ const linkedText = book.description.replace(
 
     onAuthStateChanged(auth, user => {
       currentUser = user;
+
       if (user) {
+
+        localStorage.setItem(
+          "cachedUser",
+          JSON.stringify({
+            uid: user.uid
+          })
+        );
         statusDiv.textContent = "ログイン中: " + user.uid;
         loginBtn.style.display = "none";
         logoutBtn.style.display = "inline-block";
