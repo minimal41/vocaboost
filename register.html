@@ -17,13 +17,13 @@
 
 <form onsubmit="register(); return false;">
 
-<input id="username" placeholder="ユーザー名">
+<input id="username" placeholder="ユーザー名" autocomplete="nickname">
 
 <div class="mailaddress">
-    <input id="emailHead" placeholder="メール" maxlength="9" inputmode="numeric">
+    <input id="emailHead" type="text" placeholder="メール" maxlength="9" inputmode="numeric" autocomplete="username">
     <div class="domain">@edu.nishiyamato.ed.jp</div>
 </div>
-<input id="password" type="password" placeholder="パスワード">
+<input id="password" type="password" placeholder="パスワード" autocomplete="new-password">
 
 <button type="submit">登録</button>
 
