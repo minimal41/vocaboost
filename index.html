@@ -230,13 +230,6 @@
     .modallink{
       text-decoration: underline;
     }
-    .bignews{
-      font-size: 22px;
-      font-weight: bold;
-    }
-    .bignews a{
-      text-decoration: underline;
-    }
   </style>
 </head>
 
@@ -273,7 +266,6 @@
       <div id="noticeBox" class="list">
         <h2>🔔 お知らせ</h2>
         <ul id="noticeList">
-          <li><span class="bignews">新たに席替えサイトを作成しました！<br>室長や席替え係の方向けですが、ぜひ使ってください！リンクは<a href="https://minimal41.github.io/change-seats/index.html" target="_blank">こちら</a></span></li>
           <li>サイトの名前はアンケートの結果、Vocaboostに決定しました！</li>
           <li>予告していた通り、リンクを変更しました！元のリンクでブックマークしていた方はこちらをブックマークし直しておいてください！</li>
           <li>お問い合わせ（パスワードを忘れたなども）、追加してほしい機能があれば<a href="./contact.html">こちら</a>からお願いします。</li>
@@ -319,6 +311,15 @@
     const auth = firebase.auth();
     const db = firebase.firestore();
 
+    // Firestoreオフラインキャッシュ
+    db.enablePersistence()
+      .then(() => {
+        console.log("Firestore persistence enabled");
+      })
+      .catch(err => {
+        console.log("Persistence Error:", err);
+      });
+
     const statusDiv = document.getElementById("status");
     const loginBtn = document.getElementById("loginBtn");
     const logoutBtn = document.getElementById("logoutBtn");
@@ -328,9 +329,42 @@
 
     let currentUser = null;
 
+    const savedUser =
+      JSON.parse(localStorage.getItem("cachedUser"));
+
+    if (savedUser) {
+
+      dashboardDiv.style.display = "flex";
+
+      loginBtn.style.display = "none";
+      logoutBtn.style.display = "inline-block";
+      mypageBtn.style.display = "inline-block";
+
+      // キャッシュされた単語帳を即表示
+      loadMyBooks(savedUser.uid);
+    }
+
+    const cachedUser = auth.currentUser;
+
+    if (cachedUser) {
+      dashboardDiv.style.display = "flex";
+      loginBtn.style.display = "none";
+      logoutBtn.style.display = "inline-block";
+      mypageBtn.style.display = "inline-block";
+
+      // 先に単語帳表示
+      loadMyBooks(cachedUser.uid);
+    }
+  
     auth.onAuthStateChanged(user => {
       currentUser = user;
       if (user) {
+        localStorage.setItem(
+          "cachedUser",
+          JSON.stringify({
+            uid: user.uid
+          })
+        );
         statusDiv.textContent = "ログイン中: " + user.uid;
         loginBtn.style.display = "none";
         logoutBtn.style.display = "inline-block";
@@ -375,40 +409,87 @@
     }
 
     function logout() {
+      localStorage.removeItem("cachedUser");
       auth.signOut();
     }
 
+    function displayBooks(books) {
+      bookListDiv.innerHTML = "";
+
+      if (!books || books.length === 0) {
+        bookListDiv.innerHTML = "<p>まだ単語帳がありません</p>";
+        return;
+      }
+
+      books.forEach(book => {
+        const div = document.createElement("div");
+        div.className = "wordbook";
+
+        div.innerHTML = `
+          <a href="view.html?id=${book.id}" class="openword">
+            <span>${book.title}</span>
+          </a>
+        `;
+
+        bookListDiv.appendChild(div);
+      });
+    }
+
     function loadMyBooks(uid) {
-      showLoading();
+
+      // まずキャッシュ表示
+      const cacheKey = `myBooks_${uid}`;
+      const cachedBooks = localStorage.getItem(cacheKey);
+
+      if (cachedBooks) {
+        try {
+          displayBooks(JSON.parse(cachedBooks));
+          hideLoading();
+        } catch (e) {
+          console.log(e);
+        }
+      }
+
+      // 最新データ取得
+      if (!cachedBooks) {
+        showLoading();
+      }
+
       db.collection("wordbooks")
         .where("owner", "==", uid)
         .orderBy("createdAt", "desc")
         .get()
         .then(snapshot => {
-          bookListDiv.innerHTML = "";
 
-          if (snapshot.empty) {
-            bookListDiv.innerHTML = "<p>まだ単語帳がありません</p>";
-            hideLoading();
-            return;
-          }
+          const books = [];
 
           snapshot.forEach(doc => {
-            const data = doc.data();
-            const div = document.createElement("div");
-            div.className = "wordbook";
-            div.innerHTML = `
-          <a href="view.html?id=${doc.id}" class="openword"><span>${data.title}</span></a>
-        `;
-            bookListDiv.appendChild(div);
+            books.push({
+              id: doc.id,
+              ...doc.data()
+            });
           });
+
+          // キャッシュ保存
+          localStorage.setItem(
+            cacheKey,
+            JSON.stringify(books)
+          );
+
+          displayBooks(books);
+
           hideLoading();
         })
         .catch(err => {
           hideLoading();
-          alert("読み込みエラー: " + err.message);
+          console.error(err);
+
+          if (!cachedBooks) {
+            alert("読み込みエラー: " + err.message);
+          }
         });
     }
+
     async function addCreatedAtToOldData() {
       const snapshot = await db.collection("wordbooks").get();
 
