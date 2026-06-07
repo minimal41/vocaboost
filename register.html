@@ -20,7 +20,7 @@
 <input id="username" placeholder="ユーザー名">
 
 <div class="mailaddress">
-    <input id="emailHead" placeholder="メール">
+    <input id="emailHead" placeholder="メール" maxlength="9" inputmode="numeric">
     <div class="domain">@edu.nishiyamato.ed.jp</div>
 </div>
 <input id="password" type="password" placeholder="パスワード">
@@ -62,6 +62,11 @@ async function register(){
   const head = document.getElementById("emailHead").value.trim();
   const pass = document.getElementById("password").value;
   const msg = document.getElementById("msg");
+
+  if (!/^\d{9}$/.test(head)) {
+  msg.textContent = "メールアドレスは9桁の数字で入力してください";
+  return;
+  }
 
   msg.textContent = "";
 
