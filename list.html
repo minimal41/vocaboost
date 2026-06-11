@@ -181,9 +181,26 @@
     const logoutBtn = document.getElementById("logoutBtn");
     const mypageBtn = document.getElementById("mypageBtn");
 
+    const savedUser =
+      JSON.parse(localStorage.getItem("cachedUser"));
+
+    if (savedUser) {
+      loginBtn.style.display = "none";
+      logoutBtn.style.display = "inline-block";
+      mypageBtn.style.display = "inline-block";
+    }
+
     firebase.auth().onAuthStateChanged(user => {
       currentUser = user;
+
       if (user) {
+
+        localStorage.setItem(
+          "cachedUser",
+          JSON.stringify({
+            uid: user.uid
+          })
+        );
         statusDiv.textContent = "ログイン中: " + user.uid;
         loginBtn.style.display = "none";
         logoutBtn.style.display = "inline-block";
@@ -210,47 +227,112 @@
     }
 
     function logout() {
+      localStorage.removeItem("cachedUser");
       firebase.auth().signOut();
     }
 
     async function load() {
-      showLoading();
-      // 公開単語帳を一度に全取得
-      const snap = await db.collection("wordbooks")
-        .where("isPublic", "==", true)
-        .get();
 
-      // ★ 通信の並列化 (Parallel Fetch)
-      const bookPromises = snap.docs.map(async (d) => {
-        const data = d.data();
-        let count = data.wordCount;
+      const cachedBooks = localStorage.getItem("publicBooks");
 
-        // wordCount がない古いデータのための補完ロジック (並列実行される)
-        if (count === undefined) {
-          try {
-            const wordSnap = await db.collection("wordbooks").doc(d.id).collection("words").get();
-            count = wordSnap.size;
-            // 非同期で更新（待機しない）
-            db.collection("wordbooks").doc(d.id).update({ wordCount: count });
-          } catch (e) {
-            count = 0;
+      // まずキャッシュ表示
+      if (cachedBooks) {
+        try {
+          books = JSON.parse(cachedBooks);
+          render();
+          hideLoading();
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        // キャッシュがない時だけローディング
+        showLoading();
+      }
+
+      try {
+
+        const snap = await db.collection("wordbooks")
+          .where("isPublic", "==", true)
+          .get();
+
+        const bookPromises = snap.docs.map(async (d) => {
+
+          const data = d.data();
+          let count = data.wordCount;
+
+          // 古いデータの補完
+          if (count === undefined) {
+            try {
+              const wordSnap = await db
+                .collection("wordbooks")
+                .doc(d.id)
+                .collection("words")
+                .get();
+
+              count = wordSnap.size;
+
+              db.collection("wordbooks")
+                .doc(d.id)
+                .update({
+                  wordCount: count
+                });
+
+            } catch (e) {
+              count = 0;
+            }
           }
+
+          // view.html用キャッシュ
+          localStorage.setItem(
+            `book_${d.id}`,
+            JSON.stringify({
+              owner: data.owner,
+              title: data.title,
+              detailHtml: `
+                作成者：
+                <a href="user.html?id=${data.owner}">
+                  ${data.ownerName || "不明"}
+                </a>
+                |
+                計 ${count} 単語
+              `,
+              wordsHtml: ""
+            })
+          );
+
+          return {
+            id: d.id,
+            title: data.title,
+            ownerName: data.ownerName || "不明",
+            ownerId: data.owner,
+            count: count,
+            createdAt: data.createdAt || null
+          };
+        });
+
+        books = await Promise.all(bookPromises);
+
+        // キャッシュ更新
+        localStorage.setItem(
+          "publicBooks",
+          JSON.stringify(books)
+        );
+
+        render();
+
+      } catch (e) {
+
+        console.error("Load failed:", e);
+
+        if (!cachedBooks) {
+          alert("読み込みに失敗しました");
         }
 
-        return {
-          id: d.id,
-          title: data.title,
-          ownerName: data.ownerName || "不明",
-          ownerId: data.owner,
-          count: count,
-          createdAt: data.createdAt || null
-        };
-      });
+      } finally {
 
-      books = await Promise.all(bookPromises);
+        hideLoading();
 
-      render();
-      hideLoading();
+      }
     }
 
     function showLoading() {
@@ -278,6 +360,20 @@
       document.getElementById("userTab").className = "tab active";
 
       if (!usersLoaded) {
+
+        const cachedUsers =
+          localStorage.getItem("usersCache");
+
+        if (cachedUsers) {
+          try {
+            users = JSON.parse(cachedUsers);
+            usersLoaded = true;
+            render();
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
         showLoading();
         try {
           // ユーザーごとの公開単語帳数を再計算
@@ -295,6 +391,10 @@
             bookCount: userBookCounts[d.id] || 0
           }));
           usersLoaded = true;
+          localStorage.setItem(
+            "usersCache",
+            JSON.stringify(users)
+          );
         } catch (e) {
           console.error("User load failed:", e);
         }
