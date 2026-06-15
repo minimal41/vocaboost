@@ -424,7 +424,8 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "words.csv";
+      const title = document.getElementById("title").value.trim() || "単語帳";
+      a.download = `${title}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     }
@@ -546,7 +547,8 @@ async function exportReverseCSV() {
 
   const a = document.createElement("a");
   a.href = url;
-  a.download = "words_reverse.csv";
+  const title = document.getElementById("title").value.trim() || "単語帳";
+  a.download = `${title}_reverse.csv`;
   a.click();
 
   URL.revokeObjectURL(url);
