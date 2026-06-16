@@ -108,6 +108,16 @@
     .deleteCheck {
       transform: scale(1.2);
     }
+
+    .swapBtn {
+      border: none;
+      background: #191970;
+      color: white;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+    }
   </style>
 </head>
 
@@ -300,7 +310,11 @@
             onchange="updateWord('${doc.id}')"
             data-type="front">
 
-          →
+          <button type="button"
+                  class="swapBtn"
+                  onclick="swapWord('${doc.id}')">
+            ⇄
+          </button>
 
           <input class="editInput backInput"
             value="${escapeHtml(w.back)}"
@@ -597,6 +611,30 @@ async function reverseSelectedWords() {
 
   alert("表裏を入れ替えました");
   loadWords();
+}
+
+async function swapWord(id) {
+  const row = document.getElementById("word_" + id);
+
+  const frontInput = row.querySelector('[data-type="front"]');
+  const backInput = row.querySelector('[data-type="back"]');
+
+  const front = frontInput.value;
+  const back = backInput.value;
+
+  // 画面上で入れ替え
+  frontInput.value = back;
+  backInput.value = front;
+
+  // Firestoreに保存
+  await db.collection("wordbooks")
+    .doc(bookId)
+    .collection("words")
+    .doc(id)
+    .update({
+      front: back,
+      back: front
+    });
 }
 
   </script>
