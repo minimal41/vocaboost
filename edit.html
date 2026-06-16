@@ -130,6 +130,46 @@
       padding: 0;
       line-height: 1;
     }
+
+    .checkWrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    .deleteCheck {
+      display: none;
+    }
+
+    .checkMark {
+      width: 26px;
+      height: 26px;
+      border: 2px solid #191970;
+      border-radius: 50%;
+      background: white;
+      transition: all 0.2s ease;
+      position: relative;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+
+    .deleteCheck:checked + .checkMark {
+      background: linear-gradient(135deg, #191970, #3a5fff);
+      transform: scale(1.1);
+      box-shadow: 0 4px 12px rgba(25,25,112,0.4);
+    }
+
+    .deleteCheck:checked + .checkMark::after {
+      content: "✓";
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+    }
   </style>
 </head>
 
@@ -315,7 +355,10 @@
         div.id = "word_" + doc.id;
 
         div.innerHTML = `
-          <input type="checkbox" class="deleteCheck" value="${doc.id}">
+          <label class="checkWrap">
+            <input type="checkbox" class="deleteCheck" value="${doc.id}">
+            <span class="checkMark"></span>
+          </label>
 
           <input class="editInput frontInput"
             value="${escapeHtml(w.front)}"
