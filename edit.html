@@ -149,6 +149,9 @@
         <button class="danger" onclick="deleteSelectedWords()">
           選択削除
         </button>
+        <button onclick="reverseSelectedWords()">
+          選択項目を表裏反転
+        </button>
       </div>
       <div id="wordList"></div>
     </div>
@@ -560,6 +563,42 @@ async function exportReverseCSV() {
 
   URL.revokeObjectURL(url);
 }
+
+async function reverseSelectedWords() {
+  const checks = document.querySelectorAll(".deleteCheck:checked");
+
+  if (checks.length === 0) {
+    alert("単語を選択してください");
+    return;
+  }
+
+  if (!confirm(`${checks.length}個の単語の表裏を入れ替えますか？`)) {
+    return;
+  }
+
+  const batch = db.batch();
+
+  for (const check of checks) {
+    const ref = db.collection("wordbooks")
+      .doc(bookId)
+      .collection("words")
+      .doc(check.value);
+
+    const doc = await ref.get();
+    const data = doc.data();
+
+    batch.update(ref, {
+      front: data.back,
+      back: data.front
+    });
+  }
+
+  await batch.commit();
+
+  alert("表裏を入れ替えました");
+  loadWords();
+}
+
   </script>
 
 </body>
