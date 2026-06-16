@@ -350,7 +350,10 @@
     async function deleteBook() {
       if (!confirm("単語帳を完全に削除しますか？")) return;
 
-      const snap = await db.collection("wordbooks").doc(bookId).collection("words").get();
+      const snap = await db.collection("wordbooks")
+        .doc(bookId)
+        .collection("words")
+        .get();
       const batch = db.batch();
 
       snap.forEach(doc => {
@@ -412,7 +415,11 @@
 
     /* CSV書き出し */
     async function exportCSV() {
-      const snap = await db.collection("wordbooks").doc(bookId).collection("words").get();
+      const snap = await db.collection("wordbooks")
+        .doc(bookId)
+        .collection("words")
+        .orderBy("createdAt")
+        .get();
       let csv = "";
 
       snap.forEach(doc => {
