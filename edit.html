@@ -353,6 +353,13 @@
 
 
     async function loadBook() {
+      if(bookListener){
+          bookListener();
+      }
+
+      if(wordsListener){
+          wordsListener();
+      }
 
       const cacheKey = `edit_${bookId}`;
 
@@ -403,16 +410,6 @@
           updateCache();
 
       });
-
-      if (!bookDoc.exists) {
-        alert("単語帳が見つかりません");
-        location.href = "index.html";
-        return;
-      }
-
-      const data = bookDoc.data();
-
-      bookOwner = data.owner;
 
       if (currentUser.uid !== bookOwner) {
         alert("他人の単語帳は編集できません");
@@ -549,7 +546,7 @@
         const line = lines[i];
         const [f, b] = line.split(",");
         if (f && b) {
-          const doc = await db.collection("wordbooks")
+          await db.collection("wordbooks")
             .doc(bookId)
             .collection("words")
             .add({
@@ -785,7 +782,6 @@ async function reverseSelectedWords() {
   }
 
   await batch.commit();
-  updateCache();
 
   alert("表裏を入れ替えました");
 }
@@ -796,10 +792,6 @@ async function swapWord(id) {
   const frontInput = row.querySelector('[data-type="front"]');
   const backInput = row.querySelector('[data-type="back"]');
 
-
-  // 画面上で入れ替え
-  frontInput.value = back;
-  backInput.value = front;
 
   // Firestoreに保存
   await db.collection("wordbooks")
