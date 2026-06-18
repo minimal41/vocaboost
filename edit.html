@@ -374,16 +374,16 @@
       const wordsSnap = await wordsPromise;
 
       const area = document.getElementById("wordList");
-      area.innerHTML = "";
+      const fragment = document.createDocumentFragment();
 
       wordsSnap.forEach(doc => {
-
-        area.insertAdjacentHTML(
-          "beforeend",
-          createWordHTML(doc.id, doc.data())
-        );
-
+          const div = document.createElement("div");
+          div.innerHTML = createWordHTML(doc.id, doc.data());
+          fragment.appendChild(div.firstElementChild);
       });
+
+      area.innerHTML = "";
+      area.appendChild(fragment);
       updateCache();
     }
 
@@ -411,10 +411,7 @@
       if (!f || !b) return;
 
 
-      // ★ 単語数を+1
-      await db.collection("wordbooks").doc(bookId).update({
-        wordCount: firebase.firestore.FieldValue.increment(1)
-      });
+
 
       const doc = await db.collection("wordbooks")
           .doc(bookId)
@@ -435,6 +432,10 @@
               back:b
           })
       );
+      // ★ 単語数を+1
+      await db.collection("wordbooks").doc(bookId).update({
+        wordCount: firebase.firestore.FieldValue.increment(1)
+      });
 
       updateCache();
     }
