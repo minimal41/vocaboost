@@ -270,26 +270,60 @@
     const auth = firebase.auth();
     const db = firebase.firestore();
 
+    // Firestoreオフラインキャッシュ
+    db.enablePersistence({
+      synchronizeTabs: true
+    }).catch(err => {
+      console.log("Persistence:", err.code);
+    });
+
     const params = new URLSearchParams(location.search);
     const bookId = params.get("id");
 
     let currentUser = null;
     let bookOwner = null;
+    let bookListener = null;
+    let wordsListener = null;
 
     const statusDiv = document.getElementById("status");
     const loginBtn = document.getElementById("loginBtn");
     const logoutBtn = document.getElementById("logoutBtn");
     const mypageBtn = document.getElementById("mypageBtn");
 
+    // ログイン情報のキャッシュを利用
+    const cachedUser = localStorage.getItem("userCache");
+
+    if (cachedUser) {
+      try {
+        const user = JSON.parse(cachedUser);
+
+        statusDiv.textContent = "ログイン中";
+        loginBtn.style.display = "none";
+        logoutBtn.style.display = "inline-block";
+        mypageBtn.style.display = "inline-block";
+
+      } catch (e) {
+        localStorage.removeItem("userCache");
+      }
+    }
+
     auth.onAuthStateChanged(user => {
       currentUser = user;
       if (user) {
+        localStorage.setItem(
+          "userCache",
+          JSON.stringify({
+            uid: user.uid,
+            email: user.email
+          })
+        );
         statusDiv.textContent = "ログイン中: " + user.uid;
         loginBtn.style.display = "none";
         logoutBtn.style.display = "inline-block";
         mypageBtn.style.display = "inline-block";
         loadBook();
       } else {
+        localStorage.removeItem("userCache");
         statusDiv.textContent = "ログアウト中";
         loginBtn.style.display = "inline-block";
         logoutBtn.style.display = "none";
@@ -337,18 +371,38 @@
         } catch(e){}
       }
 
-      // Firestore取得開始
-      const bookPromise = db.collection("wordbooks")
+      bookListener = db.collection("wordbooks")
         .doc(bookId)
-        .get();
+        .onSnapshot(doc => {
 
-      const wordsPromise = db.collection("wordbooks")
-        .doc(bookId)
-        .collection("words")
-        .orderBy("createdAt")
-        .get();
+          if (!doc.exists) {
+            alert("単語帳が見つかりません");
+            location.href = "index.html";
+            return;
+          }
 
-      const bookDoc = await bookPromise;
+          const data = doc.data();
+
+          bookOwner = data.owner;
+
+          if (currentUser.uid !== bookOwner) {
+            alert("他人の単語帳は編集できません");
+            location.href = "view.html?id=" + bookId;
+            return;
+          }
+
+          document.getElementById("title").value =
+            data.title || "";
+
+          document.getElementById("description").value =
+            data.description || "";
+
+          document.getElementById("owner").textContent =
+            "作成者: " + data.ownerName;
+
+          updateCache();
+
+      });
 
       if (!bookDoc.exists) {
         alert("単語帳が見つかりません");
@@ -371,19 +425,28 @@
       document.getElementById("owner").textContent =
         "作成者: " + data.ownerName;
 
-      const wordsSnap = await wordsPromise;
+      wordsListener = db.collection("wordbooks")
+        .doc(bookId)
+        .collection("words")
+        .orderBy("createdAt")
+        .onSnapshot(snapshot => {
 
-      const area = document.getElementById("wordList");
-      const fragment = document.createDocumentFragment();
+          const area = document.getElementById("wordList");
 
-      wordsSnap.forEach(doc => {
-          const div = document.createElement("div");
-          div.innerHTML = createWordHTML(doc.id, doc.data());
-          fragment.appendChild(div.firstElementChild);
+          area.innerHTML = "";
+
+          snapshot.forEach(doc => {
+
+            area.insertAdjacentHTML(
+              "beforeend",
+              createWordHTML(doc.id, doc.data())
+            );
+
+          });
+
+          updateCache();
+
       });
-
-      area.innerHTML = "";
-      area.appendChild(fragment);
       updateCache();
     }
 
@@ -408,36 +471,24 @@
     async function addWord() {
       const f = document.getElementById("front").value.trim();
       const b = document.getElementById("back").value.trim();
+
       if (!f || !b) return;
 
+      await db.collection("wordbooks")
+        .doc(bookId)
+        .collection("words")
+        .add({
+          front: f,
+          back: b,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
 
-
-
-      const doc = await db.collection("wordbooks")
-          .doc(bookId)
-          .collection("words")
-          .add({
-            front:f,
-            back:b,
-            createdAt:firebase.firestore.FieldValue.serverTimestamp()
-          });
       document.getElementById("front").value = "";
       document.getElementById("back").value = "";
-      const area=document.getElementById("wordList");
 
-      area.insertAdjacentHTML(
-          "beforeend",
-          createWordHTML(doc.id,{
-              front:f,
-              back:b
-          })
-      );
-      // ★ 単語数を+1
       await db.collection("wordbooks").doc(bookId).update({
         wordCount: firebase.firestore.FieldValue.increment(1)
       });
-
-      updateCache();
     }
 
     async function deleteWord(id) {
@@ -448,9 +499,6 @@
       await db.collection("wordbooks").doc(bookId).update({
         wordCount: firebase.firestore.FieldValue.increment(-1)
       });
-
-      document.getElementById("word_"+id)?.remove();
-      updateCache();
     }
 
     async function deleteBook() {
@@ -509,14 +557,6 @@
               back: b.trim(),
               createdAt: new Date(baseTime + i)
             });
-
-          area.insertAdjacentHTML(
-            "beforeend",
-            createWordHTML(doc.id, {
-              front: f.trim(),
-              back: b.trim()
-            })
-          );
 
           addedCount++;
         }
@@ -646,7 +686,6 @@
           back
         });
       
-      updateCache();
     }
 
     async function deleteSelectedWords() {
@@ -679,12 +718,6 @@
         }
       );
       await batch.commit();
-
-      checks.forEach(check=>{
-          document.getElementById("word_"+check.value)?.remove();
-      });
-
-      updateCache();
     }
 
     async function saveAndBack() {
@@ -752,21 +785,6 @@ async function reverseSelectedWords() {
   }
 
   await batch.commit();
-
-  document.querySelectorAll(".deleteCheck:checked").forEach(check=>{
-
-      const row=document.getElementById("word_"+check.value);
-
-      const front=row.querySelector('[data-type="front"]');
-      const back=row.querySelector('[data-type="back"]');
-
-      const temp=front.value;
-      front.value=back.value;
-      back.value=temp;
-
-      check.checked=false;
-  });
-
   updateCache();
 
   alert("表裏を入れ替えました");
@@ -778,8 +796,6 @@ async function swapWord(id) {
   const frontInput = row.querySelector('[data-type="front"]');
   const backInput = row.querySelector('[data-type="back"]');
 
-  const front = frontInput.value;
-  const back = backInput.value;
 
   // 画面上で入れ替え
   frontInput.value = back;
@@ -797,7 +813,17 @@ async function swapWord(id) {
 
   updateCache();
 }
+window.addEventListener("beforeunload", () => {
 
+  if (bookListener) {
+    bookListener();
+  }
+
+  if (wordsListener) {
+    wordsListener();
+  }
+
+});
   </script>
 
 </body>
