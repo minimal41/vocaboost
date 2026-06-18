@@ -337,16 +337,18 @@
         } catch(e){}
       }
 
-      // Firestoreを並列取得
-      const [bookDoc, wordsSnap] = await Promise.all([
-        db.collection("wordbooks").doc(bookId).get(),
+      // Firestore取得開始
+      const bookPromise = db.collection("wordbooks")
+        .doc(bookId)
+        .get();
 
-        db.collection("wordbooks")
-          .doc(bookId)
-          .collection("words")
-          .orderBy("createdAt")
-          .get()
-      ]);
+      const wordsPromise = db.collection("wordbooks")
+        .doc(bookId)
+        .collection("words")
+        .orderBy("createdAt")
+        .get();
+
+      const bookDoc = await bookPromise;
 
       if (!bookDoc.exists) {
         alert("単語帳が見つかりません");
@@ -369,25 +371,25 @@
       document.getElementById("owner").textContent =
         "作成者: " + data.ownerName;
 
-      let wordsHtml = "";
+      const wordsSnap = await wordsPromise;
+
+      const area = document.getElementById("wordList");
+      area.innerHTML = "";
 
       wordsSnap.forEach(doc => {
-        wordsHtml += createWordHTML(doc.id, doc.data());
+
+        area.insertAdjacentHTML(
+          "beforeend",
+          createWordHTML(doc.id, doc.data())
+        );
+
       });
-
-      document.getElementById("wordList").innerHTML = wordsHtml;
-
-      // キャッシュ保存
-      localStorage.setItem(
-        cacheKey,
-        JSON.stringify({
-          title: data.title,
-          description: data.description || "",
-          owner: "作成者: " + data.ownerName,
-          wordsHtml
-        })
-      );
+      updateCache();
     }
+
+    document.getElementById("title").addEventListener("input", updateCache);
+    document.getElementById("description").addEventListener("input", updateCache);
+
     function updateCache() {
 
       localStorage.setItem(
