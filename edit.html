@@ -160,15 +160,18 @@
     }
 
     .deleteCheck:checked + .checkMark::after {
-      content: "✓";
-      color: white;
-      font-size: 16px;
-      font-weight: bold;
-
+      content: "";
       position: absolute;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
+
+      left: 8px;
+      top: 4px;
+
+      width: 6px;
+      height: 12px;
+
+      border: solid white;
+      border-width: 0 3px 3px 0;
+      transform: rotate(45deg);
     }
   </style>
 </head>
