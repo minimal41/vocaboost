@@ -316,16 +316,46 @@
       auth.signOut();
     }
 
-    async function loadBook() {
-      const doc = await db.collection("wordbooks").doc(bookId).get();
 
-      if (!doc.exists) {
+
+    async function loadBook() {
+
+      const cacheKey = `edit_${bookId}`;
+
+      // キャッシュを先に表示
+      const cache = localStorage.getItem(cacheKey);
+
+      if (cache) {
+        try {
+          const data = JSON.parse(cache);
+
+          document.getElementById("title").value = data.title;
+          document.getElementById("description").value = data.description;
+          document.getElementById("owner").textContent = data.owner;
+          document.getElementById("wordList").innerHTML = data.wordsHtml;
+
+        } catch(e){}
+      }
+
+      // Firestoreを並列取得
+      const [bookDoc, wordsSnap] = await Promise.all([
+        db.collection("wordbooks").doc(bookId).get(),
+
+        db.collection("wordbooks")
+          .doc(bookId)
+          .collection("words")
+          .orderBy("createdAt")
+          .get()
+      ]);
+
+      if (!bookDoc.exists) {
         alert("単語帳が見つかりません");
         location.href = "index.html";
         return;
       }
 
-      const data = doc.data();
+      const data = bookDoc.data();
+
       bookOwner = data.owner;
 
       if (currentUser.uid !== bookOwner) {
@@ -336,78 +366,75 @@
 
       document.getElementById("title").value = data.title;
       document.getElementById("description").value = data.description || "";
-      document.getElementById("owner").textContent = "作成者: " + data.ownerName;
-      loadWords();
-    }
+      document.getElementById("owner").textContent =
+        "作成者: " + data.ownerName;
 
-    async function loadWords() {
-      const snap = await db.collection("wordbooks")
-        .doc(bookId)
-        .collection("words")
-        .orderBy("createdAt")
-        .get();
+      let wordsHtml = "";
 
-      const area = document.getElementById("wordList");
-      area.innerHTML = "";
-
-      snap.forEach(doc => {
-        const w = doc.data();
-
-        const div = document.createElement("div");
-        div.className = "wordItem";
-        div.id = "word_" + doc.id;
-
-        div.innerHTML = `
-          <label class="checkWrap">
-            <input type="checkbox" class="deleteCheck" value="${doc.id}">
-            <span class="checkMark"></span>
-          </label>
-
-          <input class="editInput frontInput"
-            value="${escapeHtml(w.front)}"
-            onchange="updateWord('${doc.id}')"
-            data-type="front">
-
-          <button type="button"
-                  class="swapBtn"
-                  onclick="swapWord('${doc.id}')">
-            ⇄
-          </button>
-
-          <input class="editInput backInput"
-            value="${escapeHtml(w.back)}"
-            onchange="updateWord('${doc.id}')"
-            data-type="back">
-
-          <button class="danger" onclick="deleteWord('${doc.id}')">
-            削除
-          </button>
-        `;
-
-        area.appendChild(div);
+      wordsSnap.forEach(doc => {
+        wordsHtml += createWordHTML(doc.id, doc.data());
       });
+
+      document.getElementById("wordList").innerHTML = wordsHtml;
+
+      // キャッシュ保存
+      localStorage.setItem(
+        cacheKey,
+        JSON.stringify({
+          title: data.title,
+          description: data.description || "",
+          owner: "作成者: " + data.ownerName,
+          wordsHtml
+        })
+      );
     }
+    function updateCache() {
+
+      localStorage.setItem(
+        `edit_${bookId}`,
+        JSON.stringify({
+          title: document.getElementById("title").value,
+          description: document.getElementById("description").value,
+          owner: document.getElementById("owner").textContent,
+          wordsHtml: document.getElementById("wordList").innerHTML
+        })
+      );
+
+    }
+
 
     async function addWord() {
       const f = document.getElementById("front").value.trim();
       const b = document.getElementById("back").value.trim();
       if (!f || !b) return;
 
-      await db.collection("wordbooks").doc(bookId).collection("words").add({
-        front: f,
-        back: b,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
 
       // ★ 単語数を+1
       await db.collection("wordbooks").doc(bookId).update({
         wordCount: firebase.firestore.FieldValue.increment(1)
       });
 
+      const doc = await db.collection("wordbooks")
+          .doc(bookId)
+          .collection("words")
+          .add({
+            front:f,
+            back:b,
+            createdAt:firebase.firestore.FieldValue.serverTimestamp()
+          });
       document.getElementById("front").value = "";
       document.getElementById("back").value = "";
+      const area=document.getElementById("wordList");
 
-      loadWords();
+      area.insertAdjacentHTML(
+          "beforeend",
+          createWordHTML(doc.id,{
+              front:f,
+              back:b
+          })
+      );
+
+      updateCache();
     }
 
     async function deleteWord(id) {
@@ -419,7 +446,8 @@
         wordCount: firebase.firestore.FieldValue.increment(-1)
       });
 
-      document.getElementById("word_" + id)?.remove();
+      document.getElementById("word_"+id)?.remove();
+      updateCache();
     }
 
     async function deleteBook() {
@@ -451,7 +479,7 @@
         description: desc,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
-
+      updateCache();
       alert("保存しました");
     }
 
@@ -465,15 +493,28 @@
 
       let addedCount = 0;
       const baseTime = Date.now();
+      const area = document.getElementById("wordList");
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const [f, b] = line.split(",");
         if (f && b) {
-          await db.collection("wordbooks").doc(bookId).collection("words").add({
-            front: f.trim(),
-            back: b.trim(),
-            createdAt: new Date(baseTime + i)
-          });
+          const doc = await db.collection("wordbooks")
+            .doc(bookId)
+            .collection("words")
+            .add({
+              front: f.trim(),
+              back: b.trim(),
+              createdAt: new Date(baseTime + i)
+            });
+
+          area.insertAdjacentHTML(
+            "beforeend",
+            createWordHTML(doc.id, {
+              front: f.trim(),
+              back: b.trim()
+            })
+          );
+
           addedCount++;
         }
       }
@@ -484,8 +525,9 @@
         });
       }
 
+      updateCache();
+
       alert("CSV読み込み完了");
-      loadWords();
     }
 
     /* CSV書き出し */
@@ -540,6 +582,42 @@
         .replace(/"/g, "&quot;");
     }
 
+    function createWordHTML(id, w) {
+      return `
+        <div class="wordItem" id="word_${id}">
+
+          <label class="checkWrap">
+            <input type="checkbox"
+                  class="deleteCheck"
+                  value="${id}">
+            <span class="checkMark"></span>
+          </label>
+
+          <input class="editInput frontInput"
+                value="${escapeHtml(w.front)}"
+                onchange="updateWord('${id}')"
+                data-type="front">
+
+          <button
+            class="swapBtn"
+            onclick="swapWord('${id}')">
+            ⇄
+          </button>
+
+          <input class="editInput backInput"
+                value="${escapeHtml(w.back)}"
+                onchange="updateWord('${id}')"
+                data-type="back">
+
+          <button class="danger"
+                  onclick="deleteWord('${id}')">
+            削除
+          </button>
+
+        </div>
+      `;
+    }
+
     async function updateWord(id) {
       const row = document.getElementById("word_" + id);
 
@@ -564,6 +642,8 @@
           front,
           back
         });
+      
+      updateCache();
     }
 
     async function deleteSelectedWords() {
@@ -595,10 +675,13 @@
           wordCount: firebase.firestore.FieldValue.increment(-checks.length)
         }
       );
-
       await batch.commit();
 
-      loadWords();
+      checks.forEach(check=>{
+          document.getElementById("word_"+check.value)?.remove();
+      });
+
+      updateCache();
     }
 
     async function saveAndBack() {
@@ -667,8 +750,23 @@ async function reverseSelectedWords() {
 
   await batch.commit();
 
+  document.querySelectorAll(".deleteCheck:checked").forEach(check=>{
+
+      const row=document.getElementById("word_"+check.value);
+
+      const front=row.querySelector('[data-type="front"]');
+      const back=row.querySelector('[data-type="back"]');
+
+      const temp=front.value;
+      front.value=back.value;
+      back.value=temp;
+
+      check.checked=false;
+  });
+
+  updateCache();
+
   alert("表裏を入れ替えました");
-  loadWords();
 }
 
 async function swapWord(id) {
@@ -693,6 +791,8 @@ async function swapWord(id) {
       front: back,
       back: front
     });
+
+  updateCache();
 }
 
   </script>
