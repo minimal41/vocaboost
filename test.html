@@ -158,6 +158,9 @@
       <label>
         <input type="checkbox" id="randomCheck">ランダム出題する
       </label><br><br>
+      <label>
+        <input type="checkbox" id="selfCheck">自分で採点する
+      </label><br><br>
 
       <button onclick="resetLearned()">🔄 学習データをリセット</button><br><br>
 
@@ -176,6 +179,10 @@
         <input id="ans" placeholder="答えを入力" autocomplete="off"><br>
         <p id="result"></p>
         <button onclick="check()">回答 (Enter)</button>
+        <div id="selfButtons" style="display:none;">
+          <button onclick="markCorrect()">⭕ 正解</button>
+          <button onclick="markWrong()">❌ 不正解</button>
+        </div>
       </div>
 
       <!-- 下固定 -->
@@ -265,7 +272,12 @@
 
     const id = new URLSearchParams(location.search).get("id");
 
-    let words = [], filteredWords = [], i = 0, correct = 0, phase = 0;
+    let words = [],
+        filteredWords = [],
+        i = 0,
+        correct = 0,
+        phase = 0,
+        selfMode = false;
 
     let learned = JSON.parse(localStorage.getItem("learnedWords")) || {};
     if (!learned[id]) learned[id] = [];
@@ -275,6 +287,9 @@
     snap.forEach(d => words.push(d.data()));
 
     window.startTest = () => {
+      // ←ここを追加
+      selfMode = document.getElementById("selfCheck").checked;
+
       makeList();
 
       if (filteredWords.length === 0) {
@@ -314,6 +329,10 @@
       ans.value = "";
       result.textContent = "";
       phase = 0;
+
+      ans.style.display = "";
+      document.querySelector("#quizContent button").style.display = "";
+      document.getElementById("selfButtons").style.display = "none";
       if (filteredWords.length > 0) {
         const progress = Math.round(i / filteredWords.length * 100);
         document.getElementById("progressBar").style.width = progress + "%";
@@ -325,7 +344,21 @@
     }
 
     window.check = () => {
-      if (phase === 0) {
+        if (phase === 0) {
+
+            if (selfMode) {
+
+                result.textContent = "正解：" + filteredWords[i].back;
+
+                ans.style.display = "none";
+                document.querySelector("#quizContent button").style.display = "none";
+                document.getElementById("selfButtons").style.display = "block";
+
+                phase = 2;
+                return;
+            }
+
+            // ここから今までの自動採点
         if (ans.value.trim() === filteredWords[i].back) {
           result.textContent = "⭕ 正解";
           correct++;
@@ -343,6 +376,27 @@
       }
     };
 
+    window.markCorrect = () => {
+
+        correct++;
+
+        if (!learned[id].includes(filteredWords[i].front)) {
+            learned[id].push(filteredWords[i].front);
+            localStorage.setItem("learnedWords", JSON.stringify(learned));
+        }
+
+        result.textContent = "⭕ 正解";
+        document.getElementById("selfButtons").style.display = "none";
+        phase = 1;
+    };
+
+    window.markWrong = () => {
+
+        result.textContent = "❌ 不正解";
+        document.getElementById("selfButtons").style.display = "none";
+        phase = 1;
+    };
+    
     window.restart = () => {
       i = 0; correct = 0;
       end.style.display = "none";
@@ -359,7 +413,12 @@
     };
 
     document.addEventListener("keydown", e => {
-      if (e.key === "Enter" && quiz.style.display === "block") check();
+        if (e.key !== "Enter") return;
+        if (quiz.style.display !== "block") return;
+
+        if (phase === 2) return;
+
+        check();
     });
 
     window.goBack = () => {
