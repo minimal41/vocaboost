@@ -138,8 +138,8 @@
       align-items: center;
       gap: 14px;
       width: min(360px, 90%);
-      margin: 12px auto;
-      padding: 14px 18px;
+      margin: 10px auto;
+      padding: 10px 16px;
       background: #f8f9fc;
       border: 2px solid #d9def5;
       border-radius: 14px;
@@ -166,43 +166,66 @@
       position: relative;
       cursor: pointer;
       flex-shrink: 0;
+      transition: .15s;
     }
 
     .option input[type="checkbox"]:checked {
       background: #191970;
     }
 
-    .option input[type="checkbox"]:checked::after {
-      content: "✓";
-      color: white;
-      font-size: 18px;
-      font-weight: bold;
+    .option input[type="checkbox"]::before,
+    .option input[type="checkbox"]::after {
+      content: "";
       position: absolute;
-      left: 6px;
-      top: 0px;
+      background: white;
+      border-radius: 2px;
+      opacity: 0;
+      transition: .15s;
     }
 
+    .option input[type="checkbox"]::before {
+      width: 3px;
+      height: 8px;
+      left: 8px;
+      top: 11px;
+      transform: rotate(-45deg);
+    }
+
+    .option input[type="checkbox"]::after {
+      width: 3px;
+      height: 14px;
+      left: 15px;
+      top: 6px;
+      transform: rotate(45deg);
+    }
+
+    .option input[type="checkbox"]:checked::before,
+    .option input[type="checkbox"]:checked::after {
+      opacity: 1;
+    }
     .option span {
       font-size: 18px;
       font-weight: 600;
     }
 
-    @media (max-width:768px) {
+    @media (max-width:768px){
 
-      .option {
-        width: 95%;
-        padding: 16px;
+      .option{
+        width:95%;
+        padding:12px 14px;
       }
 
-      .option input[type="checkbox"] {
-        width: 32px;
-        height: 32px;
+      .option input[type="checkbox"]{
+        width:30px;
+        height:30px;
       }
 
-      .option span {
-        font-size: 17px;
+      .option span{
+        font-size:17px;
       }
     }
+
+
   </style>
 </head>
 
@@ -226,17 +249,17 @@
 
       <label class="option">
         <input type="checkbox" id="skipCheck" checked>
-        <span>✅ 正解済みをスキップ</span>
+        <span>正解済みをスキップ</span>
       </label>
 
       <label class="option">
         <input type="checkbox" id="randomCheck">
-        <span>🔀 ランダム出題する</span>
+        <span>ランダム出題する</span>
       </label>
 
       <label class="option">
         <input type="checkbox" id="selfCheck">
-        <span>✍️ 自分で採点する</span>
+        <span>自分で採点する</span>
       </label>
 
       <button onclick="resetLearned()">🔄 学習データをリセット</button><br><br>
