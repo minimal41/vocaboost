@@ -180,23 +180,27 @@
       background: white;
       border-radius: 2px;
       opacity: 0;
+      left: 50%;
+      top: 50%;
+      transform-origin: center;
       transition: .15s;
     }
 
     .option input[type="checkbox"]::before {
       width: 3px;
       height: 8px;
-      left: 8px;
-      top: 11px;
-      transform: rotate(-45deg);
+      transform: translate(-5px, 1px) rotate(-45deg);
     }
 
     .option input[type="checkbox"]::after {
       width: 3px;
       height: 14px;
-      left: 15px;
-      top: 6px;
-      transform: rotate(45deg);
+      transform: translate(2px, -3px) rotate(45deg);
+    }
+
+    .option input[type="checkbox"]:checked::before,
+    .option input[type="checkbox"]:checked::after {
+      opacity: 1;
     }
 
     .option input[type="checkbox"]:checked::before,
