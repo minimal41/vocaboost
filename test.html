@@ -166,24 +166,30 @@
       position: relative;
       cursor: pointer;
       flex-shrink: 0;
-      transition: .15s;
+      transition: .2s;
     }
 
     .option input[type="checkbox"]:checked {
       background: #191970;
     }
 
-    .option input[type="checkbox"]::before,
-    .option input[type="checkbox"]::after {
+    .option input[type="checkbox"]::before {
       content: "";
       position: absolute;
-      background: white;
-      border-radius: 2px;
-      opacity: 0;
+
       left: 50%;
       top: 50%;
-      transform-origin: center;
-      transition: .15s;
+
+      width: 7px;
+      height: 12px;
+
+      border-right: 3px solid white;
+      border-bottom: 3px solid white;
+
+      transform: translate(-50%, -58%) rotate(45deg);
+
+      opacity: 0;
+      transition: opacity .15s;
     }
 
     .option input[type="checkbox"]::before {
