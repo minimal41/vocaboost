@@ -131,6 +131,78 @@
         font-size:25px;
       }
     }
+
+    /* 設定項目 */
+    .option {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: min(360px, 90%);
+      margin: 12px auto;
+      padding: 14px 18px;
+      background: #f8f9fc;
+      border: 2px solid #d9def5;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: .2s;
+      user-select: none;
+      box-sizing: border-box;
+    }
+
+    .option:hover {
+      border-color: #191970;
+      background: #eef2ff;
+      transform: translateY(-1px);
+    }
+
+    .option input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 28px;
+      height: 28px;
+      border: 2px solid #191970;
+      border-radius: 8px;
+      background: white;
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .option input[type="checkbox"]:checked {
+      background: #191970;
+    }
+
+    .option input[type="checkbox"]:checked::after {
+      content: "✓";
+      color: white;
+      font-size: 18px;
+      font-weight: bold;
+      position: absolute;
+      left: 6px;
+      top: 0px;
+    }
+
+    .option span {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    @media (max-width:768px) {
+
+      .option {
+        width: 95%;
+        padding: 16px;
+      }
+
+      .option input[type="checkbox"] {
+        width: 32px;
+        height: 32px;
+      }
+
+      .option span {
+        font-size: 17px;
+      }
+    }
   </style>
 </head>
 
@@ -152,15 +224,20 @@
     <div class="card" id="start">
       <h2>テスト設定</h2>
 
-      <label>
-        <input type="checkbox" id="skipCheck" checked>正解済みをスキップ
-      </label><br><br>
-      <label>
-        <input type="checkbox" id="randomCheck">ランダム出題する
-      </label><br><br>
-      <label>
-        <input type="checkbox" id="selfCheck">自分で採点する
-      </label><br><br>
+      <label class="option">
+        <input type="checkbox" id="skipCheck" checked>
+        <span>✅ 正解済みをスキップ</span>
+      </label>
+
+      <label class="option">
+        <input type="checkbox" id="randomCheck">
+        <span>🔀 ランダム出題する</span>
+      </label>
+
+      <label class="option">
+        <input type="checkbox" id="selfCheck">
+        <span>✍️ 自分で採点する</span>
+      </label>
 
       <button onclick="resetLearned()">🔄 学習データをリセット</button><br><br>
 
