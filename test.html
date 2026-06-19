@@ -327,6 +327,7 @@
       }
       q.textContent = filteredWords[i].front;
       ans.value = "";
+      ans.readOnly = false;
       result.textContent = "";
       phase = 0;
 
@@ -348,9 +349,35 @@
 
             if (selfMode) {
 
-                result.textContent = "正解：" + filteredWords[i].back;
+                // 完全一致なら自動で正解
+                if (ans.value.trim() === filteredWords[i].back) {
 
-                ans.style.display = "none";
+                    result.textContent = "⭕ 正解";
+
+                    correct++;
+
+                    if (!learned[id].includes(filteredWords[i].front)) {
+                        learned[id].push(filteredWords[i].front);
+                        localStorage.setItem("learnedWords", JSON.stringify(learned));
+                    }
+
+                    phase = 1;
+                    return;
+                }
+
+                // 完全一致しなかったら自分で採点
+                ans.readOnly = true;
+
+                result.innerHTML = `
+                <div style="text-align:left;border:1px solid #ddd;border-radius:8px;padding:12px;margin-top:10px;">
+                    <div><b>あなたの回答</b></div>
+                    <div style="margin-bottom:12px;">${ans.value || "（未入力）"}</div>
+
+                    <div><b>正解</b></div>
+                    <div>${filteredWords[i].back}</div>
+                </div>
+                `;
+
                 document.querySelector("#quizContent button").style.display = "none";
                 document.getElementById("selfButtons").style.display = "block";
 
@@ -387,6 +414,7 @@
 
         result.textContent = "⭕ 正解";
         document.getElementById("selfButtons").style.display = "none";
+        document.querySelector("#quizContent button").style.display = "";
         phase = 1;
     };
 
@@ -394,6 +422,7 @@
 
         result.textContent = "❌ 不正解";
         document.getElementById("selfButtons").style.display = "none";
+        document.querySelector("#quizContent button").style.display = "";
         phase = 1;
     };
     
