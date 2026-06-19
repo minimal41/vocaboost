@@ -197,6 +197,10 @@
       font-weight: 600;
     }
 
+    .option input[type="checkbox"]:checked::before {
+        opacity: 1;
+    }
+
     @media (max-width:768px){
 
       .option{
@@ -267,7 +271,7 @@
         <h2 id="q"></h2>
         <input id="ans" placeholder="答えを入力" autocomplete="off"><br>
         <p id="result"></p>
-        <button onclick="check()">回答 (Enter)</button>
+        <button id="answerBtn" onclick="check()">回答 (Enter)</button>
         <div id="selfButtons" style="display:none;">
           <button onclick="markCorrect()">⭕ 正解</button>
           <button onclick="markWrong()">❌ 不正解</button>
@@ -421,7 +425,7 @@
       phase = 0;
 
       ans.style.display = "";
-      document.querySelector("#quizContent button").style.display = "";
+      document.getElementById("answerBtn").style.display = "";
       document.getElementById("selfButtons").style.display = "none";
       if (filteredWords.length > 0) {
         const progress = Math.round(i / filteredWords.length * 100);
@@ -441,7 +445,7 @@
                 // 完全一致なら自動で正解
                 if (ans.value.trim() === filteredWords[i].back) {
 
-                    result.innerHTML += "<br><br>⭕ 正解";
+                    result.textContent = "⭕ 正解";
 
                     correct++;
 
@@ -467,7 +471,7 @@
                 </div>
                 `;
 
-                document.querySelector("#quizContent button").style.display = "none";
+                document.getElementById("answerBtn").style.display = "none";
                 document.getElementById("selfButtons").style.display = "block";
 
                 phase = 2;
@@ -503,7 +507,7 @@
 
         result.innerHTML += "<br><br>⭕ 正解";
         document.getElementById("selfButtons").style.display = "none";
-        document.querySelector("#quizContent button").style.display = "";
+        document.getElementById("answerBtn").style.display = "";
         phase = 1;
     };
 
@@ -511,7 +515,7 @@
 
         result.innerHTML += "<br><br>❌ 不正解";
         document.getElementById("selfButtons").style.display = "none";
-        document.querySelector("#quizContent button").style.display = "";
+        document.getElementById("answerBtn").style.display = "";
         phase = 1;
     };
     
