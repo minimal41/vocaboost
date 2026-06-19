@@ -192,27 +192,6 @@
       transition: opacity .15s;
     }
 
-    .option input[type="checkbox"]::before {
-      width: 3px;
-      height: 8px;
-      transform: translate(-6px, 0px) rotate(-45deg);
-    }
-
-    .option input[type="checkbox"]::after {
-      width: 3px;
-      height: 14px;
-      transform: translate(1px, -4px) rotate(45deg);
-    }
-
-    .option input[type="checkbox"]:checked::before,
-    .option input[type="checkbox"]:checked::after {
-      opacity: 1;
-    }
-
-    .option input[type="checkbox"]:checked::before,
-    .option input[type="checkbox"]:checked::after {
-      opacity: 1;
-    }
     .option span {
       font-size: 18px;
       font-weight: 600;
@@ -462,7 +441,7 @@
                 // 完全一致なら自動で正解
                 if (ans.value.trim() === filteredWords[i].back) {
 
-                    result.textContent = "⭕ 正解";
+                    result.innerHTML += "<br><br>⭕ 正解";
 
                     correct++;
 
@@ -522,7 +501,7 @@
             localStorage.setItem("learnedWords", JSON.stringify(learned));
         }
 
-        result.textContent = "⭕ 正解";
+        result.innerHTML += "<br><br>⭕ 正解";
         document.getElementById("selfButtons").style.display = "none";
         document.querySelector("#quizContent button").style.display = "";
         phase = 1;
@@ -530,7 +509,7 @@
 
     window.markWrong = () => {
 
-        result.textContent = "❌ 不正解";
+        result.innerHTML += "<br><br>❌ 不正解";
         document.getElementById("selfButtons").style.display = "none";
         document.querySelector("#quizContent button").style.display = "";
         phase = 1;
