@@ -404,27 +404,6 @@
 
       });
 
-      if (!bookDoc.exists) {
-        alert("単語帳が見つかりません");
-        location.href = "index.html";
-        return;
-      }
-
-      const data = bookDoc.data();
-
-      bookOwner = data.owner;
-
-      if (currentUser.uid !== bookOwner) {
-        alert("他人の単語帳は編集できません");
-        location.href = "view.html?id=" + bookId;
-        return;
-      }
-
-      document.getElementById("title").value = data.title;
-      document.getElementById("description").value = data.description || "";
-      document.getElementById("owner").textContent =
-        "作成者: " + data.ownerName;
-
       wordsListener = db.collection("wordbooks")
         .doc(bookId)
         .collection("words")
@@ -447,25 +426,24 @@
           updateCache();
 
       });
-      updateCache();
     }
 
-    document.getElementById("title").addEventListener("input", updateCache);
-    document.getElementById("description").addEventListener("input", updateCache);
+        document.getElementById("title").addEventListener("input", updateCache);
+        document.getElementById("description").addEventListener("input", updateCache);
 
-    function updateCache() {
+        function updateCache() {
 
-      localStorage.setItem(
-        `edit_${bookId}`,
-        JSON.stringify({
-          title: document.getElementById("title").value,
-          description: document.getElementById("description").value,
-          owner: document.getElementById("owner").textContent,
-          wordsHtml: document.getElementById("wordList").innerHTML
-        })
-      );
+          localStorage.setItem(
+            `edit_${bookId}`,
+            JSON.stringify({
+              title: document.getElementById("title").value,
+              description: document.getElementById("description").value,
+              owner: document.getElementById("owner").textContent,
+              wordsHtml: document.getElementById("wordList").innerHTML
+            })
+          );
 
-    }
+        }
 
 
     async function addWord() {
@@ -796,19 +774,19 @@ async function swapWord(id) {
   const frontInput = row.querySelector('[data-type="front"]');
   const backInput = row.querySelector('[data-type="back"]');
 
+  const f = frontInput.value;
+  const b = backInput.value;
 
-  // 画面上で入れ替え
-  frontInput.value = back;
-  backInput.value = front;
+  frontInput.value = b;
+  backInput.value = f;
 
-  // Firestoreに保存
   await db.collection("wordbooks")
     .doc(bookId)
     .collection("words")
     .doc(id)
     .update({
-      front: back,
-      back: front
+      front: b,
+      back: f
     });
 
   updateCache();
