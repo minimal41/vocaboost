@@ -9,11 +9,14 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="stylesheet" type="text/css" href="style.css">
   <script>
+    // ページの初期読み込みと競合しないよう、load完了後にService Workerを登録する
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./service-worker.js').then(registration => {
-        console.log('ServiceWorker registration successful.');
-      }).catch(err => {
-        console.log('ServiceWorker registration failed.');
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js').then(registration => {
+          console.log('ServiceWorker registration successful.');
+        }).catch(err => {
+          console.log('ServiceWorker registration failed.');
+        });
       });
     }
   </script>
@@ -295,11 +298,11 @@
     </div>
   </footer>
 
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js" defer></script>
 
-  <script>
+  <script defer>
     const firebaseConfig = {
       apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E",
       authDomain: "quiz1-4ffdc.firebaseapp.com",
