@@ -17,10 +17,23 @@
     }
 
     .wordbook {
-      padding: 10px;
-      border-bottom: 1px solid #ddd;
       display: flex;
       justify-content: space-between;
+      min-height: 20px;
+      width: 100%;
+      margin-bottom: 5px;
+      overflow-wrap: anywhere;
+    }
+
+    .wordbook a {
+      display: block;
+      padding: 10px;
+      width: 100%;
+      border: solid thin #191970;
+      border-radius: 10px;
+      color: #000000;
+      font-weight: normal;
+      text-decoration: none;
     }
 
     a {
@@ -42,6 +55,13 @@
 
     main {
       flex: 1;
+    }
+
+    .list {
+      background: white;
+      margin-top: 20px;
+      padding: 20px;
+      border-radius: 12px;
     }
   </style>
 </head>
@@ -66,7 +86,7 @@
       <p id="userNameText">読み込み中...</p>
     </div>
 
-    <div class="card">
+    <div class="list">
       <h3>公開している単語帳</h3>
       <div id="bookList"></div>
     </div>
@@ -148,6 +168,7 @@
 
       const params = new URLSearchParams(location.search);
       const uid = params.get("id");
+      const cacheKey = `user_${uid}`;
 
       const userNameText = document.getElementById("userNameText");
       const bookList = document.getElementById("bookList");
@@ -160,8 +181,32 @@
       }
 
       async function loadUser() {
+        const cachedData = localStorage.getItem(cacheKey);
+
+        if (cachedData) {
+          try {
+            const data = JSON.parse(cachedData);
+
+            userNameText.textContent =
+              "ユーザー名: " + data.username;
+
+            bookList.innerHTML = data.booksHtml;
+          } catch(e) {
+            console.error(e);
+          }
+        }
         try {
-          const userDoc = await db.collection("users").doc(uid).get();
+          const [userDoc, bookSnap] =
+            await Promise.all([
+              db.collection("users")
+                .doc(uid)
+                .get(),
+
+              db.collection("wordbooks")
+                .where("owner", "==", uid)
+                .where("isPublic", "==", true)
+                .get()
+            ]);
 
           if (!userDoc.exists) {
             if (userNameText) {
@@ -177,51 +222,43 @@
             userNameText.textContent = "ユーザー名: " + username;
           }
 
-          loadBooks(uid);
+          let booksHtml = "";
+
+          if (bookSnap.empty) {
+
+            booksHtml =
+              "<p>公開単語帳はありません</p>";
+
+          } else {
+
+            bookSnap.forEach(doc => {
+
+              const b = doc.data();
+
+              booksHtml += `
+                <div class="wordbook">
+                  <a href="view.html?id=${doc.id}">
+                    ${b.title}
+                  </a>
+                </div>
+              `;
+            });
+          }
+
+          bookList.innerHTML = booksHtml;
+
+          localStorage.setItem(
+            cacheKey,
+            JSON.stringify({
+              username,
+              booksHtml
+            })
+          );
 
         } catch (e) {
           console.error(e);
           if (userNameText) {
             userNameText.textContent = "読み込みエラー";
-          }
-        }
-      }
-
-      async function loadBooks(uid) {
-        try {
-          const snap = await db.collection("wordbooks")
-            .where("owner", "==", uid)
-            .where("isPublic", "==", true)
-            .get();
-
-          if (!bookList) return;
-
-          if (snap.empty) {
-            bookList.innerHTML = "<p>公開単語帳はありません</p>";
-            return;
-          }
-
-          snap.forEach(doc => {
-            const b = doc.data();
-            const div = document.createElement("div");
-            div.className = "wordbook";
-
-            const span = document.createElement("span");
-            span.textContent = b.title;
-
-            const link = document.createElement("a");
-            link.href = "view.html?id=" + doc.id;
-            link.textContent = "開く";
-
-            div.appendChild(span);
-            div.appendChild(link);
-            bookList.appendChild(div);
-          });
-
-        } catch (e) {
-          console.error(e);
-          if (bookList) {
-            bookList.innerHTML = "<p>単語帳の読み込みに失敗しました</p>";
           }
         }
       }
