@@ -131,6 +131,7 @@
       <select id="sortUser" onchange="render()" style="display:none;
         padding:10px; border-radius:10px; border:1px solid #ccc; font-size:14px; margin-left:5px; cursor:pointer;">
         <option value="count">公開単語帳作成数順</option>
+        <option value="created">登録順（新しい）</option>
         <option value="name">名称順</option>
       </select>
     </div>
@@ -394,11 +395,19 @@
           });
 
           const snapUsers = await db.collection("users").get();
-          users = snapUsers.docs.map(d => ({
-            id: d.id,
-            username: d.data().username || "名無し",
-            bookCount: userBookCounts[d.id] || 0
-          }));
+          users = snapUsers.docs.map(d => {
+            const data = d.data();
+            const createdAt = data.createdAt;
+            return {
+              id: d.id,
+              username: data.username || "名無し",
+              bookCount: userBookCounts[d.id] || 0,
+              // localStorageに保存するためTimestampをミリ秒数値に変換しておく
+              createdAtMillis: createdAt && typeof createdAt.toMillis === "function"
+                ? createdAt.toMillis()
+                : 0
+            };
+          });
           usersLoaded = true;
           localStorage.setItem(
             "usersCache",
@@ -457,6 +466,8 @@
           filtered.sort((a, b) => a.username.localeCompare(b.username, 'ja'));
         } else if (sort === "count") {
           filtered.sort((a, b) => b.bookCount - a.bookCount);
+        } else if (sort === "created") {
+          filtered.sort((a, b) => (b.createdAtMillis || 0) - (a.createdAtMillis || 0));
         }
 
         filtered.forEach(u => {
