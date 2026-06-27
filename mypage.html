@@ -66,17 +66,21 @@
 
     <div class="card">
       <h2>ユーザー名設定・変更</h2>
-      <input id="usernameInput" placeholder="新しいユーザー名" autocomplete="nickname" autocapitalize="off" spellcheck="false">
-      <button onclick="updateUsername()">変更する</button>
+      <form autocomplete="off" onsubmit="return false;">
+        <input type="text" id="usernameInput" name="vocaboost_username_change" placeholder="新しいユーザー名" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button type="button" onclick="updateUsername()">変更する</button>
+      </form>
       <div id="nameMsg" class="notice"></div>
     </div>
 
     <div class="card">
       <h2>パスワード変更</h2>
-      <input type="password" id="currentPass" placeholder="現在のパスワード">
-      <input type="password" id="newPass" placeholder="新しいパスワード">
-      <input type="password" id="newPassConfirm" placeholder="新しいパスワード（確認）">
-      <button onclick="changePassword()">変更する</button>
+      <form autocomplete="off" onsubmit="return false;">
+        <input type="password" id="currentPass" name="vocaboost_current_pass" placeholder="現在のパスワード" autocomplete="off">
+        <input type="password" id="newPass" name="vocaboost_new_pass" placeholder="新しいパスワード" autocomplete="new-password">
+        <input type="password" id="newPassConfirm" name="vocaboost_new_pass_confirm" placeholder="新しいパスワード（確認）" autocomplete="new-password">
+        <button type="button" onclick="changePassword()">変更する</button>
+      </form>
       <div id="passMsg" class="notice"></div>
     </div>
 
@@ -303,11 +307,20 @@
       }
     }
 
+    // ブラウザのパスワードマネージャーが自動入力したメールアドレス断片などが
+    // ユーザー名入力欄に残ってしまう場合があるため、複数のタイミングでクリアする
+    function clearUsernameAutofill() {
+      const input = document.getElementById("usernameInput");
+      if (input) input.value = "";
+    }
+
     window.addEventListener("load", () => {
-      setTimeout(() => {
-        document.getElementById("usernameInput").value = "";
-      }, 100);
+      clearUsernameAutofill();
+      setTimeout(clearUsernameAutofill, 100);
+      setTimeout(clearUsernameAutofill, 500);
     });
+
+    document.addEventListener("DOMContentLoaded", clearUsernameAutofill);
 
   </script>
 
