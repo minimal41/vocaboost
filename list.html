@@ -122,11 +122,16 @@
 
     <div style="margin-bottom:15px;">
       <input id="search" placeholder="検索" oninput="render()">
-      <select id="sort" onchange="render()"
+      <select id="sortBook" onchange="render()"
         style="padding:10px; border-radius:10px; border:1px solid #ccc; font-size:14px; margin-left:5px; cursor:pointer;">
         <option value="created">作成順（新しい）</option>
         <option value="name">名称順</option>
+        <option value="count">単語数順</option>
+      </select>
+      <select id="sortUser" onchange="render()" style="display:none;
+        padding:10px; border-radius:10px; border:1px solid #ccc; font-size:14px; margin-left:5px; cursor:pointer;">
         <option value="count">公開単語帳作成数順</option>
+        <option value="name">名称順</option>
       </select>
     </div>
 
@@ -351,6 +356,8 @@
       mode = "book";
       document.getElementById("bookTab").className = "tab active";
       document.getElementById("userTab").className = "tab inactive";
+      document.getElementById("sortBook").style.display = "";
+      document.getElementById("sortUser").style.display = "none";
       render();
     }
 
@@ -358,6 +365,8 @@
       mode = "user";
       document.getElementById("bookTab").className = "tab inactive";
       document.getElementById("userTab").className = "tab active";
+      document.getElementById("sortBook").style.display = "none";
+      document.getElementById("sortUser").style.display = "";
 
       if (!usersLoaded) {
 
@@ -405,7 +414,9 @@
 
     function render() {
       const q = document.getElementById("search").value.toLowerCase();
-      const sort = document.getElementById("sort").value;
+      const sort = mode === "book"
+        ? document.getElementById("sortBook").value
+        : document.getElementById("sortUser").value;
       const area = document.getElementById("list");
       area.innerHTML = "";
 
