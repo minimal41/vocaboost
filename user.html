@@ -134,14 +134,29 @@
       const logoutBtn = document.getElementById("logoutBtn");
       const mypageBtn = document.getElementById("mypageBtn");
 
+      // ログイン情報のキャッシュを利用してヘッダーを即時表示
+      const savedUser =
+        JSON.parse(localStorage.getItem("cachedUser"));
+
+      if (savedUser) {
+        mypageBtn.style.display = "inline-block";
+        logoutBtn.style.display = "inline-block";
+        loginBtn.style.display = "none";
+      }
+
       auth.onAuthStateChanged(user => {
         currentUser = user;
         if (user) {
+          localStorage.setItem(
+            "cachedUser",
+            JSON.stringify({ uid: user.uid })
+          );
           statusDiv.textContent = "ログイン中: " + user.uid;
           loginBtn.style.display = "none";
           logoutBtn.style.display = "inline-block";
           mypageBtn.style.display = "inline-block";
         } else {
+          localStorage.removeItem("cachedUser");
           statusDiv.textContent = "ログアウト中";
           loginBtn.style.display = "inline-block";
           logoutBtn.style.display = "none";
@@ -163,6 +178,7 @@
       };
 
       window.logout = function () {
+        localStorage.removeItem("cachedUser");
         auth.signOut();
       };
 
