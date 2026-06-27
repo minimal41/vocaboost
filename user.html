@@ -166,6 +166,39 @@
         auth.signOut();
       };
 
+      // XSS対策: テキストをそのまま innerHTML に差し込まないようにエスケープする
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      // createdAt が Firestore Timestamp / Date / 数値 / 文字列 のどれでも
+      // 比較可能な数値(ミリ秒)に変換する
+      function toMillis(createdAt) {
+        if (!createdAt) return 0;
+        if (typeof createdAt.toMillis === "function") return createdAt.toMillis();
+        if (createdAt instanceof Date) return createdAt.getTime();
+        const t = new Date(createdAt).getTime();
+        return isNaN(t) ? 0 : t;
+      }
+
+      function renderBooksHtml(books) {
+        if (books.length === 0) {
+          return "<p>公開単語帳はありません</p>";
+        }
+        return books.map(b => `
+          <div class="wordbook">
+            <a href="view.html?id=${encodeURIComponent(b.id)}">
+              ${escapeHtml(b.title)}
+            </a>
+          </div>
+        `).join("");
+      }
+
       const params = new URLSearchParams(location.search);
       const uid = params.get("id");
       const cacheKey = `user_${uid}`;
@@ -180,34 +213,63 @@
         return;
       }
 
+      // 単語帳一覧を取得する。
+      // owner + isPublic + orderBy(createdAt) は複合インデックスが必要なため、
+      // 未作成の環境でもクエリが失敗して全体が止まらないよう、
+      // orderBy 付きクエリが失敗した場合は orderBy なしで再取得し、
+      // 取得後にJS側で createdAt 降順にソートするフォールバックを用意する。
+      async function fetchBooks(uid) {
+        let snap;
+        try {
+          snap = await db.collection("wordbooks")
+            .where("owner", "==", uid)
+            .where("isPublic", "==", true)
+            .orderBy("createdAt", "desc")
+            .get();
+        } catch (e) {
+          console.warn("orderBy付きクエリに失敗。インデックス無しクエリにフォールバックします。", e);
+          snap = await db.collection("wordbooks")
+            .where("owner", "==", uid)
+            .where("isPublic", "==", true)
+            .get();
+        }
+
+        const books = [];
+        snap.forEach(doc => {
+          const b = doc.data();
+          books.push({
+            id: doc.id,
+            title: b.title || "(無題)",
+            createdAtMillis: toMillis(b.createdAt)
+          });
+        });
+
+        // 取得元がソート済みかどうかに関わらず、必ず作成日時の降順に並べ直す
+        books.sort((a, b) => b.createdAtMillis - a.createdAtMillis);
+
+        return books;
+      }
+
       async function loadUser() {
         const cachedData = localStorage.getItem(cacheKey);
 
         if (cachedData) {
           try {
             const data = JSON.parse(cachedData);
-
-            userNameText.textContent =
-              "ユーザー名: " + data.username;
-
+            userNameText.textContent = "ユーザー名: " + data.username;
             bookList.innerHTML = data.booksHtml;
-          } catch(e) {
+          } catch (e) {
             console.error(e);
           }
         }
-        try {
-          const [userDoc, bookSnap] =
-            await Promise.all([
-              db.collection("users")
-                .doc(uid)
-                .get(),
 
-              db.collection("wordbooks")
-                .where("owner", "==", uid)
-                .where("isPublic", "==", true)
-                .orderBy("createdAt", "desc")
-                .get()
-            ]);
+        // ユーザー情報と単語帳一覧の取得を分離する。
+        // 以前は Promise.all + 単一の try/catch でまとめていたため、
+        // 単語帳側のクエリだけが失敗した場合でも
+        // ユーザー名側まで「読み込みエラー」表示になってしまっていた。
+        let username = null;
+        try {
+          const userDoc = await db.collection("users").doc(uid).get();
 
           if (!userDoc.exists) {
             if (userNameText) {
@@ -217,49 +279,38 @@
           }
 
           const userData = userDoc.data();
-          const username = userData.username || "名無し";
+          username = userData.username || "名無し";
 
           if (userNameText) {
             userNameText.textContent = "ユーザー名: " + username;
           }
-
-          let booksHtml = "";
-
-          if (bookSnap.empty) {
-
-            booksHtml =
-              "<p>公開単語帳はありません</p>";
-
-          } else {
-
-            bookSnap.forEach(doc => {
-
-              const b = doc.data();
-
-              booksHtml += `
-                <div class="wordbook">
-                  <a href="view.html?id=${doc.id}">
-                    ${b.title}
-                  </a>
-                </div>
-              `;
-            });
-          }
-
-          bookList.innerHTML = booksHtml;
-
-          localStorage.setItem(
-            cacheKey,
-            JSON.stringify({
-              username,
-              booksHtml
-            })
-          );
-
         } catch (e) {
           console.error(e);
           if (userNameText) {
             userNameText.textContent = "読み込みエラー";
+          }
+          // ユーザー情報が取得できない場合でも、単語帳の取得は別途試みる
+        }
+
+        let booksHtml = null;
+        try {
+          const books = await fetchBooks(uid);
+          booksHtml = renderBooksHtml(books);
+          bookList.innerHTML = booksHtml;
+        } catch (e) {
+          console.error(e);
+          bookList.innerHTML = "<p>単語帳の読み込みに失敗しました</p>";
+        }
+
+        // 両方が正常に取得できた場合のみキャッシュを更新する
+        if (username !== null && booksHtml !== null) {
+          try {
+            localStorage.setItem(
+              cacheKey,
+              JSON.stringify({ username, booksHtml })
+            );
+          } catch (e) {
+            console.warn("キャッシュの保存に失敗しました", e);
           }
         }
       }
