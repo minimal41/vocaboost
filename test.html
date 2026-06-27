@@ -425,7 +425,9 @@
       phase = 0;
 
       ans.style.display = "";
-      document.getElementById("answerBtn").style.display = "";
+      const answerBtn = document.getElementById("answerBtn");
+      answerBtn.style.display = "";
+      answerBtn.textContent = "回答 (Enter)";
       document.getElementById("selfButtons").style.display = "none";
       if (filteredWords.length > 0) {
         const progress = Math.round(i / filteredWords.length * 100);
@@ -455,6 +457,7 @@
                     }
 
                     phase = 1;
+                    document.getElementById("answerBtn").textContent = "次へ (Enter)";
                     return;
                 }
 
@@ -490,6 +493,7 @@
           result.textContent = "❌ 不正解 正解: " + filteredWords[i].back;
         }
         phase = 1;
+        document.getElementById("answerBtn").textContent = "次へ (Enter)";
       } else {
         i++;
         render();
@@ -507,7 +511,9 @@
 
         result.innerHTML += "<br><br>⭕ 正解";
         document.getElementById("selfButtons").style.display = "none";
-        document.getElementById("answerBtn").style.display = "";
+        const answerBtn = document.getElementById("answerBtn");
+        answerBtn.style.display = "";
+        answerBtn.textContent = "次へ (Enter)";
         phase = 1;
     };
 
@@ -515,7 +521,9 @@
 
         result.innerHTML += "<br><br>❌ 不正解";
         document.getElementById("selfButtons").style.display = "none";
-        document.getElementById("answerBtn").style.display = "";
+        const answerBtn = document.getElementById("answerBtn");
+        answerBtn.style.display = "";
+        answerBtn.textContent = "次へ (Enter)";
         phase = 1;
     };
     

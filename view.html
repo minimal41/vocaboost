@@ -288,9 +288,9 @@
     document.getElementById("detailInfo").innerHTML =
       details.join(" | ");
 
-    if (book.description) {
+    const descDiv = document.getElementById("description");
 
-      const descDiv = document.getElementById("description");
+    if (book.description) {
 
       const linkedText = book.description.replace(
         /(https?:\/\/[^\s]+)/g,
@@ -309,6 +309,10 @@
 
       descDiv.innerHTML = linkedText;
       descDiv.style.display = "block";
+    } else {
+      // 説明文が削除された場合、古い内容がDOMやキャッシュに残らないようクリアする
+      descDiv.innerHTML = "";
+      descDiv.style.display = "none";
     }
 
     const wordsDiv = document.getElementById("words");

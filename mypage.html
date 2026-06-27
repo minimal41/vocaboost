@@ -186,9 +186,25 @@
     /* ===== 空の単語帳を自動削除 (DBからも完全に消去) ===== */
     async function cleanupEmptyBooks() {
       try {
-        const snap = await db.collection("wordbooks")
-          .where("owner", "==", currentUser.uid)
-          .get();
+        // wordCountフィールドで絞り込み、削除候補になりうる単語帳だけを取得する。
+        // 以前は自分の全単語帳に対して words サブコレクションをget()していたため、
+        // 単語帳が増えるほど読み込みが重くなっていた。
+        let snap;
+        try {
+          snap = await db.collection("wordbooks")
+            .where("owner", "==", currentUser.uid)
+            .where("wordCount", "==", 0)
+            .get();
+        } catch (e) {
+          // 複合インデックスが無い環境向けのフォールバック
+          console.warn("wordCount絞り込みクエリに失敗。全件取得にフォールバックします。", e);
+          const all = await db.collection("wordbooks")
+            .where("owner", "==", currentUser.uid)
+            .get();
+          snap = {
+            docs: all.docs.filter(d => (d.data().wordCount || 0) === 0)
+          };
+        }
 
         const now = Date.now();
         const ONE_HOUR = 60 * 60 * 1000;
@@ -196,17 +212,18 @@
         for (const doc of snap.docs) {
           const data = doc.data();
 
-          // 単語サブコレクションの数を確認
-          const wordsSnap = await db.collection("wordbooks").doc(doc.id).collection("words").get();
+          // 作成直後のものを消さないよう、1時間以上経過しているかチェック
+          const createdAt = data.createdAt ? data.createdAt.toDate().getTime() : 0;
+
+          if (now - createdAt <= ONE_HOUR) continue;
+
+          // wordCountが0でも古いデータでフィールド自体が無い/不整合な場合があるため、
+          // 削除前に実際のサブコレクションも確認する（最大1件だけ取得すれば十分）
+          const wordsSnap = await db.collection("wordbooks").doc(doc.id).collection("words").limit(1).get();
 
           if (wordsSnap.empty) {
-            // 作成直後のものを消さないよう、1時間以上経過しているかチェック
-            const createdAt = data.createdAt ? data.createdAt.toDate().getTime() : 0;
-
-            if (now - createdAt > ONE_HOUR) {
-              await db.collection("wordbooks").doc(doc.id).delete();
-              console.log("Cleanup: Deleted empty book", doc.id);
-            }
+            await db.collection("wordbooks").doc(doc.id).delete();
+            console.log("Cleanup: Deleted empty book", doc.id);
           }
         }
         // 削除後にカウントを更新
