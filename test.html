@@ -79,6 +79,48 @@
       min-height: 60px;
     }
 
+    #result .correct,
+    #result .wrong {
+      font-weight: bold;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #result .correct {
+      color: #191970;
+    }
+
+    #result .wrong {
+      color: #b60033;
+    }
+
+    /* 正解：シンプルな丸（線のみ） */
+    #result .correct::before {
+      content: "";
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      border: 3px solid #191970;
+      border-radius: 50%;
+      box-sizing: border-box;
+      transform: translateY(2px);
+    }
+
+    /* 不正解：シンプルなバツ（線のみ） */
+    #result .wrong::before {
+      content: "";
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      background:
+        linear-gradient(45deg, transparent calc(50% - 2px), #b60033 calc(50% - 2px), #b60033 calc(50% + 2px), transparent calc(50% + 2px)),
+        linear-gradient(-45deg, transparent calc(50% - 2px), #b60033 calc(50% - 2px), #b60033 calc(50% + 2px), transparent calc(50% + 2px));
+      transform: translateY(2px);
+    }
+
     #start {
       height: 480px;
     }
@@ -255,7 +297,7 @@
         <span>自分で採点する</span>
       </label>
 
-      <button onclick="resetLearned()">🔄 学習データをリセット</button><br><br>
+      <button onclick="resetLearned()">学習データをリセット</button><br><br>
 
       <button onclick="startTest()">▶ スタート</button><br><br>
       <button onclick="goBack()">戻る</button>
@@ -273,8 +315,8 @@
         <p id="result"></p>
         <button id="answerBtn" onclick="check()">回答 (Enter)</button>
         <div id="selfButtons" style="display:none;">
-          <button onclick="markCorrect()">⭕ 正解</button>
-          <button onclick="markWrong()">❌ 不正解</button>
+          <button onclick="markCorrect()">正解</button>
+          <button onclick="markWrong()">不正解</button>
         </div>
       </div>
 
@@ -463,7 +505,7 @@
                 // 完全一致なら自動で正解
                 if (ans.value.trim() === filteredWords[i].back) {
 
-                    result.textContent = "⭕ 正解";
+                    result.innerHTML = '<span class="correct">正解</span>';
 
                     correct++;
 
@@ -499,14 +541,14 @@
 
             // ここから今までの自動採点
         if (ans.value.trim() === filteredWords[i].back) {
-          result.textContent = "⭕ 正解";
+          result.innerHTML = '<span class="correct">正解</span>';
           correct++;
           if (!learned[id].includes(filteredWords[i].front)) {
             learned[id].push(filteredWords[i].front);
             localStorage.setItem("learnedWords", JSON.stringify(learned));
           }
         } else {
-          result.textContent = "❌ 不正解 正解: " + filteredWords[i].back;
+          result.innerHTML = '<span class="wrong">不正解</span>　正解: ' + filteredWords[i].back;
         }
         phase = 1;
         document.getElementById("answerBtn").textContent = "次へ (Enter)";
@@ -525,7 +567,7 @@
             localStorage.setItem("learnedWords", JSON.stringify(learned));
         }
 
-        result.innerHTML += "<br><br>⭕ 正解";
+        result.innerHTML += '<br><br><span class="correct">正解</span>';
         document.getElementById("selfButtons").style.display = "none";
         const answerBtn = document.getElementById("answerBtn");
         answerBtn.style.display = "";
@@ -535,7 +577,7 @@
 
     window.markWrong = () => {
 
-        result.innerHTML += "<br><br>❌ 不正解";
+        result.innerHTML += '<br><br><span class="wrong">不正解</span>';
         document.getElementById("selfButtons").style.display = "none";
         const answerBtn = document.getElementById("answerBtn");
         answerBtn.style.display = "";
