@@ -8,6 +8,9 @@
   <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
   <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
   <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script src="theme.js"></script>
   <style>
     .main {
       margin: 0;
@@ -17,7 +20,8 @@
     }
 
     .card {
-      background: white;
+      background: var(--color-surface);
+      color: var(--color-text);
       max-width: 50%;
       margin: 30px auto;
       padding: 30px;
@@ -31,7 +35,7 @@
       max-width: 550px;
       box-sizing: border-box;
       border-radius: 8px;
-      border: 1px solid #ccc;
+      border: 1px solid var(--color-border);
     }
 
     #ans {
@@ -40,8 +44,8 @@
     }
 
     button {
-      background: #191970;
-      color: white;
+      background: var(--color-accent);
+      color: var(--color-accent-text);
       border: none;
       border-radius: 8px;
       padding: 10px 16px;
@@ -88,11 +92,11 @@
     }
 
     #result .correct {
-      color: #191970;
+      color: var(--color-accent);
     }
 
     #result .wrong {
-      color: #b60033;
+      color: var(--color-danger);
     }
 
     /* 正解：シンプルな丸（線のみ） */
@@ -102,7 +106,7 @@
       width: 20px;
       height: 20px;
       flex-shrink: 0;
-      border: 3px solid #191970;
+      border: 3px solid var(--color-accent);
       border-radius: 50%;
       box-sizing: border-box;
       transform: translateY(2px);
@@ -116,8 +120,8 @@
       height: 20px;
       flex-shrink: 0;
       background:
-        linear-gradient(45deg, transparent calc(50% - 2px), #b60033 calc(50% - 2px), #b60033 calc(50% + 2px), transparent calc(50% + 2px)),
-        linear-gradient(-45deg, transparent calc(50% - 2px), #b60033 calc(50% - 2px), #b60033 calc(50% + 2px), transparent calc(50% + 2px));
+        linear-gradient(45deg, transparent calc(50% - 2px), var(--color-danger) calc(50% - 2px), var(--color-danger) calc(50% + 2px), transparent calc(50% + 2px)),
+        linear-gradient(-45deg, transparent calc(50% - 2px), var(--color-danger) calc(50% - 2px), var(--color-danger) calc(50% + 2px), transparent calc(50% + 2px));
       transform: translateY(2px);
     }
 
@@ -131,7 +135,7 @@
     #progressWrap {
       width: 100%;
       height: 12px;
-      background: #eee;
+      background: var(--color-border);
       border-radius: 10px;
       margin-top: 15px;
       overflow: hidden;
@@ -140,7 +144,7 @@
     #progressBar {
       height: 100%;
       width: 0%;
-      background: #191970;
+      background: var(--color-accent);
       transition: 0.3s;
     }
 
@@ -182,8 +186,8 @@
       width: min(360px, 90%);
       margin: 10px auto;
       padding: 10px 16px;
-      background: #f8f9fc;
-      border: 2px solid #d9def5;
+      background: var(--color-surface);
+      border: 2px solid var(--color-border);
       border-radius: 14px;
       cursor: pointer;
       transition: .2s;
@@ -192,8 +196,8 @@
     }
 
     .option:hover {
-      border-color: #191970;
-      background: #eef2ff;
+      border-color: var(--color-accent);
+      background: var(--color-bg);
       transform: translateY(-1px);
     }
 
@@ -202,9 +206,9 @@
       -webkit-appearance: none;
       width: 28px;
       height: 28px;
-      border: 2px solid #191970;
+      border: 2px solid var(--color-accent);
       border-radius: 8px;
-      background: white;
+      background: var(--color-surface);
       position: relative;
       cursor: pointer;
       flex-shrink: 0;
@@ -212,7 +216,7 @@
     }
 
     .option input[type="checkbox"]:checked {
-      background: #191970;
+      background: var(--color-accent);
     }
 
     .option input[type="checkbox"]::before {
@@ -270,8 +274,8 @@
     <p class="headertitle"><a href="index.html"><img src="./images/rogo.png" height="70vh"></a></p>
     <div id="status" style="display:none">ログイン確認中...</div>
     <div>
-      <button id="mypageBtn" class="header-btn" style="display:none"
-        onclick="window.goPage('mypage.html')">マイページ</button>
+      <button id="settingsBtn" class="header-btn" style="display:none"
+        onclick="window.goPage('settings.html')">設定</button>
       <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
       <button id="logoutBtn" class="header-btn" style="display:none" onclick="window.logout()">ログアウト</button>
     </div>
@@ -301,7 +305,7 @@
 
       <button onclick="startTest()">▶ スタート</button><br><br>
       <button onclick="goBack()">戻る</button>
-      <p id="startMsg" style="color:red"></p>
+      <p id="startMsg" style="color:var(--color-danger)"></p>
     </div>
   </div>
   <!-- クイズ -->
@@ -348,7 +352,7 @@
         <a href="index.html">ホーム</a>
         <a href="list.html">公開単語帳</a>
         <a href="create.html">作成</a>
-        <a href="mypage.html">マイページ</a>
+        <a href="settings.html">設定</a>
         <a href="update.html">更新履歴</a>
         <a href="contact.html">お問い合わせ</a>
       </div>
@@ -371,14 +375,14 @@
     const statusDiv = document.getElementById("status");
     const loginBtn = document.getElementById("loginBtn");
     const logoutBtn = document.getElementById("logoutBtn");
-    const mypageBtn = document.getElementById("mypageBtn");
+    const settingsBtn = document.getElementById("settingsBtn");
 
     // ログイン情報のキャッシュを利用してヘッダーを即時表示
     const savedUser =
       JSON.parse(localStorage.getItem("cachedUser"));
 
     if (savedUser) {
-      mypageBtn.style.display = "inline-block";
+      settingsBtn.style.display = "inline-block";
       logoutBtn.style.display = "inline-block";
       loginBtn.style.display = "none";
     }
@@ -393,13 +397,13 @@
         statusDiv.textContent = "ログイン中: " + user.uid;
         loginBtn.style.display = "none";
         logoutBtn.style.display = "inline-block";
-        mypageBtn.style.display = "inline-block";
+        settingsBtn.style.display = "inline-block";
       } else {
         localStorage.removeItem("cachedUser");
         statusDiv.textContent = "ログアウト中";
         loginBtn.style.display = "inline-block";
         logoutBtn.style.display = "none";
-        mypageBtn.style.display = "none";
+        settingsBtn.style.display = "none";
       }
     });
 
@@ -408,7 +412,8 @@
         location.href = "index.html";
         return;
       }
-      if (currentUser) {
+      const hasCachedUser = !!localStorage.getItem("cachedUser");
+      if (currentUser || hasCachedUser) {
         location.href = page;
       } else {
         alert("ログインしてください");
@@ -523,7 +528,7 @@
                 ans.readOnly = true;
 
                 result.innerHTML = `
-                <div style="text-align:left;border:1px solid #ddd;border-radius:8px;padding:12px;margin-top:10px;">
+                <div style="text-align:left;border:1px solid var(--color-border);border-radius:8px;padding:12px;margin-top:10px;">
                     <div><b>あなたの回答</b></div>
                     <div style="margin-bottom:12px;">${ans.value || "（未入力）"}</div>
 

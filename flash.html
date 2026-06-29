@@ -8,9 +8,13 @@
   <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
   <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
   <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script src="theme.js"></script>
   <style>
     .card {
-      background: white;
+      background: var(--color-surface);
+      color: var(--color-text);
       max-width: 600px;
       margin: 40px auto;
       padding: 30px;
@@ -46,7 +50,7 @@
     #progressWrap {
       width: 100%;
       height: 12px;
-      background: #eee;
+      background: var(--color-border);
       border-radius: 10px;
       margin-top: 15px;
       overflow: hidden;
@@ -55,7 +59,7 @@
     #progressBar {
       height: 100%;
       width: 0%;
-      background: #191970;
+      background: var(--color-accent);
       transition: 0.3s;
     }
 
@@ -77,8 +81,8 @@
     <p class="headertitle"><a href="index.html"><img src="./images/rogo.png" height="70vh"></a></p>
     <div id="status" style="display:none">ログイン確認中...</div>
     <div>
-      <button id="mypageBtn" class="header-btn" style="display:none"
-        onclick="window.goPage('mypage.html')">マイページ</button>
+      <button id="settingsBtn" class="header-btn" style="display:none"
+        onclick="window.goPage('settings.html')">設定</button>
       <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
       <button id="logoutBtn" class="header-btn" style="display:none" onclick="window.logout()">ログアウト</button>
     </div>
@@ -125,7 +129,7 @@
         <a href="index.html">ホーム</a>
         <a href="list.html">公開単語帳</a>
         <a href="create.html">作成</a>
-        <a href="mypage.html">マイページ</a>
+        <a href="settings.html">設定</a>
         <a href="update.html">更新履歴</a>
         <a href="contact.html">お問い合わせ</a>
       </div>
@@ -148,14 +152,14 @@
     const statusDiv = document.getElementById("status");
     const loginBtn = document.getElementById("loginBtn");
     const logoutBtn = document.getElementById("logoutBtn");
-    const mypageBtn = document.getElementById("mypageBtn");
+    const settingsBtn = document.getElementById("settingsBtn");
 
     // ログイン情報のキャッシュを利用してヘッダーを即時表示
     const savedUser =
       JSON.parse(localStorage.getItem("cachedUser"));
 
     if (savedUser) {
-      mypageBtn.style.display = "inline-block";
+      settingsBtn.style.display = "inline-block";
       logoutBtn.style.display = "inline-block";
       loginBtn.style.display = "none";
     }
@@ -170,13 +174,13 @@
         statusDiv.textContent = "ログイン中: " + user.uid;
         loginBtn.style.display = "none";
         logoutBtn.style.display = "inline-block";
-        mypageBtn.style.display = "inline-block";
+        settingsBtn.style.display = "inline-block";
       } else {
         localStorage.removeItem("cachedUser");
         statusDiv.textContent = "ログアウト中";
         loginBtn.style.display = "inline-block";
         logoutBtn.style.display = "none";
-        mypageBtn.style.display = "none";
+        settingsBtn.style.display = "none";
       }
     });
 
@@ -185,7 +189,8 @@
         location.href = "index.html";
         return;
       }
-      if (currentUser) {
+      const hasCachedUser = !!localStorage.getItem("cachedUser");
+      if (currentUser || hasCachedUser) {
         location.href = page;
       } else {
         alert("ログインしてください");

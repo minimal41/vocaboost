@@ -8,6 +8,9 @@
   <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
   <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
   <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script src="theme.js"></script>
 
   <style>
     body {
@@ -17,7 +20,8 @@
     }
 
     .card {
-      background: white;
+      background: var(--color-surface);
+      color: var(--color-text);
       padding: 25px;
       border-radius: 12px;
       margin-bottom: 20px;
@@ -26,7 +30,7 @@
     input {
       padding: 12px;
       border-radius: 10px;
-      border: 1px solid #ccc;
+      border: 1px solid var(--color-border);
       font-size: 16px;
     }
 
@@ -68,7 +72,7 @@
     }
 
     .wordItem {
-      border-bottom: 1px solid #ddd;
+      border-bottom: 1px solid var(--color-border);
       padding: 6px;
       display: flex;
       justify-content: space-between;
@@ -76,15 +80,15 @@
     }
 
     .notice {
-      color: red;
+      color: var(--color-danger);
     }
 
     .smallBtn {
-      background: #b60033;
+      background: var(--color-danger);
       border-radius: 6px;
       padding: 4px 8px;
       font-size: 12px;
-      color: white;
+      color: var(--color-accent-text);
       border: none;
       cursor: pointer;
     }
@@ -92,7 +96,7 @@
     .editInput {
       padding: 8px;
       border-radius: 8px;
-      border: 1px solid #ccc;
+      border: 1px solid var(--color-border);
       font-size: 14px;
     }
 
@@ -110,7 +114,7 @@
     <p class="headertitle"><a href="index.html"><img src="./images/rogo.png" height="70vh"></a></p>
     <div id="status" style="display:none">ログイン確認中...</div>
     <div>
-      <button id="mypageBtn" class="header-btn" style="display:none" onclick="goPage('mypage.html')">マイページ</button>
+      <button id="settingsBtn" class="header-btn" style="display:none" onclick="goPage('settings.html')">設定</button>
       <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
       <button id="logoutBtn" class="header-btn" style="display:none" onclick="logout()">ログアウト</button>
     </div>
@@ -122,7 +126,7 @@
       <h2>単語帳情報</h2>
       <input id="title" placeholder="単語帳タイトル"><br>
       <textarea id="description" placeholder="説明文（例：考査範囲、授業のメモなど）"
-        style="width: 80%; max-width: 400px; height: 80px; margin-top: 10px; padding: 12px; border-radius: 10px; border: 1px solid #ccc; font-size: 14px; font-family: inherit; box-sizing: border-box;"></textarea>
+        style="width: 80%; max-width: 400px; height: 80px; margin-top: 10px; padding: 12px; border-radius: 10px; border: 1px solid var(--color-border); font-size: 14px; font-family: inherit; box-sizing: border-box;"></textarea>
 
       <div class="row">
         <label for="isPublic">公開する</label>
@@ -166,7 +170,7 @@
         <a href="index.html">ホーム</a>
         <a href="list.html">検索</a>
         <a href="create.html">作成</a>
-        <a href="mypage.html">マイページ</a>
+        <a href="settings.html">設定</a>
         <a href="update.html">更新履歴</a>
         <a href="contact.html">お問い合わせ</a>
       </div>
@@ -198,14 +202,14 @@
     const statusDiv = document.getElementById("status");
     const loginBtn = document.getElementById("loginBtn");
     const logoutBtn = document.getElementById("logoutBtn");
-    const mypageBtn = document.getElementById("mypageBtn");
+    const settingsBtn = document.getElementById("settingsBtn");
 
     // ログイン情報のキャッシュを利用してヘッダーを即時表示
     const savedUser =
       JSON.parse(localStorage.getItem("cachedUser"));
 
     if (savedUser) {
-      mypageBtn.style.display = "inline-block";
+      settingsBtn.style.display = "inline-block";
       logoutBtn.style.display = "inline-block";
       loginBtn.style.display = "none";
     }
@@ -220,13 +224,13 @@
         statusDiv.textContent = "ログイン中: " + user.uid;
         loginBtn.style.display = "none";
         logoutBtn.style.display = "inline-block";
-        mypageBtn.style.display = "inline-block";
+        settingsBtn.style.display = "inline-block";
       } else {
         localStorage.removeItem("cachedUser");
         statusDiv.textContent = "ログアウト中";
         loginBtn.style.display = "inline-block";
         logoutBtn.style.display = "none";
-        mypageBtn.style.display = "none";
+        settingsBtn.style.display = "none";
         alert("ログインしてください");
         location.href = "login.html";
       }
@@ -237,7 +241,11 @@
         location.href = "index.html";
         return;
       }
-      if (currentUser) {
+      // currentUserはFirebaseの認証確認(非同期)が完了するまでnullのままのため、
+      // ページ読み込み直後にボタンを押すと「未ログイン」と誤判定されることがあった。
+      // localStorageのキャッシュがあれば、確認が終わっていなくても遷移してよいと判断する。
+      const hasCachedUser = !!localStorage.getItem("cachedUser");
+      if (currentUser || hasCachedUser) {
         location.href = page;
       } else {
         alert("ログインしてください");

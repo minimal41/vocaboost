@@ -1,16 +1,71 @@
+/* ===== テーマ・フォント設定 =====
+   settings.html で選択した内容が html要素の data-theme / data-font 属性に
+   反映され、ここで定義したCSS変数を通じて全ページに適用される。 */
+:root {
+  --color-bg: #eef2ff;
+  --color-surface: #ffffff;
+  --color-text: #222222;
+  --color-text-sub: #666666;
+  --color-accent: #191970;
+  --color-accent-text: #ffffff;
+  --color-header: #191970;
+  --color-header-text: #ffffff;
+  --color-border: #cccccc;
+  --color-danger: #b60033;
+  --color-success: #1a7a1a;
+  --color-shadow: rgba(0, 0, 0, 0.1);
+  --font-family: var(--font-standard);
+
+  /* トップページのイラストアイコン（作成/検索）用の配色 */
+  --icon-line: #161616;
+  --icon-accent: #e3d27a;
+  --icon-shadow: #d9d9d9;
+  --icon-hole: var(--color-surface);
+
+  /* 標準フォント（OSの既定フォント。Google Fontsを選んだ場合は theme.js が --font-family を直接上書きする） */
+  --font-standard: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", "Segoe UI", Roboto, sans-serif;
+}
+
+html[data-theme="dark"] {
+  --color-bg: #14151f;
+  --color-surface: #1f2030;
+  --color-text: #eaeaf2;
+  --color-text-sub: #a0a0b0;
+  --color-accent: #6f7bdb;
+  --color-accent-text: #ffffff;
+  /* ダークモードのヘッダー/フッターは画面の暗さに合わせ、目立たない落ち着いた色にする */
+  --color-header: #232433;
+  --color-header-text: #d8d8e8;
+  --color-border: #3a3b4c;
+  --color-danger: #ff6b81;
+  --color-success: #5fd16f;
+  --color-shadow: rgba(0, 0, 0, 0.4);
+
+  /* ダークモードのイラストアイコン：黒線は明るいグレーに、黄色は彩度を落として馴染ませる */
+  --icon-line: #cfcfd8;
+  --icon-accent: #b9a965;
+  --icon-shadow: #3a3b4c;
+  --icon-hole: var(--color-surface);
+}
+
+html[data-font="standard"] { --font-family: var(--font-standard); }
+/* Google Fontsから選択した場合は theme.js が --font-family を直接書き換える */
+
 body {
   margin: 0;
-  font-family: sans-serif;
-  background: #eef2ff;
+  font-family: var(--font-family);
+  background: var(--color-bg);
+  color: var(--color-text);
   display: flex;
   flex-flow: column;
   min-height: 100vh;
+  transition: background-color 0.2s, color 0.2s;
 }
 
 header {
-  font-family: sans-serif;
-  background: #191970;
-  color: white;
+  font-family: var(--font-family);
+  background: var(--color-header);
+  color: var(--color-header-text);
   padding: 10px;
   display: flex;
   justify-content: space-between;
@@ -24,7 +79,7 @@ header {
   font-size: 25px;
 
   a {
-    color: #eef2ff;
+    color: var(--color-header-text);
     font-weight: normal;
     text-decoration: none;
   }
@@ -39,8 +94,8 @@ main {
 }
 
 button {
-  background: #191970;
-  color: white;
+  background: var(--color-accent);
+  color: var(--color-accent-text);
   border: none;
   border-radius: 10px;
   padding: 10px 18px;
@@ -59,11 +114,33 @@ button:active {
   font-size: 18px !important;
   margin: 9px 12px !important;
   white-space: nowrap;
+  background: var(--color-header);
+  color: var(--color-header-text);
+}
+
+/* 入力欄・テキストエリア・セレクトの基本色をテーマに合わせる
+   （各ページの個別<style>はpadding/border-radius等のレイアウトのみを
+   上書きする想定で、背景色・文字色はここで一括管理する） */
+input,
+textarea,
+select {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-sub);
+}
+
+a {
+  color: var(--color-accent);
 }
 
 footer {
-  background: #191970;
-  color: white;
+  background: var(--color-header);
+  color: var(--color-header-text);
   padding: 20px 0;
   line-height: 2.0;
   margin-top: auto;
@@ -84,9 +161,9 @@ footer {
 }
 
 .footer-links a {
-  color: #FFF;
+  color: var(--color-header-text);
   text-decoration: none;
-  background-image: linear-gradient(#FFF, #FFF);
+  background-image: linear-gradient(var(--color-header-text), var(--color-header-text));
   background-repeat: no-repeat;
   background-position: left 85%; /* 下線の初期位置 */
   background-size: 0 1px; /* 下線のサイズ（横幅、高さ） */
@@ -143,7 +220,8 @@ footer {
   width: 100%;
   height: 100%;
   min-height: 150px;
-  background-color: rgba(255, 255, 255, 0.7);
+  background-color: var(--color-surface);
+  opacity: 0.85;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -161,8 +239,8 @@ footer {
 .spinner {
   width: 50px;
   height: 50px;
-  border: 5px solid #ddd;
-  border-top: 5px solid #191970;
+  border: 5px solid var(--color-border);
+  border-top: 5px solid var(--color-accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 15px;
@@ -179,7 +257,7 @@ footer {
 }
 
 .loading-text {
-  color: #191970;
+  color: var(--color-accent);
   font-weight: bold;
   font-size: 18px;
 }

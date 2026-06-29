@@ -1,6 +1,6 @@
 // Cache name
 // キャッシュ内容を変更したら必ずバージョンを上げる（古いキャッシュが残り続けるのを防ぐため）
-const CACHE_NAME = 'pwa-sample-caches-v2';
+const CACHE_NAME = 'pwa-sample-caches-v5';
 // Cache targets
 const urlsToCache = [
   './',
@@ -13,7 +13,7 @@ const urlsToCache = [
   './register.html',
   './forgot.html',
   './reset.html',
-  './mypage.html',
+  './settings.html',
   './test.html',
   './update.html',
   './user.html',
@@ -21,11 +21,10 @@ const urlsToCache = [
   './contact.html',
   './style.css',
   './login.css',
+  './theme.js',
   './manifest.json',
   './images/icon.png',
   './images/rogo.png',
-  './images/to-create.jpeg',
-  './images/to-list.jpeg',
   './images/favicon.ico',
 ];
 

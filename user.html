@@ -8,9 +8,13 @@
   <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
   <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
   <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script src="theme.js"></script>
   <style>
     .card {
-      background: white;
+      background: var(--color-surface);
+      color: var(--color-text);
       padding: 25px;
       border-radius: 12px;
       margin-bottom: 20px;
@@ -29,16 +33,16 @@
       display: block;
       padding: 10px;
       width: 100%;
-      border: solid thin #191970;
+      border: solid thin var(--color-accent);
       border-radius: 10px;
-      color: #000000;
+      color: var(--color-text);
       font-weight: normal;
       text-decoration: none;
     }
 
     a {
       text-decoration: none;
-      color: #191970;
+      color: var(--color-accent);
       font-weight: bold;
     }
 
@@ -58,7 +62,7 @@
     }
 
     .list {
-      background: white;
+      background: var(--color-surface);
       margin-top: 20px;
       padding: 20px;
       border-radius: 12px;
@@ -74,7 +78,7 @@
     </p>
     <div id="status" style="display:none">ログイン確認中...</div>
     <div>
-      <button id="mypageBtn" class="header-btn" style="display:none" onclick="goPage('mypage.html')">マイページ</button>
+      <button id="settingsBtn" class="header-btn" style="display:none" onclick="goPage('settings.html')">設定</button>
       <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
       <button id="logoutBtn" class="header-btn" style="display:none" onclick="logout()">ログアウト</button>
     </div>
@@ -100,7 +104,7 @@
         <a href="index.html">ホーム</a>
         <a href="list.html">検索</a>
         <a href="create.html">作成</a>
-        <a href="mypage.html">マイページ</a>
+        <a href="settings.html">設定</a>
         <a href="update.html">更新履歴</a>
         <a href="contact.html">お問い合わせ</a>
       </div>
@@ -132,14 +136,14 @@
       const statusDiv = document.getElementById("status");
       const loginBtn = document.getElementById("loginBtn");
       const logoutBtn = document.getElementById("logoutBtn");
-      const mypageBtn = document.getElementById("mypageBtn");
+      const settingsBtn = document.getElementById("settingsBtn");
 
       // ログイン情報のキャッシュを利用してヘッダーを即時表示
       const savedUser =
         JSON.parse(localStorage.getItem("cachedUser"));
 
       if (savedUser) {
-        mypageBtn.style.display = "inline-block";
+        settingsBtn.style.display = "inline-block";
         logoutBtn.style.display = "inline-block";
         loginBtn.style.display = "none";
       }
@@ -154,13 +158,13 @@
           statusDiv.textContent = "ログイン中: " + user.uid;
           loginBtn.style.display = "none";
           logoutBtn.style.display = "inline-block";
-          mypageBtn.style.display = "inline-block";
+          settingsBtn.style.display = "inline-block";
         } else {
           localStorage.removeItem("cachedUser");
           statusDiv.textContent = "ログアウト中";
           loginBtn.style.display = "inline-block";
           logoutBtn.style.display = "none";
-          mypageBtn.style.display = "none";
+          settingsBtn.style.display = "none";
         }
       });
 
@@ -169,7 +173,8 @@
           location.href = "index.html";
           return;
         }
-        if (currentUser) {
+        const hasCachedUser = !!localStorage.getItem("cachedUser");
+        if (currentUser || hasCachedUser) {
           location.href = page;
         } else {
           alert("ログインしてください");

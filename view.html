@@ -8,13 +8,17 @@
   <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
   <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
   <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script src="theme.js"></script>
   <style>
     .main {
       flex: 1;
     }
 
     .card {
-      background: white;
+      background: var(--color-surface);
+      color: var(--color-text);
       max-width: 45%;
       margin: 20px auto;
       padding: 20px;
@@ -33,21 +37,21 @@
     .detail-info {
       text-align: center;
       font-size: 13px;
-      color: #666;
+      color: var(--color-text-sub);
       margin-bottom: 20px;
       line-height: 1.6;
     }
 
     .detail-info a {
-      color: #191970;
+      color: var(--color-accent);
       text-decoration: underline;
     }
 
     #description {
       text-align: left;
       font-size: 14px;
-      color: #333;
-      background: #f9faff;
+      color: var(--color-text);
+      background: var(--color-bg);
       padding: 15px;
       border-radius: 8px;
       margin-bottom: 20px;
@@ -61,13 +65,13 @@
     }
 
     a.btn {
-      background: white;
-      color: #191970;
+      background: var(--color-surface);
+      color: var(--color-accent);
       padding: 6px 12px;
       border-radius: 8px;
       text-decoration: none;
       font-weight: bold;
-      border: 1px solid #191970;
+      border: 1px solid var(--color-accent);
       width: 100%;
       margin-left: 5px;
       margin-right: 5px;
@@ -76,7 +80,7 @@
     }
 
     .word {
-      border-bottom: 1px solid #ddd;
+      border-bottom: 1px solid var(--color-border);
       padding: 6px 0;
       cursor: text;
     }
@@ -99,7 +103,7 @@
       }
     }
     #description a {
-      color: #191970;
+      color: var(--color-accent);
       text-decoration: underline;
       word-break: break-all;
     }
@@ -119,8 +123,8 @@
     <p class="headertitle"><a href="index.html"><img src="./images/rogo.png" height="70vh"></a></p>
     <div id="status" style="display:none">ログイン確認中...</div>
     <div>
-      <button id="mypageBtn" class="header-btn" style="display:none"
-        onclick="window.goPage('mypage.html')">マイページ</button>
+      <button id="settingsBtn" class="header-btn" style="display:none"
+        onclick="window.goPage('settings.html')">設定</button>
       <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
       <button id="logoutBtn" class="header-btn" style="display:none" onclick="window.logout()">ログアウト</button>
     </div>
@@ -145,7 +149,7 @@
         <a href="index.html">ホーム</a>
         <a href="list.html">公開単語帳</a>
         <a href="create.html">作成</a>
-        <a href="mypage.html">マイページ</a>
+        <a href="settings.html">設定</a>
         <a href="update.html">更新履歴</a>
         <a href="contact.html">お問い合わせ</a>
       </div>
@@ -172,13 +176,13 @@
     const statusDiv = document.getElementById("status");
     const loginBtn = document.getElementById("loginBtn");
     const logoutBtn = document.getElementById("logoutBtn");
-    const mypageBtn = document.getElementById("mypageBtn");
+    const settingsBtn = document.getElementById("settingsBtn");
 
     const savedUser =
       JSON.parse(localStorage.getItem("cachedUser"));
 
     if (savedUser) {
-      mypageBtn.style.display = "inline-block";
+      settingsBtn.style.display = "inline-block";
       logoutBtn.style.display = "inline-block";
       loginBtn.style.display = "none";
     }
@@ -188,7 +192,8 @@
         location.href = "index.html";
         return;
       }
-      if (currentUser) {
+      const hasCachedUser = !!localStorage.getItem("cachedUser");
+      if (currentUser || hasCachedUser) {
         location.href = page;
       } else {
         alert("ログインしてください");
@@ -366,7 +371,7 @@
         statusDiv.textContent = "ログイン中: " + user.uid;
         loginBtn.style.display = "none";
         logoutBtn.style.display = "inline-block";
-        mypageBtn.style.display = "inline-block";
+        settingsBtn.style.display = "inline-block";
 
         if (user.uid === owner) {
           const editBtn = document.getElementById("editBtn");
@@ -377,7 +382,7 @@
         statusDiv.textContent = "ログアウト中";
         loginBtn.style.display = "inline-block";
         logoutBtn.style.display = "none";
-        mypageBtn.style.display = "none";
+        settingsBtn.style.display = "none";
       }
     });
   </script>
