@@ -1,6 +1,6 @@
 // Cache name
 // キャッシュ内容を変更したら必ずバージョンを上げる（古いキャッシュが残り続けるのを防ぐため）
-const CACHE_NAME = 'pwa-sample-caches-v5';
+const CACHE_NAME = 'pwa-sample-caches-v6';
 // Cache targets
 const urlsToCache = [
   './',
@@ -60,11 +60,42 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+
+  // 同一オリジンのリクエストのみキャッシュ戦略を適用する
+  // （Firebase・Google Fonts等の外部リクエストはそのままネットワークに流す）
+  if (url.origin !== location.origin) {
+    return;
+  }
+
+  // HTMLファイル・CSSファイル・JSファイルは「ネットワーク優先」で取得する。
+  // ネットワーク取得に成功したらキャッシュを最新版に更新し、
+  // オフライン等で失敗した場合のみ古いキャッシュを返す。
+  const isHtmlOrAsset = /\.(html|css|js)$/.test(url.pathname) || url.pathname === '/' || url.pathname.endsWith('/');
+
+  if (isHtmlOrAsset) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          // レスポンスが正常なときだけキャッシュを更新する
+          if (response && response.status === 200) {
+            const cloned = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
+          }
+          return response;
+        })
+        .catch(() => {
+          // ネットワーク失敗時はキャッシュから返す（オフライン対応）
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // 画像など変更の少ないリソースは「キャッシュ優先」のままにする
   event.respondWith(
     caches
       .match(event.request)
-      .then((response) => {
-        return response || fetch(event.request);
-      })
+      .then((response) => response || fetch(event.request))
   );
 });
