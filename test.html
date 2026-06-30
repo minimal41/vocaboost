@@ -126,7 +126,8 @@
     }
 
     #start {
-      height: 480px;
+      height: auto;
+      padding-bottom: 30px;
     }
     #progress {
       margin-top: auto;
@@ -301,6 +302,11 @@
         <span>自分で採点する</span>
       </label>
 
+      <label class="option">
+        <input type="checkbox" id="swapCheck">
+        <span>表と裏を入れ替える</span>
+      </label>
+
       <button onclick="resetLearned()">学習データをリセット</button><br><br>
 
       <button onclick="startTest()">▶ スタート</button><br><br>
@@ -433,7 +439,8 @@
         i = 0,
         correct = 0,
         phase = 0,
-        selfMode = false;
+        selfMode = false,
+        swapMode = false;
 
     let learned = JSON.parse(localStorage.getItem("learnedWords")) || {};
     if (!learned[id]) learned[id] = [];
@@ -443,8 +450,8 @@
     snap.forEach(d => words.push(d.data()));
 
     window.startTest = () => {
-      // ←ここを追加
       selfMode = document.getElementById("selfCheck").checked;
+      swapMode = document.getElementById("swapCheck").checked;
 
       makeList();
 
@@ -474,6 +481,14 @@
       }
     }
 
+    // swapModeがtrueのとき出題文と正解を入れ替える（表裏を逆にする）
+    function getQuestion(word) {
+      return swapMode ? word.back : word.front;
+    }
+    function getAnswerText(word) {
+      return swapMode ? word.front : word.back;
+    }
+
     function render() {
       if (i >= filteredWords.length) {
         quiz.style.display = "none";
@@ -481,7 +496,7 @@
         score.textContent = `${correct}/${filteredWords.length} (${Math.round(correct / filteredWords.length * 100)}%)`;
         return;
       }
-      q.textContent = filteredWords[i].front;
+      q.textContent = getQuestion(filteredWords[i]);
       ans.value = "";
       ans.readOnly = false;
       result.textContent = "";
@@ -508,7 +523,7 @@
             if (selfMode) {
 
                 // 完全一致なら自動で正解
-                if (ans.value.trim() === filteredWords[i].back) {
+                if (ans.value.trim() === getAnswerText(filteredWords[i])) {
 
                     result.innerHTML = '<span class="correct">正解</span>';
 
@@ -533,7 +548,7 @@
                     <div style="margin-bottom:12px;">${ans.value || "（未入力）"}</div>
 
                     <div><b>正解</b></div>
-                    <div>${filteredWords[i].back}</div>
+                    <div>${getAnswerText(filteredWords[i])}</div>
                 </div>
                 `;
 
@@ -545,7 +560,7 @@
             }
 
             // ここから今までの自動採点
-        if (ans.value.trim() === filteredWords[i].back) {
+        if (ans.value.trim() === getAnswerText(filteredWords[i])) {
           result.innerHTML = '<span class="correct">正解</span>';
           correct++;
           if (!learned[id].includes(filteredWords[i].front)) {
@@ -553,7 +568,7 @@
             localStorage.setItem("learnedWords", JSON.stringify(learned));
           }
         } else {
-          result.innerHTML = '<span class="wrong">不正解</span>　正解: ' + filteredWords[i].back;
+          result.innerHTML = '<span class="wrong">不正解</span>　正解: ' + getAnswerText(filteredWords[i]);
         }
         phase = 1;
         document.getElementById("answerBtn").textContent = "次へ (Enter)";
