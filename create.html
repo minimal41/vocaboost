@@ -105,6 +105,127 @@
       width: 35%;
       max-width: 250px;
     }
+
+    /* 他の単語帳から取り込むモーダル */
+    .modalOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .modalBox {
+      background: var(--color-surface);
+      color: var(--color-text);
+      border-radius: 12px;
+      padding: 25px;
+      width: 100%;
+      max-width: 500px;
+      max-height: 80vh;
+      overflow-y: auto;
+      text-align: left;
+    }
+
+    .modalDesc {
+      font-size: 13px;
+      color: var(--color-text-sub);
+      margin-bottom: 10px;
+    }
+
+    .importBookList,
+    .importWordList {
+      max-height: 320px;
+      overflow-y: auto;
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+    }
+
+    .importBookItem {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--color-border);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .importBookItem:last-child {
+      border-bottom: none;
+    }
+
+    .importBookItem:hover {
+      background: var(--color-bg);
+    }
+
+    .importBookItem .bookTitle {
+      font-weight: bold;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .importBookItem .bookCount {
+      font-size: 12px;
+      color: var(--color-text-sub);
+      flex-shrink: 0;
+    }
+
+    .importWordRow {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+
+    .importWordRow:last-child {
+      border-bottom: none;
+    }
+
+    .importWordRow:hover {
+      background: var(--color-bg);
+    }
+
+    .importWordRow .wordPair {
+      font-size: 14px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .modalActions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 15px;
+    }
+
+    .smallActionBtn {
+      background: var(--color-border);
+      color: var(--color-text);
+      border: none;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .importEmpty {
+      padding: 20px;
+      text-align: center;
+      color: var(--color-text-sub);
+      font-size: 14px;
+    }
   </style>
 </head>
 
@@ -156,12 +277,42 @@
 
       <button onclick="importCSV()">CSV読み込み</button>
       <button onclick="exportCSV()">CSV書き出し</button>
+      <button onclick="openImportModal()">他の単語帳から取り込む</button>
 
       <br><br>
       <button onclick="goView()">完成して見る</button>
     </div>
 
   </main>
+
+  <!-- 他の単語帳から単語を取り込むモーダル -->
+  <div id="importModal" class="modalOverlay" style="display:none;">
+    <div class="modalBox">
+      <h3>他の単語帳から取り込む</h3>
+
+      <div id="importStep1">
+        <p class="modalDesc">取り込み元の単語帳を選んでください</p>
+        <div id="importBookList" class="importBookList"></div>
+      </div>
+
+      <div id="importStep2" style="display:none;">
+        <p class="modalDesc">取り込む単語を選んでください</p>
+        <div style="text-align:right; margin-bottom:8px;">
+          <button type="button" class="smallActionBtn" onclick="toggleSelectAllImportWords()">全選択/解除</button>
+        </div>
+        <div id="importWordList" class="importWordList"></div>
+        <div id="importMsg" class="notice"></div>
+        <div class="modalActions">
+          <button type="button" onclick="backToBookList()">単語帳選択に戻る</button>
+          <button type="button" onclick="confirmImportWords()">選択した単語を取り込む</button>
+        </div>
+      </div>
+
+      <div class="modalActions">
+        <button type="button" onclick="closeImportModal()">閉じる</button>
+      </div>
+    </div>
+  </div>
 
   <footer>
     <div class="footer-inner">
@@ -410,6 +561,183 @@
     function goView() {
       location.href = "view.html?id=" + bookId;
     }
+
+    /* ===== 他の単語帳から単語を取り込む ===== */
+
+    let importSelectedBookId = null;
+    let importWords = []; // {id, front, back} の配列（取り込み元の単語、createdAt順）
+
+    async function openImportModal() {
+      if (!bookId) {
+        alert("先に単語帳を作成してください");
+        return;
+      }
+
+      document.getElementById("importModal").style.display = "flex";
+      document.getElementById("importStep1").style.display = "block";
+      document.getElementById("importStep2").style.display = "none";
+
+      const listArea = document.getElementById("importBookList");
+      listArea.innerHTML = `<div class="importEmpty">読み込み中...</div>`;
+
+      try {
+        const snap = await db.collection("wordbooks")
+          .where("owner", "==", currentUser.uid)
+          .get();
+
+        // 取り込み対象が自分自身の単語帳にならないように除外する
+        const books = snap.docs
+          .filter(d => d.id !== bookId)
+          .map(d => ({ id: d.id, title: d.data().title || "(無題)", wordCount: d.data().wordCount || 0 }));
+
+        if (books.length === 0) {
+          listArea.innerHTML = `<div class="importEmpty">取り込み元にできる単語帳がありません</div>`;
+          return;
+        }
+
+        listArea.innerHTML = "";
+        books.forEach(b => {
+          const item = document.createElement("div");
+          item.className = "importBookItem";
+          item.innerHTML = `
+            <span class="bookTitle">${escapeHtml(b.title)}</span>
+            <span class="bookCount">${b.wordCount}語</span>
+          `;
+          item.addEventListener("click", () => selectImportBook(b.id, b.title));
+          listArea.appendChild(item);
+        });
+
+      } catch (e) {
+        console.error(e);
+        listArea.innerHTML = `<div class="importEmpty">読み込みに失敗しました</div>`;
+      }
+    }
+
+    async function selectImportBook(id, title) {
+      importSelectedBookId = id;
+
+      document.getElementById("importStep1").style.display = "none";
+      document.getElementById("importStep2").style.display = "block";
+
+      const wordArea = document.getElementById("importWordList");
+      wordArea.innerHTML = `<div class="importEmpty">読み込み中...</div>`;
+      document.getElementById("importMsg").textContent = "";
+
+      try {
+        const snap = await db.collection("wordbooks")
+          .doc(id)
+          .collection("words")
+          .orderBy("createdAt")
+          .get();
+
+        importWords = snap.docs.map(d => ({
+          id: d.id,
+          front: d.data().front,
+          back: d.data().back
+        }));
+
+        if (importWords.length === 0) {
+          wordArea.innerHTML = `<div class="importEmpty">単語が登録されていません</div>`;
+          return;
+        }
+
+        wordArea.innerHTML = "";
+        importWords.forEach(w => {
+          const row = document.createElement("label");
+          row.className = "importWordRow";
+          row.innerHTML = `
+            <input type="checkbox" class="importWordCheck" data-id="${w.id}" checked>
+            <span class="wordPair">${escapeHtml(w.front)} → ${escapeHtml(w.back)}</span>
+          `;
+          wordArea.appendChild(row);
+        });
+
+      } catch (e) {
+        console.error(e);
+        wordArea.innerHTML = `<div class="importEmpty">読み込みに失敗しました</div>`;
+      }
+    }
+
+    function backToBookList() {
+      document.getElementById("importStep1").style.display = "block";
+      document.getElementById("importStep2").style.display = "none";
+    }
+
+    function toggleSelectAllImportWords() {
+      const checks = document.querySelectorAll(".importWordCheck");
+      const allChecked = Array.from(checks).every(c => c.checked);
+      checks.forEach(c => c.checked = !allChecked);
+    }
+
+    function closeImportModal() {
+      document.getElementById("importModal").style.display = "none";
+      importSelectedBookId = null;
+      importWords = [];
+    }
+
+    async function confirmImportWords() {
+      if (!bookId) return;
+
+      const checks = document.querySelectorAll(".importWordCheck:checked");
+      const selectedIds = Array.from(checks).map(c => c.dataset.id);
+
+      if (selectedIds.length === 0) {
+        document.getElementById("importMsg").textContent = "取り込む単語を選択してください";
+        return;
+      }
+
+      const importMsg = document.getElementById("importMsg");
+      importMsg.textContent = "取り込んでいます...";
+
+      try {
+        // 現在の単語帳に既にある単語の中で、最も新しいcreatedAtを基準にする。
+        // これより後の時刻を選択順に割り振ることで、取り込んだ単語が必ず一番下に
+        // 元の順番通りに並ぶようにする。
+        const existingSnap = await db.collection("wordbooks")
+          .doc(bookId)
+          .collection("words")
+          .orderBy("createdAt", "desc")
+          .limit(1)
+          .get();
+
+        let baseTime = Date.now();
+        if (!existingSnap.empty) {
+          const lastCreatedAt = existingSnap.docs[0].data().createdAt;
+          if (lastCreatedAt && typeof lastCreatedAt.toMillis === "function") {
+            baseTime = Math.max(baseTime, lastCreatedAt.toMillis() + 1);
+          }
+        }
+
+        // 選択された単語を、取り込み元での並び順を保ったまま処理する
+        const selectedIdSet = new Set(selectedIds);
+        const orderedSelected = importWords.filter(w => selectedIdSet.has(w.id));
+
+        let addedCount = 0;
+        for (let idx = 0; idx < orderedSelected.length; idx++) {
+          const w = orderedSelected[idx];
+          const doc = await db.collection("wordbooks").doc(bookId).collection("words").add({
+            front: w.front,
+            back: w.back,
+            createdAt: new Date(baseTime + idx)
+          });
+          addWordToList(doc.id, w.front, w.back);
+          addedCount++;
+        }
+
+        if (addedCount > 0) {
+          await db.collection("wordbooks").doc(bookId).update({
+            wordCount: firebase.firestore.FieldValue.increment(addedCount)
+          });
+        }
+
+        closeImportModal();
+
+      } catch (e) {
+        console.error(e);
+        importMsg.textContent = "取り込みに失敗しました: " + e.message;
+      }
+    }
+
     const front = document.getElementById("front");
     const back = document.getElementById("back");
 
