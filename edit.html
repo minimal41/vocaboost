@@ -994,6 +994,7 @@ async function openImportModal() {
   try {
     const snap = await db.collection("wordbooks")
       .where("owner", "==", currentUser.uid)
+      .orderBy("createdAt", "desc")
       .get();
 
     // 取り込み対象が自分自身の単語帳にならないように除外する
