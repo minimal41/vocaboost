@@ -30,6 +30,29 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      background: var(--color-surface);
+      transition: transform 0.15s ease;
+    }
+
+    .wordItem.dragging {
+      position: fixed;
+      z-index: 1000;
+      box-sizing: border-box;
+      box-shadow: 0 10px 24px var(--color-shadow), 0 3px 8px var(--color-shadow);
+      transform: scale(1.03);
+      opacity: 0.97;
+      border-radius: 10px;
+      border-bottom: none;
+      pointer-events: none;
+      transition: box-shadow 0.15s ease, transform 0.15s ease;
+    }
+
+    .wordItemPlaceholder {
+      border: 2px dashed var(--color-accent);
+      border-radius: 8px;
+      background: var(--color-bg);
+      box-sizing: border-box;
+      margin: 4px 0;
     }
 
     .danger {
@@ -736,48 +759,6 @@
           const list = document.getElementById(listId);
           if (!list) return;
 
-          let dragItem = null;
-          let activePointerId = null;
-
-          function onPointerMove(ev) {
-            if (dragItem === null || ev.pointerId !== activePointerId) return;
-            ev.preventDefault();
-
-            const y = ev.clientY;
-            const siblings = Array.from(list.querySelectorAll(".wordItem"))
-              .filter(el => el !== dragItem);
-
-            let after = null;
-            for (const sib of siblings) {
-              const box = sib.getBoundingClientRect();
-              if (y < box.top + box.height / 2) {
-                after = sib;
-                break;
-              }
-            }
-
-            if (after) {
-              list.insertBefore(dragItem, after);
-            } else {
-              list.appendChild(dragItem);
-            }
-          }
-
-          function onPointerUp(ev) {
-            if (dragItem === null || ev.pointerId !== activePointerId) return;
-
-            document.removeEventListener("pointermove", onPointerMove);
-            document.removeEventListener("pointerup", onPointerUp);
-            document.removeEventListener("pointercancel", onPointerUp);
-
-            dragItem.classList.remove("dragging");
-            const finishedItem = dragItem;
-            dragItem = null;
-            activePointerId = null;
-
-            finalizeWordOrder(list, finishedItem);
-          }
-
           list.addEventListener("pointerdown", (e) => {
             const handle = e.target.closest(".dragHandle");
             if (!handle) return;
@@ -787,15 +768,110 @@
 
             e.preventDefault();
 
-            dragItem = item;
-            activePointerId = e.pointerId;
-            item.classList.add("dragging");
+            const pointerId = e.pointerId;
+            handle.setPointerCapture(pointerId);
 
-            // ドラッグ中に要素をDOM上で移動させても追従できるよう、
-            // pointerCaptureは使わずdocument側でmove/upを監視する
-            document.addEventListener("pointermove", onPointerMove);
-            document.addEventListener("pointerup", onPointerUp);
-            document.addEventListener("pointercancel", onPointerUp);
+            const startRect = item.getBoundingClientRect();
+            const startY = e.clientY;
+
+            // ドラッグ中、元の場所を確保しておくためのプレースホルダーを挿入
+            const placeholder = document.createElement("div");
+            placeholder.className = "wordItemPlaceholder";
+            placeholder.style.height = startRect.height + "px";
+            item.parentNode.insertBefore(placeholder, item.nextSibling);
+
+            // 要素を画面に固定し、ポインターに追従して自由に動かせるようにする
+            item.classList.add("dragging");
+            item.style.position = "fixed";
+            item.style.top = startRect.top + "px";
+            item.style.left = startRect.left + "px";
+            item.style.width = startRect.width + "px";
+
+            const onMove = (ev) => {
+              if (ev.pointerId !== pointerId) return;
+
+              // ポインターの動きにそのまま追従させる（浮き上がった状態で移動）
+              const deltaY = ev.clientY - startY;
+              item.style.top = (startRect.top + deltaY) + "px";
+
+              const currentCenter = startRect.top + startRect.height / 2 + deltaY;
+
+              const siblings = Array.from(list.querySelectorAll(".wordItem:not(.dragging)"));
+
+              let after = null;
+              for (const sib of siblings) {
+                const box = sib.getBoundingClientRect();
+                if (currentCenter < box.top + box.height / 2) {
+                  after = sib;
+                  break;
+                }
+              }
+
+              movePlaceholder(list, placeholder, after);
+            };
+
+            const onUp = (ev) => {
+              if (ev.pointerId !== pointerId) return;
+
+              handle.releasePointerCapture(pointerId);
+              handle.removeEventListener("pointermove", onMove);
+              handle.removeEventListener("pointerup", onUp);
+              handle.removeEventListener("pointercancel", onUp);
+
+              // プレースホルダーの位置に要素を戻し、固定表示を解除する
+              placeholder.parentNode.insertBefore(item, placeholder);
+              placeholder.remove();
+
+              item.classList.remove("dragging");
+              item.style.position = "";
+              item.style.top = "";
+              item.style.left = "";
+              item.style.width = "";
+
+              finalizeWordOrder(list);
+            };
+
+            handle.addEventListener("pointermove", onMove);
+            handle.addEventListener("pointerup", onUp);
+            handle.addEventListener("pointercancel", onUp);
+          });
+        }
+
+        // プレースホルダーの移動先が変わったとき、他の単語がなめらかに
+        // スライドして見えるようにする（FLIPテクニック）
+        function movePlaceholder(list, placeholder, after) {
+          const currentNext = placeholder.nextElementSibling || null;
+          const target = after || null;
+
+          if (target === placeholder) return;
+          if (target === currentNext) return;
+
+          const items = Array.from(list.children).filter(
+            el => !el.classList.contains("dragging")
+          );
+
+          const firstRects = new Map();
+          items.forEach(el => firstRects.set(el, el.getBoundingClientRect()));
+
+          if (target) {
+            list.insertBefore(placeholder, target);
+          } else {
+            list.appendChild(placeholder);
+          }
+
+          items.forEach(el => {
+            const first = firstRects.get(el);
+            const last = el.getBoundingClientRect();
+            const deltaY = first.top - last.top;
+
+            if (deltaY) {
+              el.style.transition = "none";
+              el.style.transform = `translateY(${deltaY}px)`;
+              requestAnimationFrame(() => {
+                el.style.transition = "transform 0.15s ease";
+                el.style.transform = "";
+              });
+            }
           });
         }
 
