@@ -121,6 +121,60 @@
       transform: scale(1.2);
     }
 
+    .dragHandle {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 3px;
+      cursor: grab;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .dragHandle span {
+      display: block;
+      width: 16px;
+      height: 2px;
+      border-radius: 1px;
+      background: var(--color-text-sub);
+    }
+
+    .dragHandle:active {
+      cursor: grabbing;
+    }
+
+    .wordItem.dragging {
+      opacity: 0.5;
+      background: var(--color-bg);
+      border-radius: 8px;
+    }
+
+    .publicToggleRow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .publicToggleRow label {
+      font-weight: normal;
+      cursor: pointer;
+    }
+
+    .publicToggleRow input[type="checkbox"] {
+      transform: scale(1.2);
+      cursor: pointer;
+    }
+
+    .publicStatus {
+      font-size: 12px;
+      color: var(--color-text-sub);
+    }
+
     .swapBtn {
       width: 32px;
       height: 32px;
@@ -323,6 +377,13 @@
       <input id="title" class="titleInput" placeholder="タイトル">
       <textarea id="description" placeholder="説明文を入力してください"></textarea>
       <div id="owner" style="margin-top:10px; color:var(--color-text-sub); font-size:13px;"></div>
+
+      <div class="publicToggleRow">
+        <input type="checkbox" id="isPublic" onchange="togglePublic()">
+        <label for="isPublic">公開する</label>
+        <span class="publicStatus" id="publicStatus"></span>
+      </div>
+
       <button class="danger" onclick="deleteBook()" style="margin-top:15px;">この単語帳を削除</button>
       <div id="msg" class="notice"></div>
     </div>
@@ -344,7 +405,7 @@
     </div>
 
     <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <h3>単語一覧</h3>
         <button onclick="reverseSelectedWords()">
           選択項目を表裏反転
@@ -353,6 +414,9 @@
           選択削除
         </button>
       </div>
+      <p style="font-size:12px;color:var(--color-text-sub);text-align:left;margin:6px 2px;">
+        ☰ を掴んでドラッグすると単語の並び順を変更できます
+      </p>
       <div id="wordList"></div>
     </div>
 
@@ -528,8 +592,16 @@
           document.getElementById("owner").textContent = data.owner;
           document.getElementById("wordList").innerHTML = data.wordsHtml;
 
+          if (typeof data.isPublic === "boolean") {
+            document.getElementById("isPublic").checked = data.isPublic;
+            updatePublicStatusText(data.isPublic);
+          }
+
         } catch(e){}
       }
+
+      // 並び替え機能のため、単語に order フィールドが無い場合はここで一度だけ付与する
+      await ensureWordOrder();
 
       bookListener = db.collection("wordbooks")
         .doc(bookId)
@@ -560,6 +632,10 @@
           document.getElementById("owner").textContent =
             "作成者: " + data.ownerName;
 
+          const isPublic = data.isPublic !== false;
+          document.getElementById("isPublic").checked = isPublic;
+          updatePublicStatusText(isPublic);
+
           updateCache();
 
       });
@@ -567,7 +643,7 @@
       wordsListener = db.collection("wordbooks")
         .doc(bookId)
         .collection("words")
-        .orderBy("createdAt")
+        .orderBy("order")
         .onSnapshot(snapshot => {
 
           const area = document.getElementById("wordList");
@@ -599,11 +675,152 @@
               title: document.getElementById("title").value,
               description: document.getElementById("description").value,
               owner: document.getElementById("owner").textContent,
-              wordsHtml: document.getElementById("wordList").innerHTML
+              wordsHtml: document.getElementById("wordList").innerHTML,
+              isPublic: document.getElementById("isPublic").checked
             })
           );
 
         }
+
+        function updatePublicStatusText(isPublic) {
+          const el = document.getElementById("publicStatus");
+          if (el) el.textContent = isPublic ? "（公開中）" : "（非公開）";
+        }
+
+        // 公開/非公開の切り替え：保存ボタンを押さなくても即時にDBへ反映する
+        async function togglePublic() {
+          const checkbox = document.getElementById("isPublic");
+          const isPublic = checkbox.checked;
+
+          updatePublicStatusText(isPublic);
+
+          try {
+            await db.collection("wordbooks").doc(bookId).update({
+              isPublic: isPublic,
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            updateCache();
+          } catch (e) {
+            console.error(e);
+            // 失敗した場合はチェック状態を元に戻す
+            checkbox.checked = !isPublic;
+            updatePublicStatusText(!isPublic);
+            alert("公開設定の変更に失敗しました");
+          }
+        }
+
+        // ===== 単語の並び替え（ドラッグ&ドロップ） =====
+
+        // 既存の単語に order フィールドが無い場合、createdAt順に基づいて
+        // 一括で付与する（初回のみ実行される移行処理）
+        async function ensureWordOrder() {
+          const snap = await db.collection("wordbooks")
+            .doc(bookId)
+            .collection("words")
+            .orderBy("createdAt")
+            .get();
+
+          if (snap.empty) return;
+
+          const hasMissing = snap.docs.some(d => d.data().order === undefined);
+          if (!hasMissing) return;
+
+          const batch = db.batch();
+          snap.docs.forEach((d, idx) => {
+            batch.update(d.ref, { order: (idx + 1) * 1000 });
+          });
+          await batch.commit();
+        }
+
+        function setupDragReorder(listId) {
+          const list = document.getElementById(listId);
+          if (!list) return;
+
+          let dragItem = null;
+          let activePointerId = null;
+
+          function onPointerMove(ev) {
+            if (dragItem === null || ev.pointerId !== activePointerId) return;
+            ev.preventDefault();
+
+            const y = ev.clientY;
+            const siblings = Array.from(list.querySelectorAll(".wordItem"))
+              .filter(el => el !== dragItem);
+
+            let after = null;
+            for (const sib of siblings) {
+              const box = sib.getBoundingClientRect();
+              if (y < box.top + box.height / 2) {
+                after = sib;
+                break;
+              }
+            }
+
+            if (after) {
+              list.insertBefore(dragItem, after);
+            } else {
+              list.appendChild(dragItem);
+            }
+          }
+
+          function onPointerUp(ev) {
+            if (dragItem === null || ev.pointerId !== activePointerId) return;
+
+            document.removeEventListener("pointermove", onPointerMove);
+            document.removeEventListener("pointerup", onPointerUp);
+            document.removeEventListener("pointercancel", onPointerUp);
+
+            dragItem.classList.remove("dragging");
+            const finishedItem = dragItem;
+            dragItem = null;
+            activePointerId = null;
+
+            finalizeWordOrder(list, finishedItem);
+          }
+
+          list.addEventListener("pointerdown", (e) => {
+            const handle = e.target.closest(".dragHandle");
+            if (!handle) return;
+
+            const item = handle.closest(".wordItem");
+            if (!item) return;
+
+            e.preventDefault();
+
+            dragItem = item;
+            activePointerId = e.pointerId;
+            item.classList.add("dragging");
+
+            // ドラッグ中に要素をDOM上で移動させても追従できるよう、
+            // pointerCaptureは使わずdocument側でmove/upを監視する
+            document.addEventListener("pointermove", onPointerMove);
+            document.addEventListener("pointerup", onPointerUp);
+            document.addEventListener("pointercancel", onPointerUp);
+          });
+        }
+
+        async function finalizeWordOrder(list) {
+          const items = Array.from(list.querySelectorAll(".wordItem"));
+
+          try {
+            const batch = db.batch();
+            items.forEach((item, idx) => {
+              const id = item.id.replace("word_", "");
+              const ref = db.collection("wordbooks")
+                .doc(bookId)
+                .collection("words")
+                .doc(id);
+              batch.update(ref, { order: (idx + 1) * 1000 });
+            });
+            await batch.commit();
+            updateCache();
+          } catch (e) {
+            console.error(e);
+            alert("並び替えの保存に失敗しました");
+          }
+        }
+
+        setupDragReorder("wordList");
 
 
     async function addWord() {
@@ -618,7 +835,8 @@
         .add({
           front: f,
           back: b,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          order: Date.now()
         });
 
       document.getElementById("front").value = "";
@@ -712,11 +930,15 @@
           const w = wordDoc.data();
           const newWordRef = newBookRef.collection("words").doc();
 
-          batch.set(newWordRef, {
+          const newWordData = {
             front: w.front,
             back: w.back,
             createdAt: w.createdAt || firebase.firestore.FieldValue.serverTimestamp()
-          });
+          };
+          if (w.order !== undefined) {
+            newWordData.order = w.order;
+          }
+          batch.set(newWordRef, newWordData);
 
           opCount++;
 
@@ -748,9 +970,12 @@
       const title = document.getElementById("title").value.trim();
       const desc = document.getElementById("description").value.trim();
 
+      const isPublic = document.getElementById("isPublic").checked;
+
       await db.collection("wordbooks").doc(bookId).update({
         title: title,
         description: desc,
+        isPublic: isPublic,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
       updateCache();
@@ -778,7 +1003,8 @@
             .add({
               front: f.trim(),
               back: b.trim(),
-              createdAt: new Date(baseTime + i)
+              createdAt: new Date(baseTime + i),
+              order: baseTime + i
             });
 
           addedCount++;
@@ -851,6 +1077,10 @@
     function createWordHTML(id, w) {
       return `
         <div class="wordItem" id="word_${id}">
+
+          <span class="dragHandle" title="ドラッグして並び替え">
+            <span></span><span></span><span></span>
+          </span>
 
           <label class="checkWrap">
             <input type="checkbox"
@@ -1128,7 +1358,8 @@ async function confirmImportWords() {
       await db.collection("wordbooks").doc(bookId).collection("words").add({
         front: w.front,
         back: w.back,
-        createdAt: new Date(baseTime + idx)
+        createdAt: new Date(baseTime + idx),
+        order: baseTime + idx
       });
       addedCount++;
     }

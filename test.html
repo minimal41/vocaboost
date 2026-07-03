@@ -445,8 +445,12 @@
     let learned = JSON.parse(localStorage.getItem("learnedWords")) || {};
     if (!learned[id]) learned[id] = [];
 
-    const qWords = query(collection(db, "wordbooks", id, "words"), orderBy("createdAt"));
-    const snap = await getDocs(qWords);
+    // 並び替え(order)フィールドで取得。未対応の単語帳（orderフィールド未付与）は
+    // 結果が空になるため、その場合は作成日時順にフォールバックする
+    let snap = await getDocs(query(collection(db, "wordbooks", id, "words"), orderBy("order")));
+    if (snap.empty) {
+      snap = await getDocs(query(collection(db, "wordbooks", id, "words"), orderBy("createdAt")));
+    }
     snap.forEach(d => words.push(d.data()));
 
     window.startTest = () => {

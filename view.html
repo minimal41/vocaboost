@@ -245,16 +245,23 @@
       }
     }
 
-    const qWords = query(
-      collection(db, "wordbooks", id, "words"),
-      orderBy("createdAt")
-    );
+    // 単語帳情報を先に取得
+    const bookSnap = await getDoc(doc(db, "wordbooks", id));
 
-    // 単語帳情報と単語一覧を同時取得
-    const [bookSnap, wSnap] = await Promise.all([
-      getDoc(doc(db, "wordbooks", id)),
-      getDocs(qWords)
-    ]);
+    // 単語一覧：並び替え(order)フィールドで取得する。
+    // まだ並び替え機能導入前（orderフィールド未付与）の単語帳では
+    // 該当クエリの結果が空になるため、その場合は作成日時順にフォールバックする
+    let wSnap = await getDocs(query(
+      collection(db, "wordbooks", id, "words"),
+      orderBy("order")
+    ));
+
+    if (wSnap.empty) {
+      wSnap = await getDocs(query(
+        collection(db, "wordbooks", id, "words"),
+        orderBy("createdAt")
+      ));
+    }
 
     if (!bookSnap.exists()) {
       alert("単語帳が見つかりません");
