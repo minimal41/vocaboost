@@ -936,6 +936,18 @@
     async function deleteBook() {
       if (!confirm("単語帳を完全に削除しますか？")) return;
 
+      // 削除するとonSnapshotが「ドキュメントが存在しない」状態を検知し、
+      // 誤って「単語帳が見つかりません」が表示されてしまうため、
+      // 削除前にリアルタイムリスナーを解除しておく
+      if (bookListener) {
+        bookListener();
+        bookListener = null;
+      }
+      if (wordsListener) {
+        wordsListener();
+        wordsListener = null;
+      }
+
       const snap = await db.collection("wordbooks")
         .doc(bookId)
         .collection("words")
