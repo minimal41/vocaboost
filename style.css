@@ -127,11 +127,13 @@ select {
   background-color: var(--color-surface);
   color: var(--color-text);
   border-color: var(--color-border);
+  font-family: inherit;
 }
 
 input::placeholder,
 textarea::placeholder {
   color: var(--color-text-sub);
+  font-family: inherit;
 }
 
 a {

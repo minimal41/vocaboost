@@ -21,15 +21,47 @@
       margin-bottom: 20px;
     }
 
+    .wordItemCols {
+      display: grid;
+      grid-template-columns: 22px 26px minmax(80px, 1fr) 32px minmax(80px, 1fr) 96px;
+      align-items: center;
+      column-gap: 8px;
+      min-width: 480px;
+    }
+
+    .wordItemCols .smallBtn {
+      width: 100%;
+      box-sizing: border-box;
+      text-align: center;
+    }
+
+    .smallBtn {
+      background: var(--color-danger);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 14px;
+      color: var(--color-accent-text);
+      border: none;
+      cursor: pointer;
+    }
+
+    .wordListHeader {
+      margin-top: 10px;
+      min-width: 480px;
+    }
+
+    .wordListHeader button {
+      justify-self: center;
+      white-space: nowrap;
+    }
+
+    #wordList {
+      overflow-x: auto;
+    }
+
     .wordItem {
       border-bottom: 1px solid var(--color-border);
       padding: 10px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      display: flex;
-      align-items: center;
-      gap: 8px;
       background: var(--color-surface);
       transition: transform 0.15s ease;
     }
@@ -137,7 +169,8 @@
 
     .frontInput,
     .backInput {
-      width: 35%;
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .deleteCheck {
@@ -428,11 +461,17 @@
     </div>
 
     <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-        <h3>単語一覧</h3>
+      <h3>単語一覧</h3>
+      <div class="wordListHeader wordItemCols">
+        <span></span>
+        <button id="selectAllBtn" onclick="toggleSelectAllWords()">
+          全選択
+        </button>
+        <span></span>
         <button onclick="reverseSelectedWords()">
           選択項目を表裏反転
         </button>
+        <span></span>
         <button class="danger" onclick="deleteSelectedWords()">
           選択削除
         </button>
@@ -1179,7 +1218,7 @@
 
     function createWordHTML(id, w) {
       return `
-        <div class="wordItem" id="word_${id}">
+        <div class="wordItem wordItemCols" id="word_${id}">
 
           <span class="dragHandle" title="ドラッグして並び替え">
             <span></span><span></span><span></span>
@@ -1208,7 +1247,7 @@
                 onchange="updateWord('${id}')"
                 data-type="back">
 
-          <button class="danger"
+          <button class="smallBtn"
                   onclick="deleteWord('${id}')">
             削除
           </button>
@@ -1480,6 +1519,18 @@ async function confirmImportWords() {
     console.error(e);
     importMsg.textContent = "取り込みに失敗しました: " + e.message;
   }
+}
+
+function toggleSelectAllWords() {
+  const checks = document.querySelectorAll("#wordList .deleteCheck");
+  const btn = document.getElementById("selectAllBtn");
+
+  if (checks.length === 0) return;
+
+  const allChecked = Array.from(checks).every(cb => cb.checked);
+
+  checks.forEach(cb => cb.checked = !allChecked);
+  btn.textContent = allChecked ? "全選択" : "全解除";
 }
 
 async function reverseSelectedWords() {
