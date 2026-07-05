@@ -601,6 +601,21 @@
 
     async function loadBook() {
 
+      // auth.onAuthStateChangedは状況によって複数回発火することがあり、
+      // その都度loadBook()が呼ばれると古いonSnapshotリスナーが解除されないまま
+      // 残ってしまう。単語帳を削除した際、この残った古いリスナーが
+      // 「ドキュメントが存在しない」を検知して誤って
+      // 「単語帳が見つかりません」が表示される不具合があったため、
+      // 新しいリスナーを貼る前に既存のリスナーを必ず解除しておく
+      if (bookListener) {
+        bookListener();
+        bookListener = null;
+      }
+      if (wordsListener) {
+        wordsListener();
+        wordsListener = null;
+      }
+
       const cacheKey = `edit_${bookId}`;
 
       // キャッシュを先に表示
