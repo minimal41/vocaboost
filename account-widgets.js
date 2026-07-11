@@ -143,26 +143,30 @@
     }
 
     async function loadNotifications(user) {
-      try {
-        const [allSnap, mineSnap] = await Promise.all([
-          db.collection("notifications").where("target", "==", "all").orderBy("createdAt", "desc").limit(20).get(),
-          db.collection("notifications").where("targetUserIds", "array-contains", user.uid).orderBy("createdAt", "desc").limit(20).get()
-        ]);
+      // 「全員向け」と「自分宛て」は別クエリなので、片方が失敗（未作成の複合インデックス等）
+      // しても、もう片方の結果まで巻き添えで消えないように allSettled で個別に扱う。
+      const results = await Promise.allSettled([
+        db.collection("notifications").where("target", "==", "all").orderBy("createdAt", "desc").limit(20).get(),
+        db.collection("notifications").where("targetUserIds", "array-contains", user.uid).orderBy("createdAt", "desc").limit(20).get()
+      ]);
 
-        const map = new Map();
-        allSnap.forEach(d => map.set(d.id, { id: d.id, ...d.data() }));
-        mineSnap.forEach(d => map.set(d.id, { id: d.id, ...d.data() }));
+      const map = new Map();
+      results.forEach((result, idx) => {
+        if (result.status === "fulfilled") {
+          result.value.forEach(d => map.set(d.id, { id: d.id, ...d.data() }));
+        } else {
+          const label = idx === 0 ? "全員向け通知" : "自分宛て通知（複合インデックスが未作成の可能性）";
+          console.error(`account-widgets: failed to load ${label}`, result.reason);
+        }
+      });
 
-        notifications = Array.from(map.values())
-          .filter(n => n.createdAt && typeof n.createdAt.toMillis === "function")
-          .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
-          .slice(0, 20);
+      notifications = Array.from(map.values())
+        .filter(n => n.createdAt && typeof n.createdAt.toMillis === "function")
+        .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
+        .slice(0, 20);
 
-        updateBadge();
-        renderList();
-      } catch (e) {
-        console.error("account-widgets: failed to load notifications", e);
-      }
+      updateBadge();
+      renderList();
     }
 
     function updateBadge() {
