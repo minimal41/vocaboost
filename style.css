@@ -368,10 +368,6 @@ footer {
   color: var(--color-text-sub);
 }
 
-.admin-link-btn {
-  background: var(--color-danger) !important;
-}
-
 @media (max-width: 768px) {
   .notif-dropdown {
     right: auto;
