@@ -422,6 +422,7 @@
     <p class="headertitle"><a href="index.html"><img src="./images/rogo.png" height="70vh"></a></p>
     <div id="status" style="display:none">ログイン確認中...</div>
     <div>
+      <span id="notifBellContainer"></span>
       <button id="settingsBtn" class="header-btn" style="display:none" onclick="goPage('settings.html')">設定</button>
       <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
       <button id="logoutBtn" class="header-btn" style="display:none" onclick="logout()">ログアウト</button>
@@ -429,6 +430,11 @@
   </header>
 
   <main>
+    <div id="restrictionBanner" class="card" style="display:none; border:2px solid var(--color-danger);">
+      <strong>このアカウントは現在制限されています。</strong>
+      <p id="restrictionBannerText" style="margin:6px 0 0;"></p>
+    </div>
+
     <div class="card">
       <input id="title" class="titleInput" placeholder="タイトル">
       <textarea id="description" placeholder="説明文を入力してください"></textarea>
@@ -603,6 +609,7 @@
         logoutBtn.style.display = "inline-block";
         settingsBtn.style.display = "inline-block";
         loadBook();
+        checkRestrictionStatus(user.uid);
       } else {
         localStorage.removeItem("cachedUser");
         statusDiv.textContent = "ログアウト中";
@@ -613,6 +620,35 @@
         location.href = "login.html";
       }
     });
+
+    // アカウントが運営によって書き込み制限されているかを確認し、
+    // 制限中であれば単語の追加・編集・削除等をブロックしてバナーを表示する
+    async function checkRestrictionStatus(uid) {
+      try {
+        const snap = await db.collection("users").doc(uid).get();
+        const data = snap.exists ? snap.data() : null;
+        if (!data || !data.restrictedUntil) return;
+
+        const until = data.restrictedUntil.toDate ? data.restrictedUntil.toDate() : new Date(data.restrictedUntil);
+        if (until <= new Date()) return;
+
+        window.__isRestricted = true;
+        const label = until.getFullYear() >= 2900 ? "無期限" : until.toLocaleDateString("ja-JP") + "まで";
+        document.getElementById("restrictionBannerText").textContent =
+          `単語帳の編集・単語の追加はできません（解除予定: ${label}）`;
+        document.getElementById("restrictionBanner").style.display = "block";
+      } catch (e) {
+        console.error("restriction check failed", e);
+      }
+    }
+
+    function blockIfRestricted() {
+      if (window.__isRestricted) {
+        alert("アカウントが制限されているため、この操作はできません");
+        return true;
+      }
+      return false;
+    }
 
     function goPage(page) {
       if (page === "index.html") {
@@ -768,6 +804,11 @@
         async function togglePublic() {
           const checkbox = document.getElementById("isPublic");
           const isPublic = checkbox.checked;
+
+          if (blockIfRestricted()) {
+            checkbox.checked = !isPublic;
+            return;
+          }
 
           if (isPublic && document.querySelectorAll("#wordList .wordItem").length === 0) {
             checkbox.checked = false;
@@ -936,6 +977,8 @@
         }
 
         async function finalizeWordOrder(list) {
+          if (blockIfRestricted()) return;
+
           const items = Array.from(list.querySelectorAll(".wordItem"));
 
           try {
@@ -960,6 +1003,8 @@
 
 
     async function addWord() {
+      if (blockIfRestricted()) return;
+
       const f = document.getElementById("front").value.trim();
       const b = document.getElementById("back").value.trim();
 
@@ -984,6 +1029,7 @@
     }
 
     async function deleteWord(id) {
+      if (blockIfRestricted()) return;
       if (!confirm("この単語を削除しますか？")) return;
       await db.collection("wordbooks").doc(bookId).collection("words").doc(id).delete();
 
@@ -1026,6 +1072,8 @@
     }
 
     async function duplicateBook() {
+      if (blockIfRestricted()) return;
+
       const duplicateBtn = document.getElementById("duplicateBtn");
       const duplicateMsg = document.getElementById("duplicateMsg");
 
@@ -1115,6 +1163,8 @@
     }
 
     async function saveBook() {
+      if (blockIfRestricted()) return false;
+
       const title = document.getElementById("title").value.trim();
       const desc = document.getElementById("description").value.trim();
 
@@ -1138,6 +1188,8 @@
 
     /* CSV読み込み */
     async function importCSV() {
+      if (blockIfRestricted()) return;
+
       const file = document.getElementById("csvFile").files[0];
       if (!file) return alert("CSVファイルを選択してください");
 
@@ -1269,6 +1321,8 @@
     }
 
     async function updateWord(id) {
+      if (blockIfRestricted()) return;
+
       const row = document.getElementById("word_" + id);
 
       const inputs = row.querySelectorAll(".editInput");
@@ -1296,6 +1350,8 @@
     }
 
     async function deleteSelectedWords() {
+      if (blockIfRestricted()) return;
+
       const checks = document.querySelectorAll(".deleteCheck:checked");
 
       if (checks.length === 0) {
@@ -1472,6 +1528,8 @@ function closeImportModal() {
 }
 
 async function confirmImportWords() {
+  if (blockIfRestricted()) return;
+
   const checks = document.querySelectorAll(".importWordCheck:checked");
   const selectedIds = Array.from(checks).map(c => c.dataset.id);
 
@@ -1546,6 +1604,8 @@ function toggleSelectAllWords() {
 }
 
 async function reverseSelectedWords() {
+  if (blockIfRestricted()) return;
+
   const checks = document.querySelectorAll(".deleteCheck:checked");
 
   if (checks.length === 0) {
@@ -1581,6 +1641,8 @@ async function reverseSelectedWords() {
 }
 
 async function swapWord(id) {
+  if (blockIfRestricted()) return;
+
   const row = document.getElementById("word_" + id);
 
   const frontInput = row.querySelector('[data-type="front"]');
@@ -1616,6 +1678,7 @@ window.addEventListener("beforeunload", () => {
 });
   </script>
 
+  <script src="account-widgets.js"></script>
 </body>
 
 </html>

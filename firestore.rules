@@ -1,0 +1,81 @@
+rules_version = '2';
+
+// ⚠️ このファイルはリポジトリには存在しなかったため、今回の運営専用ページ(admin.html)の
+// 追加に合わせて提案として新規作成したものです。実際の本番ルールは Firebase コンソール側で
+// 管理されており、このリポジトリからは自動反映されません。内容を確認のうえ、
+// Firebase コンソール（Firestore Database → ルール）に手動で貼り付けて公開するか、
+// Firebase CLI をお持ちの場合は `firebase deploy --only firestore:rules` を実行してください。
+//
+// admin.html / account-widgets.js が管理者と判定するメールアドレスと、
+// ここでの isAdmin() の一覧は必ず一致させてください。
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email in [
+        "202301745@edu.nishiyamato.ed.jp",
+        "202305145@edu.nishiyamato.ed.jp"
+      ];
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // ユーザー情報。
+    // 注意: username と email が同じドキュメントに入っているため、他ユーザーの
+    // 作成者名(username)を表示する既存ページ(view.html/list.html/user.html等)を
+    // 壊さないよう、読み取りは引き続きログイン済み全員に許可している。
+    // そのため email も技術的にはログイン済みの全ユーザーがSDK越しに読める状態のままであり、
+    // 管理者ページ上だけの制限ではない点に注意すること。厳密にemailを秘匿したい場合は
+    // 「公開用プロフィール(username等)」と「非公開情報(emailを含む)」をドキュメントごと
+    // 分離する設計変更が別途必要（本ルールでは未対応）。
+    // frozen / restrictedUntil / restrictedReason / frozenReason は管理者のみが変更できる。
+    match /users/{userId} {
+      allow read: if isSignedIn();
+
+      allow create: if isOwner(userId);
+
+      allow update: if isAdmin() ||
+        (
+          isOwner(userId) &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+            ["frozen", "frozenReason", "restrictedUntil", "restrictedReason"]
+          )
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    // 単語帳。所有者は自分の単語帳を自由に読み書きでき、
+    // 他人は isPublic な単語帳のみ読み取り可能。管理者は全件を読み取れる
+    // （荒らし対策の一覧表示のため）が、書き込みは所有者のみに限定する。
+    match /wordbooks/{bookId} {
+      allow read: if resource.data.isPublic == true || isOwner(resource.data.owner) || isAdmin();
+      allow create: if isSignedIn() && isOwner(request.resource.data.owner);
+      allow update, delete: if isOwner(resource.data.owner);
+
+      match /words/{wordId} {
+        allow read: if get(/databases/$(database)/documents/wordbooks/$(bookId)).data.isPublic == true
+          || isOwner(get(/databases/$(database)/documents/wordbooks/$(bookId)).data.owner)
+          || isAdmin();
+        allow write: if isOwner(get(/databases/$(database)/documents/wordbooks/$(bookId)).data.owner);
+      }
+    }
+
+    // 通知。全ユーザー宛て(target == "all")または自分宛て(targetUserIds に自分のuidを含む)の
+    // 通知のみ読み取り可能。作成・更新・削除は管理者のみ。
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && (
+        resource.data.target == "all" ||
+        (resource.data.targetUserIds is list && request.auth.uid in resource.data.targetUserIds)
+      );
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}

@@ -263,3 +263,112 @@ footer {
   font-weight: bold;
   font-size: 18px;
 }
+
+/* ===== ヘッダー通知ベル（account-widgets.js が描画） ===== */
+.notif-bell-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.notif-bell-btn {
+  position: relative;
+  padding: 8px 12px !important;
+}
+
+.notif-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--color-danger);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: bold;
+  line-height: 18px;
+  text-align: center;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.notif-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  max-width: 90vw;
+  max-height: 420px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px var(--color-shadow);
+  z-index: 200;
+  text-align: left;
+}
+
+.notif-dropdown-title {
+  padding: 12px 14px;
+  font-weight: bold;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.notif-list {
+  padding: 4px 0;
+}
+
+.notif-empty {
+  padding: 20px 14px;
+  text-align: center;
+  color: var(--color-text-sub);
+  font-size: 13px;
+}
+
+.notif-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  border-left: 3px solid transparent;
+}
+
+.notif-item:last-child {
+  border-bottom: none;
+}
+
+.notif-item.notif-unread {
+  border-left: 3px solid var(--color-accent);
+}
+
+.notif-item-title {
+  font-weight: bold;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.notif-item-body {
+  font-size: 13px;
+  color: var(--color-text-sub);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.notif-item-time {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--color-text-sub);
+}
+
+.admin-link-btn {
+  background: var(--color-danger) !important;
+}
+
+@media (max-width: 768px) {
+  .notif-dropdown {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}

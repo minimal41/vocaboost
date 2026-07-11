@@ -393,6 +393,7 @@
     <p class="headertitle"><a href="index.html"><img src="./images/rogo.png" height="70vh"></a></p>
     <div id="status" style="display:none">ログイン確認中...</div>
     <div>
+      <span id="notifBellContainer"></span>
       <button id="settingsBtn" class="header-btn" style="display:none" onclick="goPage('settings.html')">設定</button>
       <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
       <button id="logoutBtn" class="header-btn" style="display:none" onclick="logout()">ログアウト</button>
@@ -400,6 +401,11 @@
   </header>
 
   <main>
+
+    <div id="restrictionBanner" class="card" style="display:none; border:2px solid var(--color-danger);">
+      <strong>このアカウントは現在制限されています。</strong>
+      <p id="restrictionBannerText" style="margin:6px 0 0;"></p>
+    </div>
 
     <div class="card">
       <h2>単語帳情報</h2>
@@ -551,6 +557,7 @@
         loginBtn.style.display = "none";
         logoutBtn.style.display = "inline-block";
         settingsBtn.style.display = "inline-block";
+        checkRestrictionStatus(user.uid);
       } else {
         localStorage.removeItem("cachedUser");
         statusDiv.textContent = "ログアウト中";
@@ -561,6 +568,35 @@
         location.href = "login.html";
       }
     });
+
+    // アカウントが運営によって書き込み制限されているかを確認し、
+    // 制限中であれば保存操作をブロックしてバナーを表示する
+    async function checkRestrictionStatus(uid) {
+      try {
+        const snap = await db.collection("users").doc(uid).get();
+        const data = snap.exists ? snap.data() : null;
+        if (!data || !data.restrictedUntil) return;
+
+        const until = data.restrictedUntil.toDate ? data.restrictedUntil.toDate() : new Date(data.restrictedUntil);
+        if (until <= new Date()) return;
+
+        window.__isRestricted = true;
+        const label = until.getFullYear() >= 2900 ? "無期限" : until.toLocaleDateString("ja-JP") + "まで";
+        document.getElementById("restrictionBannerText").textContent =
+          `単語帳の作成・保存ができません（解除予定: ${label}）`;
+        document.getElementById("restrictionBanner").style.display = "block";
+      } catch (e) {
+        console.error("restriction check failed", e);
+      }
+    }
+
+    function blockIfRestricted() {
+      if (window.__isRestricted) {
+        alert("アカウントが制限されているため、この操作はできません");
+        return true;
+      }
+      return false;
+    }
 
     function goPage(page) {
       if (page === "index.html") {
@@ -593,6 +629,8 @@
 
     // 単語帳・単語はすべて保存ボタンを押した時点でまとめてDBに書き込む
     async function saveBook() {
+      if (blockIfRestricted()) return;
+
       const title = document.getElementById("title").value.trim();
       const description = document.getElementById("description").value.trim();
       const isPublic = document.getElementById("isPublic").checked;
@@ -1099,6 +1137,7 @@
     }
   </script>
 
+  <script src="account-widgets.js"></script>
 </body>
 
 </html>
