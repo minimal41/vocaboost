@@ -608,6 +608,11 @@
         back: row.querySelector('[data-type="back"]').value.trim()
       })).filter(w => w.front && w.back);
 
+      if (isPublic && words.length === 0) {
+        msg.textContent = "公開するには単語を1つ以上追加してください";
+        return;
+      }
+
       msg.textContent = "保存しています...";
 
       try {

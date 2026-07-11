@@ -769,6 +769,12 @@
           const checkbox = document.getElementById("isPublic");
           const isPublic = checkbox.checked;
 
+          if (isPublic && document.querySelectorAll("#wordList .wordItem").length === 0) {
+            checkbox.checked = false;
+            alert("単語が1つもないため公開できません。単語を追加してから公開してください");
+            return;
+          }
+
           updatePublicStatusText(isPublic);
 
           try {
@@ -1114,6 +1120,11 @@
 
       const isPublic = document.getElementById("isPublic").checked;
 
+      if (isPublic && document.querySelectorAll("#wordList .wordItem").length === 0) {
+        alert("単語が1つもないため公開できません。単語を追加するか、「公開する」のチェックを外してください");
+        return false;
+      }
+
       await db.collection("wordbooks").doc(bookId).update({
         title: title,
         description: desc,
@@ -1122,6 +1133,7 @@
       });
       updateCache();
       alert("保存しました");
+      return true;
     }
 
     /* CSV読み込み */
@@ -1316,8 +1328,8 @@
     }
 
     async function saveAndBack() {
-      await saveBook();
-      history.back();
+      const saved = await saveBook();
+      if (saved) history.back();
     }
 
 async function exportReverseCSV() {
