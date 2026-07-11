@@ -516,7 +516,7 @@
 
         await db.collection("users").doc(currentUser.uid).set({
           username: newName
-        });
+        }, { merge: true });
 
         usernameTextSpan.textContent = newName;
         saveProfileCache({ username: newName });

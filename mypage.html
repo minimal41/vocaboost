@@ -272,7 +272,7 @@
 
         await db.collection("users").doc(currentUser.uid).set({
           username: newName
-        });
+        }, { merge: true });
 
         document.getElementById("usernameText").textContent = newName;
         msg.textContent = "ユーザー名を変更しました";

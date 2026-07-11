@@ -66,6 +66,8 @@
 
       readIds = (userData && userData.readNotificationIds) || [];
 
+      repairUserDoc(user, userData);
+
       renderBell();
       loadNotifications(user);
 
@@ -73,6 +75,30 @@
         renderAdminLink();
       }
     });
+
+    // 過去、ユーザー名変更機能が users/{uid} を merge:true なしで set() していたため、
+    // 一部アカウントで email / createdAt 等のフィールドが消えてしまっていた（修正済み）。
+    // その被害を受けたアカウントが再ログインした際に、Authに残っている情報から
+    // 最低限（email）を自動的に復元する。createdAt は元の値が失われているため、
+    // 復元時点の日時を「復元日」として補完する（正確な登録日ではない点に注意）。
+    async function repairUserDoc(user, userData) {
+      if (!userData) return;
+      const patch = {};
+      if (!userData.email && user.email) {
+        patch.email = user.email;
+      }
+      if (!userData.createdAt) {
+        patch.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      }
+      if (Object.keys(patch).length === 0) return;
+
+      try {
+        await db.collection("users").doc(user.uid).set(patch, { merge: true });
+        console.warn("account-widgets: repaired missing user fields for", user.uid, patch);
+      } catch (e) {
+        console.error("account-widgets: failed to repair user doc", e);
+      }
+    }
 
     function renderBell() {
       const container = document.getElementById("notifBellContainer");
