@@ -8,6 +8,12 @@ rules_version = '2';
 //
 // admin.html / account-widgets.js が管理者と判定するメールアドレスと、
 // ここでの isAdmin() の一覧は必ず一致させてください。
+//
+// また notifications コレクションへのクエリ（target==での絞り込み、
+// targetUserIds のarray-containsでの絞り込み、いずれも createdAt での並び替えと
+// 組み合わせる）には複合インデックスが必要です。firestore.indexes.json を参照し、
+// Firebaseコンソールの「Firestore Database → インデックス」で作成してください
+// （Firebase CLIがあれば `firebase deploy --only firestore:indexes` でも可）。
 
 service cloud.firestore {
   match /databases/{database}/documents {
