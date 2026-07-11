@@ -317,6 +317,13 @@
       <input type="text" id="freezeReason" class="searchInput" placeholder="理由（任意・本人には表示されません）">
       <button id="freezeToggleBtn" class="danger" onclick="toggleFreeze()"></button>
 
+      <h4 style="margin-top:24px;">アカウントの削除</h4>
+      <p style="font-size:12px;color:var(--color-text-sub);margin:0 0 8px;">
+        ユーザー情報と、本人が作成した単語帳・単語をすべて完全に削除します。この操作は取り消せません。<br>
+        ※ ログイン用のアカウント自体（メールアドレス・パスワード）はこの画面からは削除できません。詳細は下部の注意書きを参照してください。
+      </p>
+      <button id="deleteUserBtn" class="danger" onclick="deleteUserAccount()">このアカウントを完全に削除する</button>
+
       <div id="userModalMsg" class="notice"></div>
 
       <div class="modalActions">
@@ -512,6 +519,8 @@
       const freezeBtn = document.getElementById("freezeToggleBtn");
       freezeBtn.textContent = u.frozen === true ? "凍結を解除する" : "このアカウントを凍結する";
 
+      document.getElementById("deleteUserBtn").disabled = false;
+
       document.getElementById("userModalMsg").textContent = "";
       document.getElementById("userModal").style.display = "flex";
     }
@@ -599,6 +608,67 @@
         console.error(e);
         msg.className = "notice";
         msg.textContent = "更新に失敗しました";
+      }
+    }
+
+    // 単語帳1件を、中の単語もろとも完全に削除する（単語数がFirestoreのバッチ上限(500)を
+    // 超える場合に備えて分割コミットする）
+    async function deleteBookCascade(bookId) {
+      const wordsSnap = await db.collection("wordbooks").doc(bookId).collection("words").get();
+      const BATCH_LIMIT = 450;
+      let batch = db.batch();
+      let opCount = 0;
+
+      for (const wDoc of wordsSnap.docs) {
+        batch.delete(wDoc.ref);
+        opCount++;
+        if (opCount >= BATCH_LIMIT) {
+          await batch.commit();
+          batch = db.batch();
+          opCount = 0;
+        }
+      }
+
+      batch.delete(db.collection("wordbooks").doc(bookId));
+      opCount++;
+      await batch.commit();
+    }
+
+    async function deleteUserAccount() {
+      if (!editingUserUid) return;
+      const u = usersData.find(x => x.uid === editingUserUid);
+      if (!u) return;
+      const msg = document.getElementById("userModalMsg");
+      const ownedBooks = booksData.filter(b => b.owner === editingUserUid);
+
+      const confirmed = confirm(
+        `本当に「${u.email || u.username || editingUserUid}」のアカウントを削除しますか？\n` +
+        `作成した単語帳 ${ownedBooks.length} 件と、中の単語もすべて完全に削除されます。\n` +
+        `この操作は取り消せません。`
+      );
+      if (!confirmed) return;
+
+      const deleteBtn = document.getElementById("deleteUserBtn");
+      deleteBtn.disabled = true;
+      msg.className = "notice";
+      msg.textContent = "削除しています...";
+
+      try {
+        for (const book of ownedBooks) {
+          await deleteBookCascade(book.id);
+        }
+
+        await db.collection("users").doc(editingUserUid).delete();
+
+        alert("アカウントを削除しました");
+        closeUserModal();
+        await loadUsers();
+        await loadBooks();
+      } catch (e) {
+        console.error(e);
+        deleteBtn.disabled = false;
+        msg.className = "notice";
+        msg.textContent = "削除に失敗しました: " + e.message;
       }
     }
 

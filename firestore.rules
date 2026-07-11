@@ -54,17 +54,21 @@ service cloud.firestore {
 
     // 単語帳。所有者は自分の単語帳を自由に読み書きでき、
     // 他人は isPublic な単語帳のみ読み取り可能。管理者は全件を読み取れる
-    // （荒らし対策の一覧表示のため）が、書き込みは所有者のみに限定する。
+    // （荒らし対策の一覧表示のため）ほか、運営ページからのアカウント削除に伴う
+    // 単語帳・単語の連鎖削除ができるよう delete のみ管理者にも許可する
+    // （タイトル等の更新は所有者のみに限定する）。
     match /wordbooks/{bookId} {
       allow read: if resource.data.isPublic == true || isOwner(resource.data.owner) || isAdmin();
       allow create: if isSignedIn() && isOwner(request.resource.data.owner);
-      allow update, delete: if isOwner(resource.data.owner);
+      allow update: if isOwner(resource.data.owner);
+      allow delete: if isOwner(resource.data.owner) || isAdmin();
 
       match /words/{wordId} {
         allow read: if get(/databases/$(database)/documents/wordbooks/$(bookId)).data.isPublic == true
           || isOwner(get(/databases/$(database)/documents/wordbooks/$(bookId)).data.owner)
           || isAdmin();
-        allow write: if isOwner(get(/databases/$(database)/documents/wordbooks/$(bookId)).data.owner);
+        allow write: if isOwner(get(/databases/$(database)/documents/wordbooks/$(bookId)).data.owner)
+          || isAdmin();
       }
     }
 
