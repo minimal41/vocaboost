@@ -790,23 +790,34 @@
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           createdBy: currentUser.uid
         });
-
-        msg.className = "success";
-        msg.textContent = "送信しました";
-        document.getElementById("notifTitle").value = "";
-        document.getElementById("notifBody").value = "";
-        selectedNotifUserIds.clear();
-        renderNotifUserPicker();
-        await loadNotifHistory();
       } catch (e) {
         console.error(e);
         msg.className = "notice";
         msg.textContent = "送信に失敗しました: " + e.message;
+        return;
       }
+
+      // 送信自体は成功しているので、ここから先（履歴の再読み込み）が失敗しても
+      // 「送信に失敗しました」という誤った表示にはしない
+      msg.className = "success";
+      msg.textContent = "送信しました";
+      document.getElementById("notifTitle").value = "";
+      document.getElementById("notifBody").value = "";
+      selectedNotifUserIds.clear();
+      renderNotifUserPicker();
+      await loadNotifHistory();
     }
 
     async function loadNotifHistory() {
-      const snap = await db.collection("notifications").orderBy("createdAt", "desc").limit(50).get();
+      let snap;
+      try {
+        snap = await db.collection("notifications").orderBy("createdAt", "desc").limit(50).get();
+      } catch (e) {
+        console.error("failed to load notification history", e);
+        document.getElementById("notifHistoryBody").innerHTML =
+          `<tr><td colspan="3" style="text-align:center;color:var(--color-text-sub);">送信履歴の読み込みに失敗しました</td></tr>`;
+        return;
+      }
       notifHistory = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderNotifHistory();
     }

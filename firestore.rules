@@ -73,11 +73,14 @@ service cloud.firestore {
     }
 
     // 通知。全ユーザー宛て(target == "all")または自分宛て(targetUserIds に自分のuidを含む)の
-    // 通知のみ読み取り可能。作成・更新・削除は管理者のみ。
+    // 通知のみ読み取り可能。管理者は運営ページの送信履歴表示のため全件読み取りを許可する
+    // （絞り込みなしの一覧取得はこの isAdmin() が無いと弾かれてしまう）。
+    // 作成・更新・削除は管理者のみ。
     match /notifications/{notifId} {
       allow read: if isSignedIn() && (
         resource.data.target == "all" ||
-        (resource.data.targetUserIds is list && request.auth.uid in resource.data.targetUserIds)
+        (resource.data.targetUserIds is list && request.auth.uid in resource.data.targetUserIds) ||
+        isAdmin()
       );
       allow create, update, delete: if isAdmin();
     }
