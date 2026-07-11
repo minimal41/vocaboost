@@ -413,11 +413,10 @@
         <span class="publicStatus" id="publicStatus"></span>
       </div>
 
-      <button onclick="createBook()">単語帳を作成</button>
       <div id="msg" class="notice"></div>
     </div>
 
-    <div class="card" id="wordArea" style="display:none">
+    <div class="card" id="wordArea">
       <h2>単語を追加</h2>
 
       <div class="wordRow">
@@ -451,7 +450,7 @@
       <button onclick="openImportModal()">他の単語帳から取り込む</button>
 
       <br><br>
-      <button onclick="goView()">完成して見る</button>
+      <button onclick="saveBook()">保存する</button>
     </div>
 
   </main>
@@ -520,6 +519,11 @@
 
     let currentUser = null;
     let bookId = null;
+    let localWordSeq = 0;
+    function nextLocalId() {
+      localWordSeq++;
+      return "local_" + localWordSeq;
+    }
 
     const statusDiv = document.getElementById("status");
     const loginBtn = document.getElementById("loginBtn");
@@ -580,31 +584,15 @@
       auth.signOut();
     }
 
-    // 公開/非公開の切り替え：単語帳作成前は何もせず、作成後はDBへ即時反映する
-    async function onIsPublicChange() {
+    // 公開設定は保存ボタンを押すまでDBに反映しない。ここでは表示テキストの更新のみ行う
+    function onIsPublicChange() {
       const checkbox = document.getElementById("isPublic");
-      const isPublic = checkbox.checked;
       const statusEl = document.getElementById("publicStatus");
-
-      if (!bookId) {
-        // まだ作成前。作成時にこのチェック状態がそのまま使われる
-        return;
-      }
-
-      try {
-        await db.collection("wordbooks").doc(bookId).update({
-          isPublic: isPublic,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        if (statusEl) statusEl.textContent = isPublic ? "（公開中）" : "（非公開）";
-      } catch (e) {
-        console.error(e);
-        checkbox.checked = !isPublic;
-        alert("公開設定の変更に失敗しました");
-      }
+      if (statusEl) statusEl.textContent = checkbox.checked ? "（公開されます）" : "（非公開で保存されます）";
     }
 
-    async function createBook() {
+    // 単語帳・単語はすべて保存ボタンを押した時点でまとめてDBに書き込む
+    async function saveBook() {
       const title = document.getElementById("title").value.trim();
       const description = document.getElementById("description").value.trim();
       const isPublic = document.getElementById("isPublic").checked;
@@ -615,43 +603,52 @@
         return;
       }
 
-      const doc = await db.collection("wordbooks").add({
-        title: title,
-        description: description,
-        isPublic: isPublic,
-        owner: currentUser.uid,
-        ownerName: currentUser.displayName || "名無し",
-        wordCount: 0,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
+      const words = Array.from(document.querySelectorAll("#wordList .wordItem")).map(row => ({
+        front: row.querySelector('[data-type="front"]').value.trim(),
+        back: row.querySelector('[data-type="back"]').value.trim()
+      })).filter(w => w.front && w.back);
 
-      bookId = doc.id;
-      document.getElementById("wordArea").style.display = "block";
-      msg.textContent = "単語帳を作成しました。単語を追加してください";
+      msg.textContent = "保存しています...";
 
-      const statusEl = document.getElementById("publicStatus");
-      if (statusEl) statusEl.textContent = isPublic ? "（公開中）" : "（非公開）";
+      try {
+        const doc = await db.collection("wordbooks").add({
+          title: title,
+          description: description,
+          isPublic: isPublic,
+          owner: currentUser.uid,
+          ownerName: currentUser.displayName || "名無し",
+          wordCount: words.length,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        bookId = doc.id;
+
+        const batch = db.batch();
+        words.forEach((w, idx) => {
+          const ref = db.collection("wordbooks").doc(bookId).collection("words").doc();
+          batch.set(ref, {
+            front: w.front,
+            back: w.back,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            order: (idx + 1) * 1000
+          });
+        });
+        await batch.commit();
+
+        location.href = "view.html?id=" + bookId;
+      } catch (e) {
+        console.error(e);
+        msg.textContent = "保存に失敗しました";
+      }
     }
 
-    async function addWord() {
+    function addWord() {
       const f = document.getElementById("front").value.trim();
       const b = document.getElementById("back").value.trim();
-      if (!f || !b || !bookId) return;
+      if (!f || !b) return;
 
-      const doc = await db.collection("wordbooks").doc(bookId).collection("words").add({
-        front: f,
-        back: b,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(), // 単語の追加時間も保存
-        order: Date.now()
-      });
-
-      // ★ 単語数を+1
-      await db.collection("wordbooks").doc(bookId).update({
-        wordCount: firebase.firestore.FieldValue.increment(1)
-      });
-
-      addWordToList(doc.id, f, b);
+      addWordToList(nextLocalId(), f, b);
 
       document.getElementById("front").value = "";
       document.getElementById("back").value = "";
@@ -679,7 +676,6 @@
           class="editInput frontInput"
           value="${escapeHtml(f)}"
           data-type="front"
-          onchange="updateWord('${id}')"
         >
 
         <button
@@ -692,7 +688,6 @@
           class="editInput backInput"
           value="${escapeHtml(b)}"
           data-type="back"
-          onchange="updateWord('${id}')"
         >
 
         <button class="smallBtn" onclick="deleteWord('${id}')">
@@ -703,19 +698,13 @@
       document.getElementById("wordList").appendChild(div);
     }
 
-    async function deleteWord(id) {
+    function deleteWord(id) {
       if (!confirm("削除しますか？")) return;
-      await db.collection("wordbooks").doc(bookId).collection("words").doc(id).delete();
-
-      // ★ 単語数を-1
-      await db.collection("wordbooks").doc(bookId).update({
-        wordCount: firebase.firestore.FieldValue.increment(-1)
-      });
-
-      document.getElementById("word_" + id).remove();
+      const row = document.getElementById("word_" + id);
+      if (row) row.remove();
     }
 
-    async function swapWord(id) {
+    function swapWord(id) {
       const row = document.getElementById("word_" + id);
       if (!row) return;
 
@@ -727,15 +716,6 @@
 
       frontInput.value = b;
       backInput.value = f;
-
-      await db.collection("wordbooks")
-        .doc(bookId)
-        .collection("words")
-        .doc(id)
-        .update({
-          front: b,
-          back: f
-        });
     }
 
     function toggleSelectAllWords() {
@@ -750,7 +730,7 @@
       btn.textContent = allChecked ? "全選択" : "全解除";
     }
 
-    async function reverseSelectedWords() {
+    function reverseSelectedWords() {
       const checks = document.querySelectorAll(".deleteCheck:checked");
 
       if (checks.length === 0) {
@@ -762,9 +742,7 @@
         return;
       }
 
-      const batch = db.batch();
-
-      for (const check of checks) {
+      checks.forEach(check => {
         const id = check.value;
         const row = document.getElementById("word_" + id);
         const frontInput = row.querySelector('[data-type="front"]');
@@ -775,20 +753,12 @@
 
         frontInput.value = b;
         backInput.value = f;
+      });
 
-        const ref = db.collection("wordbooks")
-          .doc(bookId)
-          .collection("words")
-          .doc(id);
-
-        batch.update(ref, { front: b, back: f });
-      }
-
-      await batch.commit();
       alert("表裏を入れ替えました");
     }
 
-    async function deleteSelectedWords() {
+    function deleteSelectedWords() {
       const checks = document.querySelectorAll(".deleteCheck:checked");
 
       if (checks.length === 0) {
@@ -799,26 +769,6 @@
       if (!confirm(`${checks.length}個の単語を削除しますか？`)) {
         return;
       }
-
-      const batch = db.batch();
-
-      checks.forEach(check => {
-        const ref = db.collection("wordbooks")
-          .doc(bookId)
-          .collection("words")
-          .doc(check.value);
-
-        batch.delete(ref);
-      });
-
-      batch.update(
-        db.collection("wordbooks").doc(bookId),
-        {
-          wordCount: firebase.firestore.FieldValue.increment(-checks.length)
-        }
-      );
-
-      await batch.commit();
 
       checks.forEach(check => {
         const row = document.getElementById("word_" + check.value);
@@ -900,8 +850,6 @@
           item.style.top = "";
           item.style.left = "";
           item.style.width = "";
-
-          finalizeWordOrder(list);
         };
 
         handle.addEventListener("pointermove", onMove);
@@ -948,33 +896,10 @@
       });
     }
 
-    async function finalizeWordOrder(list) {
-      if (!bookId) return;
-
-      const items = Array.from(list.querySelectorAll(".wordItem"));
-
-      try {
-        const batch = db.batch();
-        items.forEach((item, idx) => {
-          const id = item.id.replace("word_", "");
-          const ref = db.collection("wordbooks")
-            .doc(bookId)
-            .collection("words")
-            .doc(id);
-          batch.update(ref, { order: (idx + 1) * 1000 });
-        });
-        await batch.commit();
-      } catch (e) {
-        console.error(e);
-        alert("並び替えの保存に失敗しました");
-      }
-    }
-
     setupDragReorder("wordList");
+    onIsPublicChange();
 
     async function importCSV() {
-      if (!bookId) return;
-
       const file = document.getElementById("csvFile").files[0];
       if (!file) {
         alert("CSVファイルを選択してください");
@@ -984,41 +909,24 @@
       const text = await file.text();
       const lines = text.split("\n");
 
-      let addedCount = 0;
-      const baseTime = Date.now();
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
+      for (const line of lines) {
         const [f, b] = line.split(",");
         if (f && b) {
-          const doc = await db.collection("wordbooks").doc(bookId).collection("words").add({
-            front: f.trim(),
-            back: b.trim(),
-            createdAt: new Date(baseTime + i),
-            order: baseTime + i
-          });
-          addWordToList(doc.id, f.trim(), b.trim());
-          addedCount++;
+          addWordToList(nextLocalId(), f.trim(), b.trim());
         }
-      }
-
-      if (addedCount > 0) {
-        await db.collection("wordbooks").doc(bookId).update({
-          wordCount: firebase.firestore.FieldValue.increment(addedCount)
-        });
       }
 
       document.getElementById("csvFile").value = "";
     }
 
-    async function exportCSV() {
-      if (!bookId) return;
-
-      const snap = await db.collection("wordbooks").doc(bookId).collection("words").get();
+    function exportCSV() {
+      const rows = document.querySelectorAll("#wordList .wordItem");
       let csv = "";
 
-      snap.forEach(d => {
-        const w = d.data();
-        csv += `${w.front},${w.back}\n`;
+      rows.forEach(row => {
+        const f = row.querySelector('[data-type="front"]').value;
+        const b = row.querySelector('[data-type="back"]').value;
+        csv += `${f},${b}\n`;
       });
 
       const blob = new Blob([csv], { type: "text/plain;charset=utf-8" });
@@ -1030,21 +938,12 @@
       URL.revokeObjectURL(url);
     }
 
-    function goView() {
-      location.href = "view.html?id=" + bookId;
-    }
-
     /* ===== 他の単語帳から単語を取り込む ===== */
 
     let importSelectedBookId = null;
     let importWords = []; // {id, front, back} の配列（取り込み元の単語、createdAt順）
 
     async function openImportModal() {
-      if (!bookId) {
-        alert("先に単語帳を作成してください");
-        return;
-      }
-
       document.getElementById("importModal").style.display = "flex";
       document.getElementById("importStep1").style.display = "block";
       document.getElementById("importStep2").style.display = "none";
@@ -1057,9 +956,7 @@
           .where("owner", "==", currentUser.uid)
           .get();
 
-        // 取り込み対象が自分自身の単語帳にならないように除外する
         const books = snap.docs
-          .filter(d => d.id !== bookId)
           .map(d => ({ id: d.id, title: d.data().title || "(無題)", wordCount: d.data().wordCount || 0 }));
 
         if (books.length === 0) {
@@ -1147,9 +1044,7 @@
       importWords = [];
     }
 
-    async function confirmImportWords() {
-      if (!bookId) return;
-
+    function confirmImportWords() {
       const checks = document.querySelectorAll(".importWordCheck:checked");
       const selectedIds = Array.from(checks).map(c => c.dataset.id);
 
@@ -1158,57 +1053,15 @@
         return;
       }
 
-      const importMsg = document.getElementById("importMsg");
-      importMsg.textContent = "取り込んでいます...";
+      // 選択された単語を、取り込み元での並び順を保ったまま追加する
+      const selectedIdSet = new Set(selectedIds);
+      const orderedSelected = importWords.filter(w => selectedIdSet.has(w.id));
 
-      try {
-        // 現在の単語帳に既にある単語の中で、最も新しいcreatedAtを基準にする。
-        // これより後の時刻を選択順に割り振ることで、取り込んだ単語が必ず一番下に
-        // 元の順番通りに並ぶようにする。
-        const existingSnap = await db.collection("wordbooks")
-          .doc(bookId)
-          .collection("words")
-          .orderBy("createdAt", "desc")
-          .limit(1)
-          .get();
+      orderedSelected.forEach(w => {
+        addWordToList(nextLocalId(), w.front, w.back);
+      });
 
-        let baseTime = Date.now();
-        if (!existingSnap.empty) {
-          const lastCreatedAt = existingSnap.docs[0].data().createdAt;
-          if (lastCreatedAt && typeof lastCreatedAt.toMillis === "function") {
-            baseTime = Math.max(baseTime, lastCreatedAt.toMillis() + 1);
-          }
-        }
-
-        // 選択された単語を、取り込み元での並び順を保ったまま処理する
-        const selectedIdSet = new Set(selectedIds);
-        const orderedSelected = importWords.filter(w => selectedIdSet.has(w.id));
-
-        let addedCount = 0;
-        for (let idx = 0; idx < orderedSelected.length; idx++) {
-          const w = orderedSelected[idx];
-          const doc = await db.collection("wordbooks").doc(bookId).collection("words").add({
-            front: w.front,
-            back: w.back,
-            createdAt: new Date(baseTime + idx),
-            order: baseTime + idx
-          });
-          addWordToList(doc.id, w.front, w.back);
-          addedCount++;
-        }
-
-        if (addedCount > 0) {
-          await db.collection("wordbooks").doc(bookId).update({
-            wordCount: firebase.firestore.FieldValue.increment(addedCount)
-          });
-        }
-
-        closeImportModal();
-
-      } catch (e) {
-        console.error(e);
-        importMsg.textContent = "取り込みに失敗しました: " + e.message;
-      }
+      closeImportModal();
     }
 
     const front = document.getElementById("front");
@@ -1231,32 +1084,6 @@
         front.focus();
       }
     });
-
-    async function updateWord(id) {
-      const row = document.getElementById("word_" + id);
-
-      const inputs = row.querySelectorAll(".editInput");
-
-      let front = "";
-      let back = "";
-
-      inputs.forEach(input => {
-        if (input.dataset.type === "front") {
-          front = input.value.trim();
-        } else {
-          back = input.value.trim();
-        }
-      });
-
-      await db.collection("wordbooks")
-        .doc(bookId)
-        .collection("words")
-        .doc(id)
-        .update({
-          front,
-          back
-        });
-    }
 
     function escapeHtml(str) {
       return str
