@@ -702,9 +702,13 @@
         const owner = userMap.get(b.owner);
         const ownerLabel = owner ? (owner.email || owner.username || b.owner) : (b.ownerName || b.owner || "(不明)");
         const created = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().toLocaleDateString("ja-JP") : "-";
-        const publicLabel = b.isPublic === false
-          ? '<span class="badge badge-normal">非公開</span>'
-          : '<span class="badge badge-warning">公開</span>';
+        const isForcedPrivate = b.forcedPrivate === true;
+        const publicLabel = isForcedPrivate
+          ? '<span class="badge badge-danger">強制非公開</span>'
+          : (b.isPublic === false
+            ? '<span class="badge badge-normal">非公開</span>'
+            : '<span class="badge badge-warning">公開</span>');
+        const forceBtnLabel = isForcedPrivate ? "強制非公開を解除" : "強制的に非公開にする";
         return `
           <tr>
             <td>${escapeHtml(b.title || "(無題)")}</td>
@@ -712,10 +716,40 @@
             <td class="num">${b.wordCount ?? 0}</td>
             <td>${publicLabel}</td>
             <td>${created}</td>
-            <td><a href="view.html?id=${encodeURIComponent(b.id)}" target="_blank" rel="noopener">開く</a></td>
+            <td>
+              <a href="view.html?id=${encodeURIComponent(b.id)}" target="_blank" rel="noopener">開く</a>
+              <button class="smallActionBtn" onclick="toggleForcedPrivate('${b.id}')">${forceBtnLabel}</button>
+            </td>
           </tr>
         `;
       }).join("");
+    }
+
+    async function toggleForcedPrivate(bookId) {
+      const book = booksData.find(b => b.id === bookId);
+      if (!book) return;
+
+      const nextForced = !(book.forcedPrivate === true);
+
+      const confirmed = nextForced
+        ? confirm(`「${book.title || "(無題)"}」を強制的に非公開にしますか？\n作成者はこの単語帳を自分で公開に戻せなくなります。`)
+        : confirm(`「${book.title || "(無題)"}」の強制非公開を解除しますか？\n作成者が再び公開できるようになります。`);
+      if (!confirmed) return;
+
+      try {
+        const patch = {
+          forcedPrivate: nextForced,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        if (nextForced) {
+          patch.isPublic = false;
+        }
+        await db.collection("wordbooks").doc(bookId).update(patch);
+        await loadBooks();
+      } catch (e) {
+        console.error(e);
+        alert("更新に失敗しました: " + e.message);
+      }
     }
 
     /* ===================== 通知送信 ===================== */

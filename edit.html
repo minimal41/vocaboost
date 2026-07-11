@@ -445,6 +445,9 @@
         <label for="isPublic">公開する</label>
         <span class="publicStatus" id="publicStatus"></span>
       </div>
+      <p id="forcedPrivateNotice" class="notice" style="display:none;">
+        運営により強制的に非公開に設定されているため、この単語帳は公開できません
+      </p>
 
       <button class="danger" onclick="deleteBook()" style="margin-top:15px;">この単語帳を削除</button>
       <div id="msg" class="notice"></div>
@@ -579,6 +582,7 @@
 
     let currentUser = null;
     let bookOwner = null;
+    let bookForcedPrivate = false;
     let bookListener = null;
     let wordsListener = null;
 
@@ -746,7 +750,12 @@
             "作成者: " + data.ownerName;
 
           const isPublic = data.isPublic !== false;
-          document.getElementById("isPublic").checked = isPublic;
+          bookForcedPrivate = data.forcedPrivate === true;
+
+          const isPublicCheckbox = document.getElementById("isPublic");
+          isPublicCheckbox.checked = isPublic;
+          isPublicCheckbox.disabled = bookForcedPrivate;
+          document.getElementById("forcedPrivateNotice").style.display = bookForcedPrivate ? "block" : "none";
           updatePublicStatusText(isPublic);
 
           updateCache();
@@ -804,6 +813,12 @@
         async function togglePublic() {
           const checkbox = document.getElementById("isPublic");
           const isPublic = checkbox.checked;
+
+          if (bookForcedPrivate) {
+            checkbox.checked = false;
+            alert("運営により強制的に非公開に設定されているため、公開できません");
+            return;
+          }
 
           if (blockIfRestricted()) {
             checkbox.checked = !isPublic;
@@ -1168,7 +1183,11 @@
       const title = document.getElementById("title").value.trim();
       const desc = document.getElementById("description").value.trim();
 
-      const isPublic = document.getElementById("isPublic").checked;
+      let isPublic = document.getElementById("isPublic").checked;
+
+      if (bookForcedPrivate) {
+        isPublic = false; // 運営による強制非公開中は、他の項目を保存する場合も公開状態には戻さない
+      }
 
       if (isPublic && document.querySelectorAll("#wordList .wordItem").length === 0) {
         alert("単語が1つもないため公開できません。単語を追加するか、「公開する」のチェックを外してください");

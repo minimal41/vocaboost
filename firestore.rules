@@ -61,12 +61,17 @@ service cloud.firestore {
     // 単語帳。所有者は自分の単語帳を自由に読み書きでき、
     // 他人は isPublic な単語帳のみ読み取り可能。管理者は全件を読み取れる
     // （荒らし対策の一覧表示のため）ほか、運営ページからのアカウント削除に伴う
-    // 単語帳・単語の連鎖削除ができるよう delete のみ管理者にも許可する
-    // （タイトル等の更新は所有者のみに限定する）。
+    // 単語帳・単語の連鎖削除、および強制非公開(forcedPrivate)の設定ができるよう
+    // update / delete も管理者に許可する。
+    // forcedPrivate == true の単語帳は、所有者が isPublic を true に書き換える
+    // 更新をサーバー側でも拒否し、運営ページ以外からの解除を防ぐ。
     match /wordbooks/{bookId} {
       allow read: if resource.data.isPublic == true || isOwner(resource.data.owner) || isAdmin();
       allow create: if isSignedIn() && isOwner(request.resource.data.owner);
-      allow update: if isOwner(resource.data.owner);
+      allow update: if isAdmin() || (
+        isOwner(resource.data.owner) &&
+        !(resource.data.forcedPrivate == true && request.resource.data.isPublic == true)
+      );
       allow delete: if isOwner(resource.data.owner) || isAdmin();
 
       match /words/{wordId} {
