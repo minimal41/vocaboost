@@ -117,7 +117,9 @@
 
     #reportLink {
       display: none;
-      margin-top: 15px;
+      width: 100%;
+      text-align: center;
+      margin: 4px 0 20px;
       font-size: 12px;
       color: var(--color-text-sub);
       text-decoration: underline;
@@ -210,6 +212,7 @@
     <div class="card">
       <h2 id="title"></h2>
       <div id="detailInfo" class="detail-info"></div>
+      <button type="button" id="reportLink" onclick="openReportModal()">この単語帳を報告する</button>
       <div id="description" style="display:none"></div>
       <div id="btn3">
         <a class="btn" id="editBtn" style="display:none">編集</a>
@@ -217,7 +220,6 @@
         <a class="btn" id="testBtn" onclick="goStudy('test.html')">テスト</a>
       </div>
       <div id="words"></div>
-      <button type="button" id="reportLink" onclick="openReportModal()">この単語帳を報告する</button>
     </div>
   </div>
 
@@ -477,7 +479,7 @@
           editBtn.style.display = "inline";
           editBtn.href = `edit.html?id=${id}`;
         } else {
-          document.getElementById("reportLink").style.display = "inline";
+          document.getElementById("reportLink").style.display = "block";
         }
       } else {
         statusDiv.textContent = "ログアウト中";
