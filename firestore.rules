@@ -96,5 +96,19 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
     }
+
+    // 通報。単語帳・ユーザーの通報機能。内容は運営にのみ届く必要があるため、
+    // 作成は本人（reportedBy == 自分のuid）のみ許可し、読み取りは通報者本人を
+    // 含めて一切許可しない（管理者のみが読める）。理由(reason)は必須。
+    match /reports/{reportId} {
+      allow create: if isSignedIn()
+        && request.resource.data.reportedBy == request.auth.uid
+        && request.resource.data.type in ["wordbook", "user"]
+        && request.resource.data.targetId is string
+        && request.resource.data.targetId.size() > 0
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() > 0;
+      allow read, update, delete: if isAdmin();
+    }
   }
 }

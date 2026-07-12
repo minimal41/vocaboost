@@ -252,6 +252,28 @@
         </div>
       </section>
 
+      <!-- 通報一覧 -->
+      <section class="card">
+        <h2>通報一覧</h2>
+        <input type="text" id="reportSearch" class="searchInput" placeholder="理由・対象名で検索" oninput="renderReportList()">
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>種別</th>
+                <th>対象</th>
+                <th>理由</th>
+                <th>通報者</th>
+                <th>日時</th>
+                <th>状態</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="reportListBody"></tbody>
+          </table>
+        </div>
+      </section>
+
       <!-- ユーザー管理 -->
       <section class="card">
         <h2>ユーザー管理</h2>
@@ -411,6 +433,7 @@
     let usersData = [];   // [{uid, email, username, createdAt, frozen, restrictedUntil, restrictedReason, frozenReason}]
     let booksData = [];   // [{id, title, owner, isPublic, wordCount, createdAt}]
     let notifHistory = [];
+    let reportsData = []; // [{id, type, targetId, targetLabel, reason, reportedBy, reportedByEmail, createdAt, status}]
     let selectedNotifUserIds = new Set();
     let editingUserUid = null;
 
@@ -446,6 +469,7 @@
       await loadUsers();
       await loadBooks();
       await loadNotifHistory();
+      await loadReports();
     });
 
     /* ===================== ユーザー管理 ===================== */
@@ -746,6 +770,71 @@
         }
         await db.collection("wordbooks").doc(bookId).update(patch);
         await loadBooks();
+      } catch (e) {
+        console.error(e);
+        alert("更新に失敗しました: " + e.message);
+      }
+    }
+
+    /* ===================== 通報一覧 ===================== */
+
+    async function loadReports() {
+      const snap = await db.collection("reports").orderBy("createdAt", "desc").limit(200).get();
+      reportsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderReportList();
+    }
+
+    function renderReportList() {
+      const q = document.getElementById("reportSearch").value.trim().toLowerCase();
+      const body = document.getElementById("reportListBody");
+
+      const filtered = reportsData.filter(r => {
+        if (!q) return true;
+        return (r.reason || "").toLowerCase().includes(q) || (r.targetLabel || "").toLowerCase().includes(q);
+      });
+
+      if (filtered.length === 0) {
+        body.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--color-text-sub);">通報はありません</td></tr>`;
+        return;
+      }
+
+      body.innerHTML = filtered.map(r => {
+        const typeLabel = r.type === "wordbook" ? "単語帳" : "ユーザー";
+        const created = r.createdAt && r.createdAt.toDate ? r.createdAt.toDate().toLocaleString("ja-JP") : "-";
+        const isResolved = r.status === "resolved";
+        const statusBadge = isResolved
+          ? '<span class="badge badge-normal">対応済み</span>'
+          : '<span class="badge badge-warning">未対応</span>';
+
+        const targetCell = r.type === "wordbook"
+          ? `<a href="view.html?id=${encodeURIComponent(r.targetId)}" target="_blank" rel="noopener">${escapeHtml(r.targetLabel || "(無題)")}</a>`
+          : `<button class="smallActionBtn" onclick="openUserModal('${r.targetId}')">${escapeHtml(r.targetLabel || r.targetId || "")}</button>`;
+
+        return `
+          <tr>
+            <td>${typeLabel}</td>
+            <td>${targetCell}</td>
+            <td style="max-width:220px;white-space:pre-wrap;overflow-wrap:anywhere;">${escapeHtml(r.reason || "")}</td>
+            <td>${escapeHtml(r.reportedByEmail || r.reportedBy || "")}</td>
+            <td>${created}</td>
+            <td>${statusBadge}</td>
+            <td><button class="smallActionBtn" onclick="toggleReportStatus('${r.id}')">${isResolved ? "未対応に戻す" : "対応済みにする"}</button></td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    async function toggleReportStatus(reportId) {
+      const report = reportsData.find(r => r.id === reportId);
+      if (!report) return;
+      const nextResolved = !(report.status === "resolved");
+
+      try {
+        await db.collection("reports").doc(reportId).update({
+          status: nextResolved ? "resolved" : "open",
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        await loadReports();
       } catch (e) {
         console.error(e);
         alert("更新に失敗しました: " + e.message);

@@ -114,6 +114,82 @@
     #btn3{
       user-select: none;
     }
+
+    #reportLink {
+      display: none;
+      margin-top: 15px;
+      font-size: 12px;
+      color: var(--color-text-sub);
+      text-decoration: underline;
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+
+    .modalOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .modalBox {
+      background: var(--color-surface);
+      color: var(--color-text);
+      border-radius: 12px;
+      padding: 25px;
+      width: 100%;
+      max-width: 460px;
+      max-height: 80vh;
+      overflow-y: auto;
+      text-align: left;
+    }
+
+    .modalDesc {
+      font-size: 13px;
+      color: var(--color-text-sub);
+      margin-bottom: 10px;
+    }
+
+    .modalActions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 15px;
+    }
+
+    #reportReason {
+      width: 100%;
+      box-sizing: border-box;
+      height: 100px;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--color-border);
+      font-size: 14px;
+      font-family: inherit;
+      resize: vertical;
+    }
+
+    .notice {
+      color: var(--color-danger);
+      min-height: 1.2em;
+      font-size: 13px;
+    }
+
+    .success {
+      color: var(--color-success);
+      min-height: 1.2em;
+      font-size: 13px;
+    }
   </style>
 </head>
 
@@ -141,8 +217,23 @@
         <a class="btn" id="testBtn" onclick="goStudy('test.html')">テスト</a>
       </div>
       <div id="words"></div>
+      <button type="button" id="reportLink" onclick="openReportModal()">この単語帳を報告する</button>
     </div>
   </div>
+
+  <div id="reportModal" class="modalOverlay" style="display:none;">
+    <div class="modalBox">
+      <h3>この単語帳を報告する</h3>
+      <p class="modalDesc">通報内容は運営にのみ共有されます。通報理由を入力してください（必須）。</p>
+      <textarea id="reportReason" placeholder="例：不適切な内容が含まれている、スパム など"></textarea>
+      <div id="reportMsg" class="notice"></div>
+      <div class="modalActions">
+        <button type="button" onclick="closeReportModal()">キャンセル</button>
+        <button type="button" onclick="submitReport()">通報する</button>
+      </div>
+    </div>
+  </div>
+
   <footer>
     <div class="footer-inner">
       <div><img src="./images/rogo.png" height="70vh"></div>
@@ -161,7 +252,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-auth.js";
-    import { getFirestore, doc, getDoc, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, collection, getDocs, query, orderBy, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
 
     const firebaseConfig = { apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E", authDomain: "quiz1-4ffdc.firebaseapp.com", projectId: "quiz1-4ffdc", storageBucket: "quiz1-4ffdc.firebasestorage.app", messagingSenderId: "152062126332", appId: "1:152062126332:web:845af237a1a76207214f79" };
 
@@ -385,6 +476,8 @@
           const editBtn = document.getElementById("editBtn");
           editBtn.style.display = "inline";
           editBtn.href = `edit.html?id=${id}`;
+        } else {
+          document.getElementById("reportLink").style.display = "inline";
         }
       } else {
         statusDiv.textContent = "ログアウト中";
@@ -393,6 +486,59 @@
         settingsBtn.style.display = "none";
       }
     });
+
+    window.openReportModal = () => {
+      if (!currentUser) {
+        alert("ログインしてください");
+        return;
+      }
+      document.getElementById("reportReason").value = "";
+      document.getElementById("reportMsg").textContent = "";
+      document.getElementById("reportMsg").className = "notice";
+      document.getElementById("reportModal").style.display = "flex";
+    };
+
+    window.closeReportModal = () => {
+      document.getElementById("reportModal").style.display = "none";
+    };
+
+    window.submitReport = async () => {
+      const reason = document.getElementById("reportReason").value.trim();
+      const msg = document.getElementById("reportMsg");
+
+      if (!reason) {
+        msg.className = "notice";
+        msg.textContent = "通報理由を入力してください";
+        return;
+      }
+      if (!currentUser) {
+        msg.className = "notice";
+        msg.textContent = "ログインしてください";
+        return;
+      }
+
+      msg.className = "notice";
+      msg.textContent = "送信しています...";
+
+      try {
+        await addDoc(collection(db, "reports"), {
+          type: "wordbook",
+          targetId: id,
+          targetLabel: book.title || "",
+          reason: reason,
+          reportedBy: currentUser.uid,
+          reportedByEmail: currentUser.email || "",
+          createdAt: serverTimestamp()
+        });
+        msg.className = "success";
+        msg.textContent = "通報しました。ご協力ありがとうございます。";
+        setTimeout(() => { window.closeReportModal(); }, 1200);
+      } catch (e) {
+        console.error(e);
+        msg.className = "notice";
+        msg.textContent = "送信に失敗しました: " + e.message;
+      }
+    };
   </script>
   <script src="account-widgets.js"></script>
 </body>
