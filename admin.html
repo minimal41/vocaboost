@@ -217,6 +217,41 @@
     <div id="adminContent" style="display:none">
       <h1>運営専用ページ</h1>
 
+      <!-- 通知送信 -->
+      <section class="card">
+        <h2>通知を送信</h2>
+        <input type="text" id="notifTitle" class="searchInput" placeholder="通知タイトル">
+        <textarea id="notifBody" placeholder="本文"></textarea>
+
+        <div class="radioRow">
+          <label><input type="radio" name="notifTarget" value="all" checked onchange="onNotifTargetChange()"> 全ユーザーに送信</label>
+          <label><input type="radio" name="notifTarget" value="users" onchange="onNotifTargetChange()"> 一部のユーザーに送信</label>
+        </div>
+
+        <div id="notifUserPicker" style="display:none">
+          <input type="text" id="notifUserSearch" class="searchInput" placeholder="ユーザーを検索して選択" oninput="renderNotifUserPicker()">
+          <div id="notifUserPickerList" class="userPickList"></div>
+          <p id="notifSelectedCount" style="font-size:13px;color:var(--color-text-sub);"></p>
+        </div>
+
+        <button onclick="sendNotification()">送信する</button>
+        <div id="notifMsg" class="notice"></div>
+
+        <h3>送信履歴</h3>
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>タイトル</th>
+                <th>対象</th>
+                <th>送信日時</th>
+              </tr>
+            </thead>
+            <tbody id="notifHistoryBody"></tbody>
+          </table>
+        </div>
+      </section>
+
       <!-- ユーザー管理 -->
       <section class="card">
         <h2>ユーザー管理</h2>
@@ -254,41 +289,6 @@
               </tr>
             </thead>
             <tbody id="bookListBody"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- 通知送信 -->
-      <section class="card">
-        <h2>通知を送信</h2>
-        <input type="text" id="notifTitle" class="searchInput" placeholder="通知タイトル">
-        <textarea id="notifBody" placeholder="本文"></textarea>
-
-        <div class="radioRow">
-          <label><input type="radio" name="notifTarget" value="all" checked onchange="onNotifTargetChange()"> 全ユーザーに送信</label>
-          <label><input type="radio" name="notifTarget" value="users" onchange="onNotifTargetChange()"> 一部のユーザーに送信</label>
-        </div>
-
-        <div id="notifUserPicker" style="display:none">
-          <input type="text" id="notifUserSearch" class="searchInput" placeholder="ユーザーを検索して選択" oninput="renderNotifUserPicker()">
-          <div id="notifUserPickerList" class="userPickList"></div>
-          <p id="notifSelectedCount" style="font-size:13px;color:var(--color-text-sub);"></p>
-        </div>
-
-        <button onclick="sendNotification()">送信する</button>
-        <div id="notifMsg" class="notice"></div>
-
-        <h3>送信履歴</h3>
-        <div class="tableWrap">
-          <table>
-            <thead>
-              <tr>
-                <th>タイトル</th>
-                <th>対象</th>
-                <th>送信日時</th>
-              </tr>
-            </thead>
-            <tbody id="notifHistoryBody"></tbody>
           </table>
         </div>
       </section>
