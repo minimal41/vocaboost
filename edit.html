@@ -255,6 +255,7 @@
       display: flex;
       align-items: center;
       cursor: pointer;
+      flex-shrink: 0;
     }
 
     .deleteCheck {
@@ -264,6 +265,8 @@
     .checkMark {
       width: 26px;
       height: 26px;
+      box-sizing: border-box;
+      flex-shrink: 0;
       border: 2px solid var(--color-accent);
       border-radius: 50%;
       background: var(--color-surface);
@@ -282,15 +285,15 @@
       content: "";
       position: absolute;
 
-      left: 8px;
-      top: 4px;
+      left: 50%;
+      top: 50%;
 
       width: 6px;
       height: 12px;
 
       border: solid white;
       border-width: 0 3px 3px 0;
-      transform: rotate(45deg);
+      transform: translate(-50%, -60%) rotate(45deg);
     }
 
     /* 他の単語帳から取り込むモーダル */
