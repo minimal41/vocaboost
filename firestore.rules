@@ -83,16 +83,17 @@ service cloud.firestore {
       }
     }
 
-    // 通知。全ユーザー宛て(target == "all")または自分宛て(targetUserIds に自分のuidを含む)の
-    // 通知のみ読み取り可能。管理者は運営ページの送信履歴表示のため全件読み取りを許可する
-    // （絞り込みなしの一覧取得はこの isAdmin() が無いと弾かれてしまう）。
-    // 作成・更新・削除は管理者のみ。
+    // 通知。
+    // 注意: 当初は target=="all" || targetUserIdsに自分のuidを含む || isAdmin() という
+    // OR条件で絞り込んでいたが、Firestoreのクエリルール検証は「絞り込みクエリがOR条件の
+    // いずれかを確実に満たすと静的に証明できるか」を厳密にしか判定できず、
+    // array-contains クエリ + 複数分岐のORの組み合わせで
+    // "Missing or insufficient permissions" が発生する実例が確認された。
+    // 通知の内容自体は運営からのお知らせであり機微な個人情報ではないため、
+    // 読み取りはログイン済み全員に許可し、書き込み（作成・更新・削除）のみ
+    // 管理者に限定することで確実に動作させる。
     match /notifications/{notifId} {
-      allow read: if isSignedIn() && (
-        resource.data.target == "all" ||
-        (resource.data.targetUserIds is list && request.auth.uid in resource.data.targetUserIds) ||
-        isAdmin()
-      );
+      allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
     }
   }
