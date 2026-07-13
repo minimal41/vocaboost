@@ -301,9 +301,9 @@
       <!-- ユーザー管理 -->
       <section class="card">
         <h2 class="collapsibleHeader" onclick="toggleSection('userSection')">
-          ユーザー管理 <span class="collapseIcon" id="userSection_icon">▾</span>
+          ユーザー管理 <span class="collapseIcon" id="userSection_icon">▸</span>
         </h2>
-        <div id="userSection_body">
+        <div id="userSection_body" style="display:none;">
           <input type="text" id="userSearch" class="searchInput" placeholder="メールアドレス・ユーザー名で検索" oninput="renderUserList()">
           <div class="tableWrap">
             <table>
@@ -325,9 +325,9 @@
       <!-- 全単語帳一覧 -->
       <section class="card">
         <h2 class="collapsibleHeader" onclick="toggleSection('bookSection')">
-          全単語帳一覧 <span class="collapseIcon" id="bookSection_icon">▾</span>
+          全単語帳一覧 <span class="collapseIcon" id="bookSection_icon">▸</span>
         </h2>
-        <div id="bookSection_body">
+        <div id="bookSection_body" style="display:none;">
           <input type="text" id="bookSearch" class="searchInput" placeholder="タイトル・作成者メールで検索" oninput="renderBookList()">
           <div class="tableWrap">
             <table>
