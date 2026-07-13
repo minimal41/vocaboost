@@ -36,16 +36,191 @@
     return date.toLocaleDateString("ja-JP");
   }
 
+  let notifications = [];
+  let readIds = [];
+  let dropdownOpen = false;
+  // markAllRead の実処理は auth/db が使える waitForFirebase() の中でのみ定義できるが、
+  // ベルのクリックハンドラ自体はキャッシュ表示時点（Firebase初期化前）から有効にしたいため、
+  // 間接呼び出し用の差し替え可能な参照を用意しておく
+  let markAllReadImpl = null;
+
+  function notifCacheKey(uid) {
+    return "accountWidgets_notifCache_" + uid;
+  }
+
+  // 直近の通知一覧・既読状態・管理者判定をlocalStorageに保存しておき、
+  // 次回訪問時にFirebase/Firestoreの応答を待たずに即座に描画できるようにする
+  function saveNotifCache(uid, isAdmin) {
+    try {
+      const serializable = notifications.map(n => ({
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        createdAt: n.createdAt && n.createdAt.toDate ? n.createdAt.toDate().toISOString() : new Date().toISOString()
+      }));
+      localStorage.setItem(notifCacheKey(uid), JSON.stringify({
+        notifications: serializable,
+        readIds: readIds,
+        isAdmin: isAdmin
+      }));
+    } catch (e) {
+      console.warn("account-widgets: failed to save cache", e);
+    }
+  }
+
+  function loadNotifCache(uid) {
+    try {
+      const raw = localStorage.getItem(notifCacheKey(uid));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      parsed.notifications = (parsed.notifications || []).map(n => {
+        const d = new Date(n.createdAt);
+        return { ...n, createdAt: { toDate: () => d, toMillis: () => d.getTime() } };
+      });
+      return parsed;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 二重描画を避けつつベルのDOMを用意する。既に描画済みなら何もしない
+  function renderBell() {
+    if (document.getElementById("notifBellBtn")) return;
+    const container = document.getElementById("notifBellContainer");
+    if (!container) return;
+    container.innerHTML = `
+      <span class="notif-bell-wrap">
+        <button type="button" id="notifBellBtn" class="header-btn notif-bell-btn" aria-label="通知">
+          <svg class="notif-bell-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span id="notifBadge" class="notif-badge" style="display:none">0</span>
+        </button>
+        <div id="notifDropdown" class="notif-dropdown" style="display:none">
+          <div class="notif-dropdown-title">通知</div>
+          <div id="notifList" class="notif-list"><div class="notif-empty">通知はありません</div></div>
+        </div>
+      </span>
+    `;
+    document.getElementById("notifBellBtn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleDropdown();
+    });
+    document.addEventListener("click", (e) => {
+      const dd = document.getElementById("notifDropdown");
+      const bellBtn = document.getElementById("notifBellBtn");
+      if (dd && dropdownOpen && !dd.contains(e.target) && e.target !== bellBtn) {
+        closeDropdown();
+      }
+    });
+  }
+
+  // 二重描画を避けつつ運営リンクを追加する。既に追加済みなら何もしない
+  function renderAdminLink() {
+    if (document.querySelector(".admin-link-btn")) return;
+    const container = document.getElementById("notifBellContainer");
+    if (!container) return;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "header-btn admin-link-btn";
+    btn.textContent = "運営";
+    btn.addEventListener("click", () => { location.href = "admin.html"; });
+    container.appendChild(btn);
+  }
+
+  function updateBadge() {
+    const unread = notifications.filter(n => !readIds.includes(n.id)).length;
+    const badge = document.getElementById("notifBadge");
+    if (!badge) return;
+    if (unread > 0) {
+      badge.textContent = unread > 99 ? "99+" : String(unread);
+      badge.style.display = "inline-flex";
+    } else {
+      badge.style.display = "none";
+    }
+  }
+
+  function renderList() {
+    const listEl = document.getElementById("notifList");
+    if (!listEl) return;
+    if (notifications.length === 0) {
+      listEl.innerHTML = `<div class="notif-empty">通知はありません</div>`;
+      return;
+    }
+    listEl.innerHTML = notifications.map(n => {
+      const isUnread = !readIds.includes(n.id);
+      const date = n.createdAt.toDate();
+      return `
+        <div class="notif-item${isUnread ? " notif-unread" : ""}">
+          <div class="notif-item-title">${escapeHtml(n.title)}</div>
+          <div class="notif-item-body">${escapeHtml(n.body)}</div>
+          <div class="notif-item-time">${formatRelativeTime(date)}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function toggleDropdown() {
+    const dd = document.getElementById("notifDropdown");
+    if (!dd) return;
+    dropdownOpen = !dropdownOpen;
+    dd.style.display = dropdownOpen ? "block" : "none";
+    if (dropdownOpen && markAllReadImpl) {
+      markAllReadImpl();
+    }
+  }
+
+  function closeDropdown() {
+    const dd = document.getElementById("notifDropdown");
+    if (dd) dd.style.display = "none";
+    dropdownOpen = false;
+  }
+
+  // ページ表示直後、Firebaseの初期化やネットワーク応答を一切待たずに、
+  // 前回訪問時のキャッシュがあればベル・バッジ・運営リンクを即座に表示する。
+  // ここでの表示はあくまで暫定であり、この後 onAuthStateChanged 側で
+  // 実際のデータを取得し次第、正しい内容に更新・保存し直される。
+  (function renderFromCacheEarly() {
+    let savedUser;
+    try {
+      savedUser = JSON.parse(localStorage.getItem("cachedUser"));
+    } catch (e) {
+      savedUser = null;
+    }
+    if (!savedUser || !savedUser.uid) return;
+
+    const cache = loadNotifCache(savedUser.uid);
+    if (!cache) return;
+
+    notifications = cache.notifications || [];
+    readIds = cache.readIds || [];
+
+    renderBell();
+    updateBadge();
+    renderList();
+
+    if (cache.isAdmin) {
+      renderAdminLink();
+    }
+  })();
+
   waitForFirebase(() => {
     const auth = firebase.auth();
     const db = firebase.firestore();
 
-    let notifications = [];
-    let readIds = [];
-    let dropdownOpen = false;
-
     auth.onAuthStateChanged(async (user) => {
       if (!user) return;
+
+      const isAdmin = ADMIN_EMAILS.includes(user.email);
+
+      // 管理者かどうかはFirebase Authのemailだけで分かるため、Firestoreへの
+      // 問い合わせを待たずにベルの外枠・運営リンクを先に出しておく
+      // （既にキャッシュから描画済みなら renderBell/renderAdminLink は何もしない）
+      renderBell();
+      if (isAdmin) {
+        renderAdminLink();
+      }
 
       let userData = null;
       try {
@@ -59,21 +234,20 @@
       if (userData && userData.frozen === true) {
         alert("このアカウントは運営により利用停止されています。");
         localStorage.removeItem("cachedUser");
+        localStorage.removeItem(notifCacheKey(user.uid));
         await auth.signOut();
         location.href = "login.html";
         return;
       }
 
       readIds = (userData && userData.readNotificationIds) || [];
+      updateBadge();
+      renderList();
 
       repairUserDoc(user, userData);
 
-      renderBell();
-      loadNotifications(user);
-
-      if (ADMIN_EMAILS.includes(user.email)) {
-        renderAdminLink();
-      }
+      await loadNotifications(user);
+      saveNotifCache(user.uid, isAdmin);
     });
 
     // 過去、ユーザー名変更機能が users/{uid} を merge:true なしで set() していたため、
@@ -98,48 +272,6 @@
       } catch (e) {
         console.error("account-widgets: failed to repair user doc", e);
       }
-    }
-
-    function renderBell() {
-      const container = document.getElementById("notifBellContainer");
-      if (!container) return;
-      container.innerHTML = `
-        <span class="notif-bell-wrap">
-          <button type="button" id="notifBellBtn" class="header-btn notif-bell-btn" aria-label="通知">
-            <svg class="notif-bell-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
-            <span id="notifBadge" class="notif-badge" style="display:none">0</span>
-          </button>
-          <div id="notifDropdown" class="notif-dropdown" style="display:none">
-            <div class="notif-dropdown-title">通知</div>
-            <div id="notifList" class="notif-list"><div class="notif-empty">通知はありません</div></div>
-          </div>
-        </span>
-      `;
-      document.getElementById("notifBellBtn").addEventListener("click", (e) => {
-        e.stopPropagation();
-        toggleDropdown();
-      });
-      document.addEventListener("click", (e) => {
-        const dd = document.getElementById("notifDropdown");
-        const bellBtn = document.getElementById("notifBellBtn");
-        if (dd && dropdownOpen && !dd.contains(e.target) && e.target !== bellBtn) {
-          closeDropdown();
-        }
-      });
-    }
-
-    function renderAdminLink() {
-      const container = document.getElementById("notifBellContainer");
-      if (!container) return;
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "header-btn admin-link-btn";
-      btn.textContent = "運営";
-      btn.addEventListener("click", () => { location.href = "admin.html"; });
-      container.appendChild(btn);
     }
 
     async function loadNotifications(user) {
@@ -169,55 +301,7 @@
       renderList();
     }
 
-    function updateBadge() {
-      const unread = notifications.filter(n => !readIds.includes(n.id)).length;
-      const badge = document.getElementById("notifBadge");
-      if (!badge) return;
-      if (unread > 0) {
-        badge.textContent = unread > 99 ? "99+" : String(unread);
-        badge.style.display = "inline-flex";
-      } else {
-        badge.style.display = "none";
-      }
-    }
-
-    function renderList() {
-      const listEl = document.getElementById("notifList");
-      if (!listEl) return;
-      if (notifications.length === 0) {
-        listEl.innerHTML = `<div class="notif-empty">通知はありません</div>`;
-        return;
-      }
-      listEl.innerHTML = notifications.map(n => {
-        const isUnread = !readIds.includes(n.id);
-        const date = n.createdAt.toDate();
-        return `
-          <div class="notif-item${isUnread ? " notif-unread" : ""}">
-            <div class="notif-item-title">${escapeHtml(n.title)}</div>
-            <div class="notif-item-body">${escapeHtml(n.body)}</div>
-            <div class="notif-item-time">${formatRelativeTime(date)}</div>
-          </div>
-        `;
-      }).join("");
-    }
-
-    function toggleDropdown() {
-      const dd = document.getElementById("notifDropdown");
-      if (!dd) return;
-      dropdownOpen = !dropdownOpen;
-      dd.style.display = dropdownOpen ? "block" : "none";
-      if (dropdownOpen) {
-        markAllRead();
-      }
-    }
-
-    function closeDropdown() {
-      const dd = document.getElementById("notifDropdown");
-      if (dd) dd.style.display = "none";
-      dropdownOpen = false;
-    }
-
-    async function markAllRead() {
+    markAllReadImpl = async function markAllRead() {
       const user = auth.currentUser;
       if (!user) return;
       const unreadIds = notifications.filter(n => !readIds.includes(n.id)).map(n => n.id);
@@ -229,9 +313,10 @@
         await db.collection("users").doc(user.uid).update({
           readNotificationIds: firebase.firestore.FieldValue.arrayUnion(...unreadIds)
         });
+        saveNotifCache(user.uid, ADMIN_EMAILS.includes(user.email));
       } catch (e) {
         console.error("account-widgets: failed to mark notifications as read", e);
       }
-    }
+    };
   });
 })();
