@@ -532,6 +532,21 @@
           reportedByEmail: currentUser.email || "",
           createdAt: serverTimestamp()
         });
+
+        // 運営のヘッダー通知ベルにだけ届く通知（通報理由の中身は含めない）
+        try {
+          await addDoc(collection(db, "notifications"), {
+            title: "新しい通報があります",
+            body: `単語帳「${book.title || "(無題)"}」が通報されました`,
+            target: "admin",
+            targetUserIds: [],
+            createdAt: serverTimestamp(),
+            createdBy: currentUser.uid
+          });
+        } catch (e) {
+          console.error("admin notification failed", e);
+        }
+
         msg.className = "success";
         msg.textContent = "通報しました。ご協力ありがとうございます。";
         setTimeout(() => { window.closeReportModal(); }, 1200);

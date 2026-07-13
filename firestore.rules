@@ -90,11 +90,23 @@ service cloud.firestore {
     // array-contains クエリ + 複数分岐のORの組み合わせで
     // "Missing or insufficient permissions" が発生する実例が確認された。
     // 通知の内容自体は運営からのお知らせであり機微な個人情報ではないため、
-    // 読み取りはログイン済み全員に許可し、書き込み（作成・更新・削除）のみ
-    // 管理者に限定することで確実に動作させる。
+    // 読み取りはログイン済み全員に許可し、書き込み（作成・更新・削除）は
+    // 基本的に管理者に限定することで確実に動作させる。
+    // 例外として target=="admin" の通知（通報が入った際に運営へ知らせる用途）だけは、
+    // 一般ユーザーが自分自身をcreatedByとして作成できるようにする
+    // （全員向け/特定ユーザー向けの通知を一般ユーザーが偽装送信できないよう、
+    // それ以外のtarget値での作成は引き続き管理者限定のまま）。
+    // account-widgets.js側は自分が管理者の場合のみ target=="admin" の通知を
+    // 問い合わせて表示するため、一般ユーザーの画面には表示されない。
     match /notifications/{notifId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow create: if isAdmin() || (
+        isSignedIn() &&
+        request.resource.data.target == "admin" &&
+        request.resource.data.targetUserIds == [] &&
+        request.resource.data.createdBy == request.auth.uid
+      );
+      allow update, delete: if isAdmin();
     }
 
     // 通報。単語帳・ユーザーの通報機能。内容は運営にのみ届く必要があるため、

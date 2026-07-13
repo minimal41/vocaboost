@@ -246,7 +246,7 @@
 
       repairUserDoc(user, userData);
 
-      await loadNotifications(user);
+      await loadNotifications(user, isAdmin);
       saveNotifCache(user.uid, isAdmin);
     });
 
@@ -274,21 +274,30 @@
       }
     }
 
-    async function loadNotifications(user) {
-      // 「全員向け」と「自分宛て」は別クエリなので、片方が失敗（未作成の複合インデックス等）
-      // しても、もう片方の結果まで巻き添えで消えないように allSettled で個別に扱う。
-      const results = await Promise.allSettled([
+    async function loadNotifications(user, isAdmin) {
+      // 「全員向け」「自分宛て」「（管理者のみ）通報などの運営宛て」は別クエリなので、
+      // どれかが失敗（未作成の複合インデックス等）しても、他の結果まで巻き添えで
+      // 消えないように allSettled で個別に扱う。
+      // target=="admin" の通知は一般ユーザーの画面には出す必要が無いため、
+      // 管理者のときだけ問い合わせる。
+      const queries = [
         db.collection("notifications").where("target", "==", "all").orderBy("createdAt", "desc").limit(20).get(),
         db.collection("notifications").where("targetUserIds", "array-contains", user.uid).orderBy("createdAt", "desc").limit(20).get()
-      ]);
+      ];
+      const labels = ["全員向け通知", "自分宛て通知（複合インデックスが未作成の可能性）"];
+      if (isAdmin) {
+        queries.push(db.collection("notifications").where("target", "==", "admin").orderBy("createdAt", "desc").limit(20).get());
+        labels.push("運営宛て通知");
+      }
+
+      const results = await Promise.allSettled(queries);
 
       const map = new Map();
       results.forEach((result, idx) => {
         if (result.status === "fulfilled") {
           result.value.forEach(d => map.set(d.id, { id: d.id, ...d.data() }));
         } else {
-          const label = idx === 0 ? "全員向け通知" : "自分宛て通知（複合インデックスが未作成の可能性）";
-          console.error(`account-widgets: failed to load ${label}`, result.reason);
+          console.error(`account-widgets: failed to load ${labels[idx]}`, result.reason);
         }
       });
 

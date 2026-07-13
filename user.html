@@ -480,6 +480,21 @@
             reportedByEmail: currentUser.email || "",
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
           });
+
+          // 運営のヘッダー通知ベルにだけ届く通知（通報理由の中身は含めない）
+          try {
+            await db.collection("notifications").add({
+              title: "新しい通報があります",
+              body: `ユーザー「${targetUsername || uid}」が通報されました`,
+              target: "admin",
+              targetUserIds: [],
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              createdBy: currentUser.uid
+            });
+          } catch (e) {
+            console.error("admin notification failed", e);
+          }
+
           msg.className = "success";
           msg.textContent = "通報しました。ご協力ありがとうございます。";
           setTimeout(() => { window.closeReportModal(); }, 1200);
