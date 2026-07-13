@@ -564,10 +564,10 @@
             <td>${escapeHtml(u.email || "-")}</td>
             <td>${created}</td>
             <td><span class="badge ${status.cls}">${status.label}</span></td>
-            <td class="actionCell">
+            <td><div class="actionCell">
               <a class="smallActionBtn" href="user.html?id=${encodeURIComponent(u.uid)}" target="_blank" rel="noopener">開く</a>
               <button class="smallActionBtn" onclick="openUserModal('${u.uid}')">管理</button>
-            </td>
+            </div></td>
           </tr>
         `;
       }).join("");
@@ -783,10 +783,10 @@
             <td class="num">${b.wordCount ?? 0}</td>
             <td>${publicLabel}</td>
             <td>${created}</td>
-            <td class="actionCell">
+            <td><div class="actionCell">
               ${bookOpenLinkHtml(b.id)}
               ${forcedPrivateButtonHtml(b.id, isForcedPrivate)}
-            </td>
+            </div></td>
           </tr>
         `;
       }).join("");
@@ -878,7 +878,7 @@
             <td>${escapeHtml(r.reportedByEmail || r.reportedBy || "")}</td>
             <td>${created}</td>
             <td>${statusBadge}</td>
-            <td class="actionCell">${actions.join("")}</td>
+            <td><div class="actionCell">${actions.join("")}</div></td>
           </tr>
         `;
       }).join("");
