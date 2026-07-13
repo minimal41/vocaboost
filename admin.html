@@ -97,6 +97,7 @@
     }
 
     .smallActionBtn {
+      display: inline-block;
       background: var(--color-border);
       color: var(--color-text);
       border: none;
@@ -104,6 +105,28 @@
       padding: 6px 12px;
       font-size: 12px;
       cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .actionCell {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .collapsibleHeader {
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .collapseIcon {
+      font-size: 13px;
+      color: var(--color-text-sub);
     }
 
     .danger {
@@ -276,42 +299,50 @@
 
       <!-- ユーザー管理 -->
       <section class="card">
-        <h2>ユーザー管理</h2>
-        <input type="text" id="userSearch" class="searchInput" placeholder="メールアドレス・ユーザー名で検索" oninput="renderUserList()">
-        <div class="tableWrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ユーザー名</th>
-                <th>メールアドレス</th>
-                <th>登録日</th>
-                <th>状態</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody id="userListBody"></tbody>
-          </table>
+        <h2 class="collapsibleHeader" onclick="toggleSection('userSection')">
+          ユーザー管理 <span class="collapseIcon" id="userSection_icon">▾</span>
+        </h2>
+        <div id="userSection_body">
+          <input type="text" id="userSearch" class="searchInput" placeholder="メールアドレス・ユーザー名で検索" oninput="renderUserList()">
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ユーザー名</th>
+                  <th>メールアドレス</th>
+                  <th>登録日</th>
+                  <th>状態</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="userListBody"></tbody>
+            </table>
+          </div>
         </div>
       </section>
 
       <!-- 全単語帳一覧 -->
       <section class="card">
-        <h2>全単語帳一覧</h2>
-        <input type="text" id="bookSearch" class="searchInput" placeholder="タイトル・作成者メールで検索" oninput="renderBookList()">
-        <div class="tableWrap">
-          <table>
-            <thead>
-              <tr>
-                <th>タイトル</th>
-                <th>作成者</th>
-                <th>単語数</th>
-                <th>公開状態</th>
-                <th>作成日</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody id="bookListBody"></tbody>
-          </table>
+        <h2 class="collapsibleHeader" onclick="toggleSection('bookSection')">
+          全単語帳一覧 <span class="collapseIcon" id="bookSection_icon">▾</span>
+        </h2>
+        <div id="bookSection_body">
+          <input type="text" id="bookSearch" class="searchInput" placeholder="タイトル・作成者メールで検索" oninput="renderBookList()">
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>タイトル</th>
+                  <th>作成者</th>
+                  <th>単語数</th>
+                  <th>公開状態</th>
+                  <th>作成日</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="bookListBody"></tbody>
+            </table>
+          </div>
         </div>
       </section>
     </div>
@@ -430,6 +461,15 @@
         .replace(/"/g, "&quot;");
     }
 
+    function toggleSection(id) {
+      const body = document.getElementById(id + "_body");
+      const icon = document.getElementById(id + "_icon");
+      if (!body || !icon) return;
+      const collapsed = body.style.display === "none";
+      body.style.display = collapsed ? "block" : "none";
+      icon.textContent = collapsed ? "▾" : "▸";
+    }
+
     let usersData = [];   // [{uid, email, username, createdAt, frozen, restrictedUntil, restrictedReason, frozenReason}]
     let booksData = [];   // [{id, title, owner, isPublic, wordCount, createdAt}]
     let notifHistory = [];
@@ -523,7 +563,10 @@
             <td>${escapeHtml(u.email || "-")}</td>
             <td>${created}</td>
             <td><span class="badge ${status.cls}">${status.label}</span></td>
-            <td><button class="smallActionBtn" onclick="openUserModal('${u.uid}')">管理</button></td>
+            <td class="actionCell">
+              <a class="smallActionBtn" href="user.html?id=${encodeURIComponent(u.uid)}" target="_blank" rel="noopener">開く</a>
+              <button class="smallActionBtn" onclick="openUserModal('${u.uid}')">管理</button>
+            </td>
           </tr>
         `;
       }).join("");
@@ -732,7 +775,6 @@
           : (b.isPublic === false
             ? '<span class="badge badge-normal">非公開</span>'
             : '<span class="badge badge-warning">公開</span>');
-        const forceBtnLabel = isForcedPrivate ? "強制非公開を解除" : "強制的に非公開にする";
         return `
           <tr>
             <td>${escapeHtml(b.title || "(無題)")}</td>
@@ -740,13 +782,21 @@
             <td class="num">${b.wordCount ?? 0}</td>
             <td>${publicLabel}</td>
             <td>${created}</td>
-            <td>
-              <a href="view.html?id=${encodeURIComponent(b.id)}" target="_blank" rel="noopener">開く</a>
-              <button class="smallActionBtn" onclick="toggleForcedPrivate('${b.id}')">${forceBtnLabel}</button>
+            <td class="actionCell">
+              ${bookOpenLinkHtml(b.id)}
+              ${forcedPrivateButtonHtml(b.id, isForcedPrivate)}
             </td>
           </tr>
         `;
       }).join("");
+    }
+
+    function bookOpenLinkHtml(bookId) {
+      return `<a class="smallActionBtn" href="view.html?id=${encodeURIComponent(bookId)}" target="_blank" rel="noopener">開く</a>`;
+    }
+
+    function forcedPrivateButtonHtml(bookId, isForcedPrivate) {
+      return `<button class="smallActionBtn" onclick="toggleForcedPrivate('${bookId}')">${isForcedPrivate ? "解除" : "非公開"}</button>`;
     }
 
     async function toggleForcedPrivate(bookId) {
@@ -770,6 +820,7 @@
         }
         await db.collection("wordbooks").doc(bookId).update(patch);
         await loadBooks();
+        renderReportList();
       } catch (e) {
         console.error(e);
         alert("更新に失敗しました: " + e.message);
@@ -806,9 +857,17 @@
           ? '<span class="badge badge-normal">対応済み</span>'
           : '<span class="badge badge-warning">未対応</span>';
 
-        const targetCell = r.type === "wordbook"
-          ? `<a href="view.html?id=${encodeURIComponent(r.targetId)}" target="_blank" rel="noopener">${escapeHtml(r.targetLabel || "(無題)")}</a>`
-          : `<button class="smallActionBtn" onclick="openUserModal('${r.targetId}')">${escapeHtml(r.targetLabel || r.targetId || "")}</button>`;
+        const targetCell = escapeHtml(r.targetLabel || r.targetId || "");
+
+        const actions = [`<button class="smallActionBtn" onclick="toggleReportStatus('${r.id}')">${isResolved ? "未対応に戻す" : "対応済みにする"}</button>`];
+        if (r.type === "user") {
+          actions.push(`<button class="smallActionBtn" onclick="openUserModal('${r.targetId}')">管理</button>`);
+        } else {
+          const book = booksData.find(b => b.id === r.targetId);
+          const isForcedPrivate = !!book && book.forcedPrivate === true;
+          actions.push(bookOpenLinkHtml(r.targetId));
+          actions.push(forcedPrivateButtonHtml(r.targetId, isForcedPrivate));
+        }
 
         return `
           <tr>
@@ -818,7 +877,7 @@
             <td>${escapeHtml(r.reportedByEmail || r.reportedBy || "")}</td>
             <td>${created}</td>
             <td>${statusBadge}</td>
-            <td><button class="smallActionBtn" onclick="toggleReportStatus('${r.id}')">${isResolved ? "未対応に戻す" : "対応済みにする"}</button></td>
+            <td class="actionCell">${actions.join("")}</td>
           </tr>
         `;
       }).join("");
