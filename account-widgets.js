@@ -245,10 +245,30 @@
       renderList();
 
       repairUserDoc(user, userData);
+      updateLastSeen(user, userData);
 
       await loadNotifications(user, isAdmin);
       saveNotifCache(user.uid, isAdmin);
     });
+
+    // 運営ページで「最終閲覧日」を確認できるよう、ページ訪問のたびに
+    // users/{uid}.lastSeenAt を更新する。ただし毎回のページ遷移で書き込むと
+    // 無駄が多いため、前回の記録から一定時間以上経っている場合のみ更新する。
+    const LAST_SEEN_THROTTLE_MS = 10 * 60 * 1000; // 10分
+    async function updateLastSeen(user, userData) {
+      const lastSeenMillis = userData && userData.lastSeenAt && typeof userData.lastSeenAt.toMillis === "function"
+        ? userData.lastSeenAt.toMillis()
+        : 0;
+      if (Date.now() - lastSeenMillis < LAST_SEEN_THROTTLE_MS) return;
+
+      try {
+        await db.collection("users").doc(user.uid).set({
+          lastSeenAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      } catch (e) {
+        console.error("account-widgets: failed to update lastSeenAt", e);
+      }
+    }
 
     // 過去、ユーザー名変更機能が users/{uid} を merge:true なしで set() していたため、
     // 一部アカウントで email / createdAt 等のフィールドが消えてしまっていた（修正済み）。
