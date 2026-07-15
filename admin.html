@@ -771,7 +771,7 @@
 
       body.innerHTML = filtered.map(b => {
         const owner = userMap.get(b.owner);
-        const ownerLabel = owner ? (owner.email || owner.username || b.owner) : (b.ownerName || b.owner || "(不明)");
+        const ownerLabel = owner ? (owner.username || b.ownerName || b.owner) : (b.ownerName || b.owner || "(不明)");
         const created = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().toLocaleDateString("ja-JP") : "-";
         const isForcedPrivate = b.forcedPrivate === true;
         const publicLabel = isForcedPrivate
