@@ -458,7 +458,7 @@
       <button onclick="openImportModal()">他の単語帳から取り込む</button>
 
       <br><br>
-      <button onclick="saveBook()">保存する</button>
+      <button id="saveBtn" onclick="saveBook()">保存する</button>
     </div>
 
   </main>
@@ -630,8 +630,12 @@
     }
 
     // 単語帳・単語はすべて保存ボタンを押した時点でまとめてDBに書き込む
+    let isSaving = false;
+
     async function saveBook() {
       if (blockIfRestricted()) return;
+
+      if (isSaving) return; // 保存処理が完了するまで連打による多重作成を防ぐ
 
       const title = document.getElementById("title").value.trim();
       const description = document.getElementById("description").value.trim();
@@ -654,6 +658,10 @@
       }
 
       msg.textContent = "保存しています...";
+
+      isSaving = true;
+      const saveBtn = document.getElementById("saveBtn");
+      if (saveBtn) saveBtn.disabled = true;
 
       try {
         const doc = await db.collection("wordbooks").add({
@@ -685,6 +693,8 @@
       } catch (e) {
         console.error(e);
         msg.textContent = "保存に失敗しました";
+        isSaving = false;
+        if (saveBtn) saveBtn.disabled = false;
       }
     }
 
