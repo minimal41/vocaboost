@@ -785,6 +785,7 @@
           });
 
           updateCache();
+          applyPendingWordFocus();
 
       });
     }
@@ -1292,6 +1293,44 @@
         // front に戻る
         front.focus();
       }
+    });
+
+    // 単語一覧の各行でEnterを押すと、左→右→次の行の左→次の行の右…の順にフォーカスが移動する
+    // (変更を保存するとFirestoreのonSnapshotで行DOMが丸ごと再構築されるため、
+    //  移動先を pendingWordFocus に記録しておき、再構築後にも再度フォーカスを当て直す)
+    let pendingWordFocus = null;
+
+    function applyPendingWordFocus() {
+      if (!pendingWordFocus) return;
+      const row = document.getElementById("word_" + pendingWordFocus.id);
+      const input = row && row.querySelector(`[data-type="${pendingWordFocus.type}"]`);
+      if (input) {
+        input.focus();
+        pendingWordFocus = null;
+      }
+    }
+
+    document.getElementById("wordList").addEventListener("keydown", function (event) {
+      if (event.key !== "Enter") return;
+      const target = event.target;
+      if (!target.classList || !target.classList.contains("editInput")) return;
+
+      const row = target.closest(".wordItem");
+      if (!row) return;
+
+      event.preventDefault();
+
+      let targetRow = row;
+      let targetType = "front";
+      if (target.dataset.type === "front") {
+        targetType = "back";
+      } else {
+        targetRow = row.nextElementSibling;
+      }
+      if (!targetRow) return;
+
+      pendingWordFocus = { id: targetRow.id.replace(/^word_/, ""), type: targetType };
+      applyPendingWordFocus();
     });
 
     function escapeHtml(str) {

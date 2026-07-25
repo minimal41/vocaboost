@@ -1140,6 +1140,30 @@
       }
     });
 
+    // 単語一覧の各行でEnterを押すと、左→右→次の行の左→次の行の右…の順にフォーカスが移動する
+    document.getElementById("wordList").addEventListener("keydown", function (event) {
+      if (event.key !== "Enter") return;
+      const target = event.target;
+      if (!target.classList || !target.classList.contains("editInput")) return;
+
+      const row = target.closest(".wordItem");
+      if (!row) return;
+
+      event.preventDefault();
+
+      if (target.dataset.type === "front") {
+        const backInput = row.querySelector('[data-type="back"]');
+        if (backInput) backInput.focus();
+        return;
+      }
+
+      const nextRow = row.nextElementSibling;
+      if (nextRow) {
+        const nextFrontInput = nextRow.querySelector('[data-type="front"]');
+        if (nextFrontInput) nextFrontInput.focus();
+      }
+    });
+
     function escapeHtml(str) {
       return str
         .replace(/&/g, "&amp;")
