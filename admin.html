@@ -305,6 +305,14 @@
         </h2>
         <div id="userSection_body" style="display:none;">
           <input type="text" id="userSearch" class="searchInput" placeholder="メールアドレス・ユーザー名で検索" oninput="renderUserList()">
+          <select id="userSort" onchange="renderUserList()"
+            style="padding:10px; border-radius:10px; border:1px solid #ccc; font-size:14px; margin-left:5px; cursor:pointer;">
+            <option value="createdAt">登録日順（新しい）</option>
+            <option value="username">ユーザー名順</option>
+            <option value="email">メールアドレス順</option>
+            <option value="lastSeenAt">最終閲覧日順（新しい）</option>
+            <option value="status">状態順（凍結中・制限中を上に）</option>
+          </select>
           <div class="tableWrap">
             <table>
               <thead>
@@ -330,6 +338,14 @@
         </h2>
         <div id="bookSection_body" style="display:none;">
           <input type="text" id="bookSearch" class="searchInput" placeholder="タイトル・作成者メールで検索" oninput="renderBookList()">
+          <select id="bookSort" onchange="renderBookList()"
+            style="padding:10px; border-radius:10px; border:1px solid #ccc; font-size:14px; margin-left:5px; cursor:pointer;">
+            <option value="createdAt">作成日順（新しい）</option>
+            <option value="title">タイトル順</option>
+            <option value="owner">作成者順</option>
+            <option value="wordCount">単語数順</option>
+            <option value="status">公開状態順（非公開を上に）</option>
+          </select>
           <div class="tableWrap">
             <table>
               <thead>
@@ -542,14 +558,56 @@
       return { label: "通常", cls: "badge-normal" };
     }
 
+    // 状態でのソート用の優先度（数値が小さいほど上に表示: 凍結中 > 制限中 > 通常）
+    function getUserStatusRank(u) {
+      if (u.frozen === true) return 0;
+      if (u.restrictedUntil) {
+        const until = u.restrictedUntil.toDate ? u.restrictedUntil.toDate() : new Date(u.restrictedUntil);
+        if (until > new Date()) return 1;
+      }
+      return 2;
+    }
+
+    function toMillis(ts) {
+      return ts && ts.toMillis ? ts.toMillis() : 0;
+    }
+
+    function sortUserList(list, sortKey) {
+      const sorted = list.slice();
+      switch (sortKey) {
+        case "username":
+          sorted.sort((a, b) => (a.username || "").localeCompare(b.username || "", "ja"));
+          break;
+        case "email":
+          sorted.sort((a, b) => (a.email || "").localeCompare(b.email || "", "ja"));
+          break;
+        case "lastSeenAt":
+          sorted.sort((a, b) => toMillis(b.lastSeenAt) - toMillis(a.lastSeenAt));
+          break;
+        case "status":
+          sorted.sort((a, b) => {
+            const rankDiff = getUserStatusRank(a) - getUserStatusRank(b);
+            if (rankDiff !== 0) return rankDiff;
+            return toMillis(b.createdAt) - toMillis(a.createdAt);
+          });
+          break;
+        case "createdAt":
+        default:
+          sorted.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+          break;
+      }
+      return sorted;
+    }
+
     function renderUserList() {
       const q = document.getElementById("userSearch").value.trim().toLowerCase();
+      const sortKey = document.getElementById("userSort").value;
       const body = document.getElementById("userListBody");
 
-      const filtered = usersData.filter(u => {
+      const filtered = sortUserList(usersData.filter(u => {
         if (!q) return true;
         return (u.email || "").toLowerCase().includes(q) || (u.username || "").toLowerCase().includes(q);
-      });
+      }), sortKey);
 
       if (filtered.length === 0) {
         body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--color-text-sub);">該当するユーザーがいません</td></tr>`;
@@ -751,18 +809,58 @@
       renderBookList();
     }
 
+    // 公開状態でのソート用の優先度（数値が小さいほど上に表示: 強制非公開 > 非公開 > 公開）
+    function getBookStatusRank(b) {
+      if (b.forcedPrivate === true) return 0;
+      if (b.isPublic === false) return 1;
+      return 2;
+    }
+
+    function bookOwnerLabel(b, userMap) {
+      const owner = userMap.get(b.owner);
+      return owner ? (owner.username || b.ownerName || b.owner || "") : (b.ownerName || b.owner || "");
+    }
+
+    function sortBookList(list, sortKey, userMap) {
+      const sorted = list.slice();
+      switch (sortKey) {
+        case "title":
+          sorted.sort((a, b) => (a.title || "").localeCompare(b.title || "", "ja"));
+          break;
+        case "owner":
+          sorted.sort((a, b) => bookOwnerLabel(a, userMap).localeCompare(bookOwnerLabel(b, userMap), "ja"));
+          break;
+        case "wordCount":
+          sorted.sort((a, b) => (b.wordCount ?? 0) - (a.wordCount ?? 0));
+          break;
+        case "status":
+          sorted.sort((a, b) => {
+            const rankDiff = getBookStatusRank(a) - getBookStatusRank(b);
+            if (rankDiff !== 0) return rankDiff;
+            return toMillis(b.createdAt) - toMillis(a.createdAt);
+          });
+          break;
+        case "createdAt":
+        default:
+          sorted.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+          break;
+      }
+      return sorted;
+    }
+
     function renderBookList() {
       const q = document.getElementById("bookSearch").value.trim().toLowerCase();
+      const sortKey = document.getElementById("bookSort").value;
       const body = document.getElementById("bookListBody");
 
       const userMap = new Map(usersData.map(u => [u.uid, u]));
 
-      const filtered = booksData.filter(b => {
+      const filtered = sortBookList(booksData.filter(b => {
         if (!q) return true;
         const owner = userMap.get(b.owner);
         const ownerEmail = owner ? (owner.email || "") : "";
         return (b.title || "").toLowerCase().includes(q) || ownerEmail.toLowerCase().includes(q);
-      });
+      }), sortKey, userMap);
 
       if (filtered.length === 0) {
         body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--color-text-sub);">該当する単語帳がありません</td></tr>`;
