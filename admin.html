@@ -69,6 +69,21 @@
       white-space: nowrap;
     }
 
+    th.sortableTh {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    th.sortableTh:hover {
+      color: var(--color-text);
+    }
+
+    .sortArrow {
+      display: inline-block;
+      margin-left: 4px;
+      font-size: 11px;
+    }
+
     td.num {
       text-align: right;
     }
@@ -305,23 +320,15 @@
         </h2>
         <div id="userSection_body" style="display:none;">
           <input type="text" id="userSearch" class="searchInput" placeholder="メールアドレス・ユーザー名で検索" oninput="renderUserList()">
-          <select id="userSort" onchange="renderUserList()"
-            style="padding:10px; border-radius:10px; border:1px solid #ccc; font-size:14px; margin-left:5px; cursor:pointer;">
-            <option value="createdAt">登録日順（新しい）</option>
-            <option value="username">ユーザー名順</option>
-            <option value="email">メールアドレス順</option>
-            <option value="lastSeenAt">最終閲覧日順（新しい）</option>
-            <option value="status">状態順（凍結中・制限中を上に）</option>
-          </select>
           <div class="tableWrap">
             <table>
               <thead>
                 <tr>
-                  <th>ユーザー名</th>
-                  <th>メールアドレス</th>
-                  <th>登録日</th>
-                  <th>最終閲覧日</th>
-                  <th>状態</th>
+                  <th class="sortableTh" onclick="setUserSort('username')">ユーザー名<span class="sortArrow" id="userTh_username"></span></th>
+                  <th class="sortableTh" onclick="setUserSort('email')">メールアドレス<span class="sortArrow" id="userTh_email"></span></th>
+                  <th class="sortableTh" onclick="setUserSort('createdAt')">登録日<span class="sortArrow" id="userTh_createdAt"></span></th>
+                  <th class="sortableTh" onclick="setUserSort('lastSeenAt')">最終閲覧日<span class="sortArrow" id="userTh_lastSeenAt"></span></th>
+                  <th class="sortableTh" onclick="setUserSort('status')">状態<span class="sortArrow" id="userTh_status"></span></th>
                   <th>操作</th>
                 </tr>
               </thead>
@@ -338,23 +345,15 @@
         </h2>
         <div id="bookSection_body" style="display:none;">
           <input type="text" id="bookSearch" class="searchInput" placeholder="タイトル・作成者メールで検索" oninput="renderBookList()">
-          <select id="bookSort" onchange="renderBookList()"
-            style="padding:10px; border-radius:10px; border:1px solid #ccc; font-size:14px; margin-left:5px; cursor:pointer;">
-            <option value="createdAt">作成日順（新しい）</option>
-            <option value="title">タイトル順</option>
-            <option value="owner">作成者順</option>
-            <option value="wordCount">単語数順</option>
-            <option value="status">公開状態順（非公開を上に）</option>
-          </select>
           <div class="tableWrap">
             <table>
               <thead>
                 <tr>
-                  <th>タイトル</th>
-                  <th>作成者</th>
-                  <th>単語数</th>
-                  <th>公開状態</th>
-                  <th>作成日</th>
+                  <th class="sortableTh" onclick="setBookSort('title')">タイトル<span class="sortArrow" id="bookTh_title"></span></th>
+                  <th class="sortableTh" onclick="setBookSort('owner')">作成者<span class="sortArrow" id="bookTh_owner"></span></th>
+                  <th class="sortableTh" onclick="setBookSort('wordCount')">単語数<span class="sortArrow" id="bookTh_wordCount"></span></th>
+                  <th class="sortableTh" onclick="setBookSort('status')">公開状態<span class="sortArrow" id="bookTh_status"></span></th>
+                  <th class="sortableTh" onclick="setBookSort('createdAt')">作成日<span class="sortArrow" id="bookTh_createdAt"></span></th>
                   <th>操作</th>
                 </tr>
               </thead>
@@ -495,6 +494,45 @@
     let selectedNotifUserIds = new Set();
     let editingUserUid = null;
 
+    // 列見出しクリックで並び替え（初めてクリックした列は既定の向き、同じ列を再クリックすると上下反転）
+    const USER_SORT_DEFAULT_DIR = { username: "asc", email: "asc", createdAt: "desc", lastSeenAt: "desc", status: "asc" };
+    const BOOK_SORT_DEFAULT_DIR = { title: "asc", owner: "asc", wordCount: "desc", status: "asc", createdAt: "desc" };
+    let userSortKey = "createdAt";
+    let userSortDir = "desc";
+    let bookSortKey = "createdAt";
+    let bookSortDir = "desc";
+
+    function setUserSort(key) {
+      if (userSortKey === key) {
+        userSortDir = userSortDir === "asc" ? "desc" : "asc";
+      } else {
+        userSortKey = key;
+        userSortDir = USER_SORT_DEFAULT_DIR[key] || "asc";
+      }
+      renderUserList();
+    }
+
+    function setBookSort(key) {
+      if (bookSortKey === key) {
+        bookSortDir = bookSortDir === "asc" ? "desc" : "asc";
+      } else {
+        bookSortKey = key;
+        bookSortDir = BOOK_SORT_DEFAULT_DIR[key] || "asc";
+      }
+      renderBookList();
+    }
+
+    function updateSortHeaders(prefix, activeKey, dir) {
+      const keys = prefix === "user"
+        ? ["username", "email", "createdAt", "lastSeenAt", "status"]
+        : ["title", "owner", "wordCount", "status", "createdAt"];
+      keys.forEach(key => {
+        const el = document.getElementById(prefix + "Th_" + key);
+        if (!el) return;
+        el.textContent = key === activeKey ? (dir === "asc" ? "▲" : "▼") : "";
+      });
+    }
+
     auth.onAuthStateChanged(async (user) => {
       currentUser = user;
 
@@ -572,28 +610,29 @@
       return ts && ts.toMillis ? ts.toMillis() : 0;
     }
 
-    function sortUserList(list, sortKey) {
+    function sortUserList(list, sortKey, sortDir) {
       const sorted = list.slice();
+      const dirMul = sortDir === "asc" ? 1 : -1;
       switch (sortKey) {
         case "username":
-          sorted.sort((a, b) => (a.username || "").localeCompare(b.username || "", "ja"));
+          sorted.sort((a, b) => dirMul * (a.username || "").localeCompare(b.username || "", "ja"));
           break;
         case "email":
-          sorted.sort((a, b) => (a.email || "").localeCompare(b.email || "", "ja"));
+          sorted.sort((a, b) => dirMul * (a.email || "").localeCompare(b.email || "", "ja"));
           break;
         case "lastSeenAt":
-          sorted.sort((a, b) => toMillis(b.lastSeenAt) - toMillis(a.lastSeenAt));
+          sorted.sort((a, b) => dirMul * (toMillis(a.lastSeenAt) - toMillis(b.lastSeenAt)));
           break;
         case "status":
           sorted.sort((a, b) => {
-            const rankDiff = getUserStatusRank(a) - getUserStatusRank(b);
+            const rankDiff = dirMul * (getUserStatusRank(a) - getUserStatusRank(b));
             if (rankDiff !== 0) return rankDiff;
             return toMillis(b.createdAt) - toMillis(a.createdAt);
           });
           break;
         case "createdAt":
         default:
-          sorted.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+          sorted.sort((a, b) => dirMul * (toMillis(a.createdAt) - toMillis(b.createdAt)));
           break;
       }
       return sorted;
@@ -601,13 +640,13 @@
 
     function renderUserList() {
       const q = document.getElementById("userSearch").value.trim().toLowerCase();
-      const sortKey = document.getElementById("userSort").value;
+      updateSortHeaders("user", userSortKey, userSortDir);
       const body = document.getElementById("userListBody");
 
       const filtered = sortUserList(usersData.filter(u => {
         if (!q) return true;
         return (u.email || "").toLowerCase().includes(q) || (u.username || "").toLowerCase().includes(q);
-      }), sortKey);
+      }), userSortKey, userSortDir);
 
       if (filtered.length === 0) {
         body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--color-text-sub);">該当するユーザーがいません</td></tr>`;
@@ -821,28 +860,29 @@
       return owner ? (owner.username || b.ownerName || b.owner || "") : (b.ownerName || b.owner || "");
     }
 
-    function sortBookList(list, sortKey, userMap) {
+    function sortBookList(list, sortKey, sortDir, userMap) {
       const sorted = list.slice();
+      const dirMul = sortDir === "asc" ? 1 : -1;
       switch (sortKey) {
         case "title":
-          sorted.sort((a, b) => (a.title || "").localeCompare(b.title || "", "ja"));
+          sorted.sort((a, b) => dirMul * (a.title || "").localeCompare(b.title || "", "ja"));
           break;
         case "owner":
-          sorted.sort((a, b) => bookOwnerLabel(a, userMap).localeCompare(bookOwnerLabel(b, userMap), "ja"));
+          sorted.sort((a, b) => dirMul * bookOwnerLabel(a, userMap).localeCompare(bookOwnerLabel(b, userMap), "ja"));
           break;
         case "wordCount":
-          sorted.sort((a, b) => (b.wordCount ?? 0) - (a.wordCount ?? 0));
+          sorted.sort((a, b) => dirMul * ((a.wordCount ?? 0) - (b.wordCount ?? 0)));
           break;
         case "status":
           sorted.sort((a, b) => {
-            const rankDiff = getBookStatusRank(a) - getBookStatusRank(b);
+            const rankDiff = dirMul * (getBookStatusRank(a) - getBookStatusRank(b));
             if (rankDiff !== 0) return rankDiff;
             return toMillis(b.createdAt) - toMillis(a.createdAt);
           });
           break;
         case "createdAt":
         default:
-          sorted.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+          sorted.sort((a, b) => dirMul * (toMillis(a.createdAt) - toMillis(b.createdAt)));
           break;
       }
       return sorted;
@@ -850,7 +890,7 @@
 
     function renderBookList() {
       const q = document.getElementById("bookSearch").value.trim().toLowerCase();
-      const sortKey = document.getElementById("bookSort").value;
+      updateSortHeaders("book", bookSortKey, bookSortDir);
       const body = document.getElementById("bookListBody");
 
       const userMap = new Map(usersData.map(u => [u.uid, u]));
@@ -860,7 +900,7 @@
         const owner = userMap.get(b.owner);
         const ownerEmail = owner ? (owner.email || "") : "";
         return (b.title || "").toLowerCase().includes(q) || ownerEmail.toLowerCase().includes(q);
-      }), sortKey, userMap);
+      }), bookSortKey, bookSortDir, userMap);
 
       if (filtered.length === 0) {
         body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--color-text-sub);">該当する単語帳がありません</td></tr>`;
