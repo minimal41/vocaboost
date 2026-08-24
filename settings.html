@@ -603,22 +603,11 @@
 
     const currentFont = localStorage.getItem(FONT_KEY) || DEFAULT_FONT;
 
-    // Google Fontsのプレビュー表示用に、まだ読み込んでいないフォントのCSSを読み込む
-    const loadedPreviewFonts = new Set();
+    // フォントのプレビュー表示用に、まだ読み込んでいないフォントのCSSを読み込む
+    // （Google Fonts / ローカル同梱フォントの読み込みは theme.js の共通関数に委譲する）
     function ensurePreviewFontLoaded(entry) {
-      if (entry.family === "standard" || loadedPreviewFonts.has(entry.family)) return;
-      if (document.querySelector(`link[data-vocaboost-font="${entry.family}"]`)) {
-        loadedPreviewFonts.add(entry.family);
-        return;
-      }
-      const weightParam = entry.weight ? `:wght@${entry.weight}` : "";
-      const href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(entry.family)}${weightParam}&display=swap`;
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = href;
-      link.setAttribute("data-vocaboost-font", entry.family);
-      document.head.appendChild(link);
-      loadedPreviewFonts.add(entry.family);
+      if (entry.family === "standard") return;
+      window.VOCABOOST_LOAD_FONT(entry);
     }
 
     function selectFont(font) {

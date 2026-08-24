@@ -40,6 +40,7 @@ window.VOCABOOST_GOOGLE_FONTS = [
   { family: "Hina Mincho", label: "Hina Mincho", category: "明朝体" },
   { family: "Kaisei Tokumin", label: "Kaisei Tokumin", category: "明朝体", weight: "400;700" },
   { family: "Zen Old Mincho", label: "Zen Old Mincho", category: "明朝体", weight: "400;700" },
+  { family: "GenkaiMincho", label: "源界明朝", category: "明朝体", local: true, url: "fonts/genkai-mincho/genkai-mincho.woff2" },
 
   // ===== 丸ゴシック =====
   { family: "Kiwi Maru", label: "Kiwi Maru", category: "丸ゴシック" },
@@ -75,30 +76,44 @@ window.VOCABOOST_GOOGLE_FONTS = [
   { family: "Rampart One", label: "Rampart One", category: "デザイン書体" },
 ];
 
+// フォントのCSSを読み込む（Google Fonts配信のフォントと、自前で同梱している
+// ローカルフォント[entry.local === true]の両方に対応する）。
+// settings.htmlのプレビュー読み込みからも共通で呼び出す。
+window.VOCABOOST_LOAD_FONT = function (entry) {
+  if (document.querySelector(`[data-vocaboost-font="${entry.family}"]`)) return;
+
+  if (entry.local) {
+    // 自前で同梱しているフォントは @font-face でファイルを直接読み込む
+    const style = document.createElement("style");
+    style.setAttribute("data-vocaboost-font", entry.family);
+    style.textContent = `@font-face { font-family: "${entry.family}"; src: url("${entry.url}") format("woff2"); font-display: swap; }`;
+    document.head.appendChild(style);
+  } else {
+    const weightParam = entry.weight ? `:wght@${entry.weight}` : "";
+    const href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(entry.family)}${weightParam}&display=swap`;
+
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = href;
+    link.setAttribute("data-vocaboost-font", entry.family);
+    document.head.appendChild(link);
+  }
+};
+
 (function () {
   try {
     const theme = localStorage.getItem("vocaboost_theme"); // "dark" | "light" | null
-    const font = localStorage.getItem("vocaboost_font");   // "standard" | Google Fontsのfamily名 | null
+    const font = localStorage.getItem("vocaboost_font");   // "standard" | フォントのfamily名 | null
 
     if (theme === "dark") {
       document.documentElement.setAttribute("data-theme", "dark");
     }
 
     if (font && font !== "standard") {
-      // Google Fontsのフォントが選択されている場合、CSSを動的に読み込んで反映する
+      // Google Fonts / ローカル同梱フォントが選択されている場合、CSSを動的に読み込んで反映する
       const entry = window.VOCABOOST_GOOGLE_FONTS.find(f => f.family === font);
       if (entry) {
-        const weightParam = entry.weight ? `:wght@${entry.weight}` : "";
-        const href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(entry.family)}${weightParam}&display=swap`;
-
-        // 同じフォントを二重に読み込まないようにする
-        if (!document.querySelector(`link[data-vocaboost-font="${entry.family}"]`)) {
-          const link = document.createElement("link");
-          link.rel = "stylesheet";
-          link.href = href;
-          link.setAttribute("data-vocaboost-font", entry.family);
-          document.head.appendChild(link);
-        }
+        window.VOCABOOST_LOAD_FONT(entry);
 
         document.documentElement.style.setProperty(
           "--font-family",
