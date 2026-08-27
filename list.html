@@ -96,6 +96,17 @@
       font-size: 13px;
     }
 
+    /* ユーザー一覧：枠なしで写真+名前だけを表示する（カードの白背景に馴染ませる） */
+    .user-identity {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--color-text) !important;
+      text-decoration: none !important;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
     .count {
       font-size: 13px;
       color: var(--color-text);
@@ -503,8 +514,8 @@
           div.className = "card";
           div.innerHTML = `
         <div>
-          <a href="user.html?id=${u.id}" class="creator-btn">
-            ${window.VOCABOOST_AVATAR_HTML(u.photoURL, 24)}
+          <a href="user.html?id=${u.id}" class="user-identity">
+            ${window.VOCABOOST_AVATAR_HTML(u.photoURL, 28)}
             <span>${escapeHtml(u.username)}</span>
           </a>
           <div class="count">作成した単語帳数：${u.bookCount}</div>
