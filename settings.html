@@ -663,6 +663,39 @@
       closeCropModal();
     }
 
+    // list.html/view.htmlは未ログインの閲覧者でも作成者の写真を表示できるよう、
+    // wordbookドキュメント側にownerPhotoURLとして写真を複製して持っている。
+    // 写真を変更・削除した際は、自分が既に作成済みの単語帳にもこの複製を反映する。
+    async function propagatePhotoToOwnedBooks(photoURL) {
+      try {
+        const snap = await db.collection("wordbooks")
+          .where("owner", "==", currentUser.uid)
+          .get();
+
+        if (snap.empty) return;
+
+        const BATCH_LIMIT = 450;
+        let batch = db.batch();
+        let opCount = 0;
+
+        for (const doc of snap.docs) {
+          batch.update(doc.ref, { ownerPhotoURL: photoURL });
+          opCount++;
+          if (opCount >= BATCH_LIMIT) {
+            await batch.commit();
+            batch = db.batch();
+            opCount = 0;
+          }
+        }
+
+        if (opCount > 0) {
+          await batch.commit();
+        }
+      } catch (e) {
+        console.error("所有する単語帳への写真の反映に失敗しました", e);
+      }
+    }
+
     async function confirmCrop() {
       const msg = document.getElementById("avatarMsg");
       const scale = cropCurrentScale();
@@ -690,6 +723,7 @@
         currentPhotoURL = dataUrl;
         renderAvatarPreview();
         saveProfileCache({ photoURL: dataUrl });
+        propagatePhotoToOwnedBooks(dataUrl);
 
         msg.textContent = "プロフィール写真を変更しました";
         msg.className = "success";
@@ -735,6 +769,7 @@
         currentPhotoURL = null;
         renderAvatarPreview();
         saveProfileCache({ photoURL: null });
+        propagatePhotoToOwnedBooks(null);
 
         msg.textContent = "プロフィール写真を削除しました";
         msg.className = "success";

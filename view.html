@@ -386,18 +386,10 @@
         .replace(/'/g, "&#039;");
     }
 
-    // 作成者の写真を取得する。未ログインの閲覧者は users コレクションを
-    // 読み取れない（Firestoreルールでログイン必須のため）ので、その場合は
-    // 取得に失敗しても気にせず人物アイコンにフォールバックする。
-    let ownerPhotoURL = null;
-    try {
-      const ownerDoc = await getDoc(doc(db, "users", owner));
-      if (ownerDoc.exists()) {
-        ownerPhotoURL = ownerDoc.data().photoURL || null;
-      }
-    } catch (e) {
-      console.warn("作成者の写真取得に失敗しました", e);
-    }
+    // 作成者の写真：未ログインの閲覧者は users コレクションを読み取れない
+    // （Firestoreルールでログイン必須のため）ので、ownerNameと同様に
+    // wordbookドキュメント側に複製されたownerPhotoURLをそのまま使う。
+    const ownerPhotoURL = book.ownerPhotoURL || null;
 
     // 詳細情報：作成者は外枠付きボタン風リンク、それ以外はテキストで表示する
     let creatorHtml = "";

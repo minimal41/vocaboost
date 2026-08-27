@@ -22,6 +22,11 @@
       "collectionGroup": "users",
       "fieldPath": "photoURL",
       "indexes": []
+    },
+    {
+      "collectionGroup": "wordbooks",
+      "fieldPath": "ownerPhotoURL",
+      "indexes": []
     }
   ]
 }

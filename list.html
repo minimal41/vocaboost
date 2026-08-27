@@ -197,28 +197,6 @@
         .replace(/'/g, "&#039;");
     }
 
-    // 単語帳の作成者一覧の写真をまとめて取得する。
-    // whereIn は一度に10件までのため、重複を除いた上で10件ずつに分けて問い合わせる。
-    async function fetchOwnerPhotoMap(ownerIds) {
-      const uniqueIds = [...new Set(ownerIds.filter(Boolean))];
-      const map = {};
-      const CHUNK_SIZE = 10;
-
-      for (let i = 0; i < uniqueIds.length; i += CHUNK_SIZE) {
-        const chunk = uniqueIds.slice(i, i + CHUNK_SIZE);
-        try {
-          const snap = await db.collection("users")
-            .where(firebase.firestore.FieldPath.documentId(), "in", chunk)
-            .get();
-          snap.forEach(d => { map[d.id] = d.data().photoURL || null; });
-        } catch (e) {
-          console.error("作成者の写真取得に失敗しました", e);
-        }
-      }
-
-      return map;
-    }
-
     const statusDiv = document.getElementById("status");
     const loginBtn = document.getElementById("loginBtn");
     const logoutBtn = document.getElementById("logoutBtn");
@@ -334,18 +312,16 @@
             title: data.title,
             ownerName: data.ownerName || "不明",
             ownerId: data.owner,
+            // ownerNameと同様、wordbookドキュメント側に複製された写真をそのまま使う
+            // （usersコレクションの読み取りにはログインが必要なため、未ログインの
+            // 閲覧者でも表示できるようにするための複製）
+            ownerPhotoURL: data.ownerPhotoURL || null,
             count: count,
             createdAt: data.createdAt || null
           };
         });
 
         books = await Promise.all(bookPromises);
-
-        // 作成者の写真をまとめて取得する（重複するownerIdは1回だけ問い合わせる）
-        const ownerPhotoMap = await fetchOwnerPhotoMap(books.map(b => b.ownerId));
-        books.forEach(b => {
-          b.ownerPhotoURL = ownerPhotoMap[b.ownerId] || null;
-        });
 
         // view.html用キャッシュ（作成者ボタンの見た目をview.html側の描画と合わせておく）
         books.forEach(b => {

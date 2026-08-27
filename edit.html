@@ -1121,6 +1121,17 @@
           .orderBy("createdAt")
           .get();
 
+        // list.html/view.htmlが未ログインの閲覧者にも作成者の写真を表示できるよう、
+        // ownerNameと同様にwordbookドキュメント側へ写真も複製して保存しておく
+        // （usersコレクションの読み取りにはログインが必要なため）
+        let ownerPhotoURL = null;
+        try {
+          const ownerDoc = await db.collection("users").doc(currentUser.uid).get();
+          ownerPhotoURL = ownerDoc.exists ? (ownerDoc.data().photoURL || null) : null;
+        } catch (e) {
+          console.warn("自分の写真の取得に失敗しました", e);
+        }
+
         // 新しい単語帳を作成する（タイトルに「のコピー」を付与）。
         // wordCountは元のフィールド値ではなく、実際にコピーする単語数を使う
         // （元データのwordCountフィールドが何らかの理由で実数とズレていた場合の不整合を防ぐため）
@@ -1130,6 +1141,7 @@
           isPublic: bookData.isPublic !== undefined ? bookData.isPublic : true,
           owner: currentUser.uid,
           ownerName: currentUser.displayName || "名無し",
+          ownerPhotoURL: ownerPhotoURL,
           wordCount: wordsSnap.size,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
