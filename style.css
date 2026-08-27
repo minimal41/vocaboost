@@ -292,6 +292,26 @@ footer {
   height: 60%;
 }
 
+/* ===== 写真付きユーザー表示ボタン（作成者名・ユーザー名など） =====
+   view.html/list.html で、アバター(VOCABOOST_AVATAR_HTML)と名前を並べて
+   角丸四角の枠で囲んで表示する共通スタイル。 */
+.creator-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 1px solid var(--color-accent);
+  border-radius: 12px;
+  color: var(--color-text) !important;
+  text-decoration: none !important;
+  font-weight: bold;
+  background: var(--color-surface);
+}
+
+.creator-btn:hover {
+  background: var(--color-bg);
+}
+
 /* ===== ヘッダー通知ベル（account-widgets.js が描画） ===== */
 .notif-bell-wrap {
   position: relative;

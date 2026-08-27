@@ -91,14 +91,9 @@
       font-weight: bold;
     }
 
-    .owner {
-      color: var(--color-text-sub);
+    .card .creator-btn {
+      margin: 6px 0;
       font-size: 13px;
-    }
-
-    .owner a {
-      color: var(--color-accent);
-      text-decoration: underline;
     }
 
     .count {
@@ -169,6 +164,10 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
+  <!-- キャッシュからの単語帳一覧を即時描画する処理がVOCABOOST_AVATAR_HTMLを使うため、
+       account-widgets.js は下のメインスクリプトより先に読み込む -->
+  <script src="account-widgets.js"></script>
+
   <script>
     const firebaseConfig = {
       apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E",
@@ -187,6 +186,38 @@
     let users = [];
     let currentUser = null;
     let usersLoaded = false; // ★ ユーザーデータ読み込み済みフラグ
+
+    // XSS対策: テキストをそのまま innerHTML に差し込まないようにエスケープする
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // 単語帳の作成者一覧の写真をまとめて取得する。
+    // whereIn は一度に10件までのため、重複を除いた上で10件ずつに分けて問い合わせる。
+    async function fetchOwnerPhotoMap(ownerIds) {
+      const uniqueIds = [...new Set(ownerIds.filter(Boolean))];
+      const map = {};
+      const CHUNK_SIZE = 10;
+
+      for (let i = 0; i < uniqueIds.length; i += CHUNK_SIZE) {
+        const chunk = uniqueIds.slice(i, i + CHUNK_SIZE);
+        try {
+          const snap = await db.collection("users")
+            .where(firebase.firestore.FieldPath.documentId(), "in", chunk)
+            .get();
+          snap.forEach(d => { map[d.id] = d.data().photoURL || null; });
+        } catch (e) {
+          console.error("作成者の写真取得に失敗しました", e);
+        }
+      }
+
+      return map;
+    }
 
     const statusDiv = document.getElementById("status");
     const loginBtn = document.getElementById("loginBtn");
@@ -298,24 +329,6 @@
             }
           }
 
-          // view.html用キャッシュ
-          localStorage.setItem(
-            `book_${d.id}`,
-            JSON.stringify({
-              owner: data.owner,
-              title: data.title,
-              detailHtml: `
-                作成者：
-                <a href="user.html?id=${data.owner}">
-                  ${data.ownerName || "不明"}
-                </a>
-                |
-                計 ${count} 単語
-              `,
-              wordsHtml: ""
-            })
-          );
-
           return {
             id: d.id,
             title: data.title,
@@ -327,6 +340,31 @@
         });
 
         books = await Promise.all(bookPromises);
+
+        // 作成者の写真をまとめて取得する（重複するownerIdは1回だけ問い合わせる）
+        const ownerPhotoMap = await fetchOwnerPhotoMap(books.map(b => b.ownerId));
+        books.forEach(b => {
+          b.ownerPhotoURL = ownerPhotoMap[b.ownerId] || null;
+        });
+
+        // view.html用キャッシュ（作成者ボタンの見た目をview.html側の描画と合わせておく）
+        books.forEach(b => {
+          localStorage.setItem(
+            `book_${b.id}`,
+            JSON.stringify({
+              owner: b.ownerId,
+              title: b.title,
+              detailHtml: `
+                <a href="user.html?id=${b.ownerId}" class="creator-btn">
+                  ${window.VOCABOOST_AVATAR_HTML(b.ownerPhotoURL, 24)}
+                  <span>${escapeHtml(b.ownerName)}</span>
+                </a>
+                <div class="meta-row">計 ${b.count} 単語</div>
+              `,
+              wordsHtml: ""
+            })
+          );
+        });
 
         // キャッシュ更新
         localStorage.setItem(
@@ -411,6 +449,7 @@
             return {
               id: d.id,
               username: data.username || "名無し",
+              photoURL: data.photoURL || null,
               bookCount: userBookCounts[d.id] || 0,
               // localStorageに保存するためTimestampをミリ秒数値に変換しておく
               createdAtMillis: createdAt && typeof createdAt.toMillis === "function"
@@ -460,8 +499,11 @@
           div.className = "card";
           div.innerHTML = `
         <div>
-          <div class="title">${b.title}</div>
-          <div class="owner">作成者：<a href="user.html?id=${b.ownerId}">${b.ownerName}</a></div>
+          <div class="title">${escapeHtml(b.title)}</div>
+          <a href="user.html?id=${b.ownerId}" class="creator-btn">
+            ${window.VOCABOOST_AVATAR_HTML(b.ownerPhotoURL, 24)}
+            <span>${escapeHtml(b.ownerName)}</span>
+          </a>
           <div class="count">単語数：${b.count}</div>
         </div>
         <button onclick="location.href='view.html?id=${b.id}'">開く</button>
@@ -485,7 +527,10 @@
           div.className = "card";
           div.innerHTML = `
         <div>
-          <div class="title">${u.username}</div>
+          <a href="user.html?id=${u.id}" class="creator-btn">
+            ${window.VOCABOOST_AVATAR_HTML(u.photoURL, 24)}
+            <span>${escapeHtml(u.username)}</span>
+          </a>
           <div class="count">作成した単語帳数：${u.bookCount}</div>
         </div>
         <button onclick="location.href='user.html?id=${u.id}'">見る</button>
@@ -497,8 +542,6 @@
 
     load();
   </script>
-
-  <script src="account-widgets.js"></script>
 </body>
 
 </html>
