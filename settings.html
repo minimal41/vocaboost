@@ -48,6 +48,37 @@
       color: var(--color-success);
     }
 
+    /* ===== プロフィール写真設定 ===== */
+    .avatar-preview {
+      width: 96px;
+      height: 96px;
+      margin: 0 auto 15px;
+      border-radius: 50%;
+      overflow: hidden;
+      background: var(--color-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .avatar-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .avatar-icon {
+      width: 60%;
+      height: 60%;
+      color: var(--color-text-sub);
+      display: flex;
+    }
+
+    .avatar-icon svg {
+      width: 100%;
+      height: 100%;
+    }
+
     /* ===== 表示設定（フォント・ダークモード） ===== */
     .option-row {
       display: flex;
@@ -245,6 +276,20 @@
     </div>
 
     <div class="card">
+      <h2>プロフィール写真</h2>
+      <div class="avatar-preview">
+        <img id="avatarImg" alt="プロフィール写真" style="display:none;">
+        <span id="avatarIcon" class="avatar-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12Zm0 2.5c-3.3 0-9.8 1.6-9.8 4.9v2.4h19.6v-2.4c0-3.3-6.5-4.9-9.8-4.9Z"/></svg>
+        </span>
+      </div>
+      <input type="file" id="avatarInput" accept="image/*" style="display:none">
+      <button type="button" onclick="document.getElementById('avatarInput').click()">写真を選択</button>
+      <button type="button" id="avatarRemoveBtn" onclick="removeAvatar()" style="display:none;">削除する</button>
+      <div id="avatarMsg" class="notice"></div>
+    </div>
+
+    <div class="card">
       <h2>ユーザー名設定・変更</h2>
       <form autocomplete="off" onsubmit="return false;">
         <input type="text" id="usernameInput" name="vocaboost_username_change" placeholder="新しいユーザー名" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -365,6 +410,133 @@
       bookCountSpan.textContent = cachedProfile.bookCount ?? 0;
     }
 
+    /* ===== プロフィール写真 =====
+       account-widgets.js の読み込みタイミングに依存しないよう、
+       このページ内で完結する形で写真の表示・検証・アップロードを行う。 */
+    const PROFILE_PHOTO_DATA_URL_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+    const AVATAR_MAX_SIZE = 240;
+
+    function isValidPhotoDataUrl(url) {
+      return typeof url === "string" && PROFILE_PHOTO_DATA_URL_RE.test(url);
+    }
+
+    let currentPhotoURL = (cachedProfile && cachedProfile.photoURL) || null;
+
+    const avatarImg = document.getElementById("avatarImg");
+    const avatarIcon = document.getElementById("avatarIcon");
+    const avatarRemoveBtn = document.getElementById("avatarRemoveBtn");
+
+    function renderAvatarPreview() {
+      if (isValidPhotoDataUrl(currentPhotoURL)) {
+        avatarImg.src = currentPhotoURL;
+        avatarImg.style.display = "block";
+        avatarIcon.style.display = "none";
+        avatarRemoveBtn.style.display = "inline-block";
+      } else {
+        avatarImg.style.display = "none";
+        avatarIcon.style.display = "flex";
+        avatarRemoveBtn.style.display = "none";
+      }
+    }
+
+    renderAvatarPreview();
+
+    async function loadAvatar() {
+      try {
+        const userDoc = await db.collection("users").doc(currentUser.uid).get();
+        const data = userDoc.exists ? userDoc.data() : {};
+        currentPhotoURL = data.photoURL || null;
+        renderAvatarPreview();
+        saveProfileCache({ photoURL: currentPhotoURL });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // 画像ファイルを正方形に切り抜いた上で縮小し、JPEGのdata URLとして返す
+    // （Firestoreのドキュメントサイズ・インデックス制限を考慮し、なるべく小さく保つため）
+    function resizeImageToDataUrl(file, maxSize) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("ファイルの読み込みに失敗しました"));
+        reader.onload = () => {
+          const img = new Image();
+          img.onerror = () => reject(new Error("画像として読み込めませんでした"));
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = maxSize;
+            canvas.height = maxSize;
+            const ctx = canvas.getContext("2d");
+
+            const srcSize = Math.min(img.width, img.height);
+            const sx = (img.width - srcSize) / 2;
+            const sy = (img.height - srcSize) / 2;
+
+            ctx.drawImage(img, sx, sy, srcSize, srcSize, 0, 0, maxSize, maxSize);
+            resolve(canvas.toDataURL("image/jpeg", 0.85));
+          };
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    document.getElementById("avatarInput").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+
+      const msg = document.getElementById("avatarMsg");
+
+      if (!file.type.startsWith("image/")) {
+        msg.textContent = "画像ファイルを選択してください";
+        msg.className = "notice";
+        return;
+      }
+
+      msg.textContent = "アップロード中...";
+      msg.className = "notice";
+
+      try {
+        const dataUrl = await resizeImageToDataUrl(file, AVATAR_MAX_SIZE);
+
+        await db.collection("users").doc(currentUser.uid).set({
+          photoURL: dataUrl
+        }, { merge: true });
+
+        currentPhotoURL = dataUrl;
+        renderAvatarPreview();
+        saveProfileCache({ photoURL: dataUrl });
+
+        msg.textContent = "プロフィール写真を変更しました";
+        msg.className = "success";
+      } catch (err) {
+        console.error(err);
+        msg.textContent = "エラー: " + err.message;
+        msg.className = "notice";
+      }
+    });
+
+    async function removeAvatar() {
+      const msg = document.getElementById("avatarMsg");
+      try {
+        await db.collection("users").doc(currentUser.uid).set({
+          photoURL: firebase.firestore.FieldValue.delete()
+        }, { merge: true });
+
+        currentPhotoURL = null;
+        renderAvatarPreview();
+        saveProfileCache({ photoURL: null });
+
+        msg.textContent = "プロフィール写真を削除しました";
+        msg.className = "success";
+      } catch (err) {
+        console.error(err);
+        msg.textContent = "エラー: " + err.message;
+        msg.className = "notice";
+      }
+    }
+
     function saveProfileCache(partial) {
       const current = JSON.parse(localStorage.getItem(PROFILE_CACHE_KEY) || "null") || {};
       const updated = { ...current, ...partial };
@@ -404,6 +576,7 @@
 
         loadBookCount();
         cleanupEmptyBooks();
+        loadAvatar();
       } else {
         statusDiv.textContent = "ログアウト中";
         loginBtn.style.display = "inline-block";

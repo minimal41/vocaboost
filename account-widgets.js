@@ -36,6 +36,36 @@
     return date.toLocaleDateString("ja-JP");
   }
 
+  // ===== プロフィール写真（アバター） =====
+  // 設定ページでは選択した画像を縮小したJPEGのdata URLとしてFirestoreの
+  // users/{uid}.photoURL に保存する。user.html/view.htmlなど他人のプロフィール写真を
+  // 表示する箇所では、意図しない文字列が書き込まれていた場合に備えて
+  // 「必ずbase64エンコードされた画像data URLである」ことを検証してから描画する
+  // （data:や属性値への文字列埋め込みによるXSSを防ぐため）。
+  const PROFILE_PHOTO_DATA_URL_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+
+  function isValidProfilePhotoUrl(url) {
+    return typeof url === "string" && PROFILE_PHOTO_DATA_URL_RE.test(url);
+  }
+
+  const PERSON_ICON_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+    '<path d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12Zm0 2.5c-3.3 0-9.8 1.6-9.8 4.9v2.4h19.6v-2.4c0-3.3-6.5-4.9-9.8-4.9Z"/>' +
+    '</svg>';
+
+  // photoURLが有効な画像data URLならその<img>、そうでなければ人物アイコンのHTMLを返す。
+  // sizePxは正方形の一辺の長さ(px)。
+  function avatarHtml(photoURL, sizePx) {
+    const size = Number(sizePx) || 32;
+    const style = "width:" + size + "px;height:" + size + "px;";
+    if (isValidProfilePhotoUrl(photoURL)) {
+      return '<img src="' + photoURL + '" alt="" class="vb-avatar-img" style="' + style + '">';
+    }
+    return '<span class="vb-avatar-icon" style="' + style + '">' + PERSON_ICON_SVG + '</span>';
+  }
+
+  window.VOCABOOST_AVATAR_HTML = avatarHtml;
+  window.VOCABOOST_IS_VALID_PHOTO_URL = isValidProfilePhotoUrl;
+
   let notifications = [];
   let readIds = [];
   let dropdownOpen = false;

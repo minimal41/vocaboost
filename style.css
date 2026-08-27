@@ -264,6 +264,34 @@ footer {
   font-size: 18px;
 }
 
+/* ===== プロフィール写真（アバター） =====
+   account-widgets.js の VOCABOOST_AVATAR_HTML が生成する<img>/人物アイコンの共通見た目。
+   実際のサイズはインラインstyle(width/height)で指定される。 */
+.vb-avatar-img {
+  border-radius: 50%;
+  object-fit: cover;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  background: var(--color-bg);
+}
+
+.vb-avatar-icon {
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  flex-shrink: 0;
+  background: var(--color-bg);
+  color: var(--color-text-sub);
+}
+
+.vb-avatar-icon svg {
+  width: 60%;
+  height: 60%;
+}
+
 /* ===== ヘッダー通知ベル（account-widgets.js が描画） ===== */
 .notif-bell-wrap {
   position: relative;

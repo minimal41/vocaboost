@@ -143,6 +143,12 @@
       min-height: 1.2em;
       font-size: 13px;
     }
+
+    .profile-avatar {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 15px;
+    }
   </style>
 </head>
 
@@ -164,6 +170,7 @@
   <main>
     <div class="card">
       <h2>ユーザー情報</h2>
+      <div id="avatarContainer" class="profile-avatar"></div>
       <p id="userNameText">読み込み中...</p>
       <button type="button" id="reportLink" onclick="openReportModal()">このユーザーを報告する</button>
     </div>
@@ -322,6 +329,7 @@
       const cacheKey = `user_${uid}`;
 
       const userNameText = document.getElementById("userNameText");
+      const avatarContainer = document.getElementById("avatarContainer");
       const bookList = document.getElementById("bookList");
 
       if (!uid) {
@@ -375,6 +383,7 @@
           try {
             const data = JSON.parse(cachedData);
             userNameText.textContent = "ユーザー名: " + data.username;
+            if (avatarContainer) avatarContainer.innerHTML = data.avatarHtml || "";
             bookList.innerHTML = data.booksHtml;
           } catch (e) {
             console.error(e);
@@ -386,6 +395,7 @@
         // 単語帳側のクエリだけが失敗した場合でも
         // ユーザー名側まで「読み込みエラー」表示になってしまっていた。
         let username = null;
+        let avatarHtml = null;
         try {
           const userDoc = await db.collection("users").doc(uid).get();
 
@@ -399,9 +409,13 @@
           const userData = userDoc.data();
           username = userData.username || "名無し";
           targetUsername = username;
+          avatarHtml = window.VOCABOOST_AVATAR_HTML(userData.photoURL, 120);
 
           if (userNameText) {
             userNameText.textContent = "ユーザー名: " + username;
+          }
+          if (avatarContainer) {
+            avatarContainer.innerHTML = avatarHtml;
           }
         } catch (e) {
           console.error(e);
@@ -426,7 +440,7 @@
           try {
             localStorage.setItem(
               cacheKey,
-              JSON.stringify({ username, booksHtml })
+              JSON.stringify({ username, avatarHtml, booksHtml })
             );
           } catch (e) {
             console.warn("キャッシュの保存に失敗しました", e);

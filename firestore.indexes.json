@@ -17,5 +17,11 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "users",
+      "fieldPath": "photoURL",
+      "indexes": []
+    }
+  ]
 }

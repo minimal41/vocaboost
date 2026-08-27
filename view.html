@@ -47,6 +47,28 @@
       text-decoration: underline;
     }
 
+    .creator-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border: 1px solid var(--color-accent);
+      border-radius: 999px;
+      color: var(--color-text) !important;
+      text-decoration: none !important;
+      font-weight: bold;
+      margin-bottom: 10px;
+      background: var(--color-surface);
+    }
+
+    .creator-btn:hover {
+      background: var(--color-bg);
+    }
+
+    .meta-row {
+      margin-top: 4px;
+    }
+
     #description {
       text-align: left;
       font-size: 14px;
@@ -367,12 +389,41 @@
 
     document.getElementById("title").textContent = book.title;
 
-    // 詳細情報
-    const details = [];
-
-    if (book.ownerName) {
-      details.push(`作成者: <a href="user.html?id=${owner}">${book.ownerName}</a>`);
+    // XSS対策: テキストをそのまま innerHTML に差し込まないようにエスケープする
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
     }
+
+    // 作成者の写真を取得する。未ログインの閲覧者は users コレクションを
+    // 読み取れない（Firestoreルールでログイン必須のため）ので、その場合は
+    // 取得に失敗しても気にせず人物アイコンにフォールバックする。
+    let ownerPhotoURL = null;
+    try {
+      const ownerDoc = await getDoc(doc(db, "users", owner));
+      if (ownerDoc.exists()) {
+        ownerPhotoURL = ownerDoc.data().photoURL || null;
+      }
+    } catch (e) {
+      console.warn("作成者の写真取得に失敗しました", e);
+    }
+
+    // 詳細情報：作成者は外枠付きボタン風リンク、それ以外はテキストで表示する
+    let creatorHtml = "";
+    if (book.ownerName) {
+      creatorHtml = `
+        <a href="user.html?id=${owner}" class="creator-btn">
+          ${window.VOCABOOST_AVATAR_HTML(ownerPhotoURL, 24)}
+          <span>${escapeHtml(book.ownerName)}</span>
+        </a>
+      `;
+    }
+
+    const metaParts = [];
 
     const updateDate =
       book.updatedAt
@@ -384,15 +435,18 @@
       const m = updateDate.getMonth() + 1;
       const d = updateDate.getDate();
 
-      details.push(`最終更新: ${y}/${m}/${d}`);
+      metaParts.push(`最終更新: ${y}/${m}/${d}`);
     }
 
     if (book.wordCount !== undefined) {
-      details.push(`計 ${book.wordCount} 単語`);
+      metaParts.push(`計 ${book.wordCount} 単語`);
     }
 
-    document.getElementById("detailInfo").innerHTML =
-      details.join(" | ");
+    const metaHtml = metaParts.length
+      ? `<div class="meta-row">${metaParts.join(" | ")}</div>`
+      : "";
+
+    document.getElementById("detailInfo").innerHTML = creatorHtml + metaHtml;
 
     const descDiv = document.getElementById("description");
 
