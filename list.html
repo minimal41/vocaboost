@@ -91,8 +91,15 @@
       font-weight: bold;
     }
 
-    .card .creator-btn {
+    .book-meta-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
       margin: 6px 0;
+    }
+
+    .book-meta-row .creator-btn {
       font-size: 13px;
     }
 
@@ -487,11 +494,13 @@
           div.innerHTML = `
         <div>
           <div class="title">${escapeHtml(b.title)}</div>
-          <a href="user.html?id=${b.ownerId}" class="creator-btn">
-            ${window.VOCABOOST_AVATAR_HTML(b.ownerPhotoURL, 24)}
-            <span>${escapeHtml(b.ownerName)}</span>
-          </a>
-          <div class="count">単語数：${b.count}</div>
+          <div class="book-meta-row">
+            <a href="user.html?id=${b.ownerId}" class="creator-btn">
+              ${window.VOCABOOST_AVATAR_HTML(b.ownerPhotoURL, 24)}
+              <span>${escapeHtml(b.ownerName)}</span>
+            </a>
+            <div class="count">単語数：${b.count}</div>
+          </div>
         </div>
         <button onclick="location.href='view.html?id=${b.id}'">開く</button>
       `;
