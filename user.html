@@ -247,6 +247,19 @@
         loginBtn.style.display = "none";
       }
 
+      function handleSignedOut() {
+        localStorage.removeItem("cachedUser");
+        statusDiv.textContent = "ログアウト中";
+        loginBtn.style.display = "inline-block";
+        logoutBtn.style.display = "none";
+        settingsBtn.style.display = "none";
+      }
+
+      // Firebaseが端末に保存された認証状態を復元し終える前に、onAuthStateChangedが
+      // 一時的にnullで発火することがある。ログイン中のキャッシュ(cachedUser)が
+      // 残っている場合は即座にログアウト扱いにせず、少し待ってから本当に
+      // 未ログインのままかを再確認する（実際はログインしたままなのに一瞬
+      // ログアウト状態の表示になってしまう不具合を防ぐため）。
       auth.onAuthStateChanged(user => {
         currentUser = user;
         if (user) {
@@ -263,12 +276,12 @@
           if (reportLink && uid && user.uid !== uid) {
             reportLink.style.display = "inline";
           }
+        } else if (localStorage.getItem("cachedUser")) {
+          setTimeout(() => {
+            if (!auth.currentUser) handleSignedOut();
+          }, 1500);
         } else {
-          localStorage.removeItem("cachedUser");
-          statusDiv.textContent = "ログアウト中";
-          loginBtn.style.display = "inline-block";
-          logoutBtn.style.display = "none";
-          settingsBtn.style.display = "none";
+          handleSignedOut();
         }
       });
 

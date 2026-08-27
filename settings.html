@@ -786,12 +786,29 @@
       localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(updated));
     }
 
-    /* ===== ログインチェック ===== */
+    function handleSignedOut() {
+      localStorage.removeItem("cachedUser");
+      localStorage.removeItem(PROFILE_CACHE_KEY);
+      location.href = "login.html";
+    }
+
+    /* ===== ログインチェック =====
+       Firebaseが端末に保存された認証状態を復元し終える前に、
+       onAuthStateChangedが一時的にnullで発火することがある。
+       ログイン中のキャッシュ(cachedUser)が残っている場合は即座にログアウト扱いにせず、
+       少し待ってから本当に未ログインのままかを再確認する
+       （その間に正しいユーザーで再度発火すれば、このタイマーは何もしない）。
+       これにより、実際はログインしたままなのに強制的にログイン画面へ
+       飛ばされてしまう不具合を防ぐ。 */
     auth.onAuthStateChanged(async user => {
       if (!user) {
-        localStorage.removeItem("cachedUser");
-        localStorage.removeItem(PROFILE_CACHE_KEY);
-        location.href = "login.html";
+        if (localStorage.getItem("cachedUser")) {
+          setTimeout(() => {
+            if (!auth.currentUser) handleSignedOut();
+          }, 1500);
+          return;
+        }
+        handleSignedOut();
         return;
       }
 
