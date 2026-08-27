@@ -79,6 +79,79 @@
       height: 100%;
     }
 
+    /* ===== プロフィール写真：トリミングモーダル ===== */
+    .cropModalOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .cropModalBox {
+      background: var(--color-surface);
+      color: var(--color-text);
+      border-radius: 12px;
+      padding: 20px;
+      width: 100%;
+      max-width: 340px;
+      box-sizing: border-box;
+      text-align: center;
+    }
+
+    .cropModalDesc {
+      font-size: 12px;
+      color: var(--color-text-sub);
+      margin: 4px 0 14px;
+    }
+
+    .cropViewport {
+      width: 260px;
+      height: 260px;
+      margin: 0 auto;
+      max-width: 100%;
+      border-radius: 50%;
+      overflow: hidden;
+      background: var(--color-bg);
+      position: relative;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .cropViewport.dragging {
+      cursor: grabbing;
+    }
+
+    .cropViewport img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      max-width: none;
+      pointer-events: none;
+    }
+
+    .cropZoomSlider {
+      width: 260px;
+      max-width: 100%;
+      margin: 14px auto 0;
+      display: block;
+    }
+
+    .cropModalActions {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
     /* ===== 表示設定（フォント・ダークモード） ===== */
     .option-row {
       display: flex;
@@ -341,6 +414,21 @@
 
   </main>
 
+  <div id="cropModal" class="cropModalOverlay" style="display:none;">
+    <div class="cropModalBox">
+      <h3>写真の位置を調整</h3>
+      <p class="cropModalDesc">ドラッグで位置を、スライダーで拡大・縮小を調整できます</p>
+      <div id="cropViewport" class="cropViewport">
+        <img id="cropImage" alt="" draggable="false">
+      </div>
+      <input type="range" id="cropZoom" class="cropZoomSlider" min="100" max="300" value="100">
+      <div class="cropModalActions">
+        <button type="button" onclick="cancelCrop()">キャンセル</button>
+        <button type="button" onclick="confirmCrop()">この写真にする</button>
+      </div>
+    </div>
+  </div>
+
   <footer>
     <div class="footer-inner">
       <div><img src="./images/rogo.png" height="70vh"></div>
@@ -414,7 +502,7 @@
        account-widgets.js の読み込みタイミングに依存しないよう、
        このページ内で完結する形で写真の表示・検証・アップロードを行う。 */
     const PROFILE_PHOTO_DATA_URL_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
-    const AVATAR_MAX_SIZE = 240;
+    const AVATAR_OUTPUT_SIZE = 480;
 
     function isValidPhotoDataUrl(url) {
       return typeof url === "string" && PROFILE_PHOTO_DATA_URL_RE.test(url);
@@ -453,53 +541,148 @@
       }
     }
 
-    // 画像ファイルを正方形に切り抜いた上で縮小し、JPEGのdata URLとして返す
-    // （Firestoreのドキュメントサイズ・インデックス制限を考慮し、なるべく小さく保つため）
-    function resizeImageToDataUrl(file, maxSize) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error("ファイルの読み込みに失敗しました"));
-        reader.onload = () => {
-          const img = new Image();
-          img.onerror = () => reject(new Error("画像として読み込めませんでした"));
-          img.onload = () => {
-            const canvas = document.createElement("canvas");
-            canvas.width = maxSize;
-            canvas.height = maxSize;
-            const ctx = canvas.getContext("2d");
+    /* ===== トリミングモーダル =====
+       選択した画像を丸い枠(cropViewport)の中でドラッグ移動・スライダーでの拡大縮小により
+       自分で構図を決められるようにし、確定時に枠内に写っている範囲だけを
+       AVATAR_OUTPUT_SIZE 四方のJPEGとして書き出す。 */
+    const CROP_VIEWPORT_SIZE = 260;
 
-            const srcSize = Math.min(img.width, img.height);
-            const sx = (img.width - srcSize) / 2;
-            const sy = (img.height - srcSize) / 2;
+    const cropModal = document.getElementById("cropModal");
+    const cropViewport = document.getElementById("cropViewport");
+    const cropImage = document.getElementById("cropImage");
+    const cropZoom = document.getElementById("cropZoom");
 
-            ctx.drawImage(img, sx, sy, srcSize, srcSize, 0, 0, maxSize, maxSize);
-            resolve(canvas.toDataURL("image/jpeg", 0.85));
-          };
-          img.src = reader.result;
-        };
-        reader.readAsDataURL(file);
-      });
+    let cropNaturalWidth = 0;
+    let cropNaturalHeight = 0;
+    let cropBaseScale = 1;
+    let cropOffsetX = 0;
+    let cropOffsetY = 0;
+    let cropZoomValue = 100;
+    let cropDragging = false;
+    let cropDragStartX = 0;
+    let cropDragStartY = 0;
+    let cropDragStartOffsetX = 0;
+    let cropDragStartOffsetY = 0;
+
+    function cropCurrentScale() {
+      return cropBaseScale * (cropZoomValue / 100);
     }
 
-    document.getElementById("avatarInput").addEventListener("change", async (e) => {
-      const file = e.target.files[0];
-      e.target.value = "";
-      if (!file) return;
+    // 画像が常に丸い枠を隙間なく覆うように、オフセットの取りうる範囲を制限する
+    function clampCropOffset() {
+      const scale = cropCurrentScale();
+      const scaledW = cropNaturalWidth * scale;
+      const scaledH = cropNaturalHeight * scale;
+      const minX = Math.min(0, CROP_VIEWPORT_SIZE - scaledW);
+      const minY = Math.min(0, CROP_VIEWPORT_SIZE - scaledH);
+      cropOffsetX = Math.min(0, Math.max(minX, cropOffsetX));
+      cropOffsetY = Math.min(0, Math.max(minY, cropOffsetY));
+    }
 
+    function applyCropTransform() {
+      const scale = cropCurrentScale();
+      cropImage.style.width = (cropNaturalWidth * scale) + "px";
+      cropImage.style.height = (cropNaturalHeight * scale) + "px";
+      cropImage.style.left = cropOffsetX + "px";
+      cropImage.style.top = cropOffsetY + "px";
+    }
+
+    function openCropModal(dataUrl) {
+      cropImage.onload = () => {
+        cropNaturalWidth = cropImage.naturalWidth;
+        cropNaturalHeight = cropImage.naturalHeight;
+        // 「cover」相当（枠より小さい辺のほうを基準に拡大し、隙間ができないようにする）
+        cropBaseScale = Math.max(
+          CROP_VIEWPORT_SIZE / cropNaturalWidth,
+          CROP_VIEWPORT_SIZE / cropNaturalHeight
+        );
+        cropZoomValue = 100;
+        cropZoom.value = 100;
+        cropOffsetX = (CROP_VIEWPORT_SIZE - cropNaturalWidth * cropBaseScale) / 2;
+        cropOffsetY = (CROP_VIEWPORT_SIZE - cropNaturalHeight * cropBaseScale) / 2;
+        applyCropTransform();
+        cropModal.style.display = "flex";
+      };
+      cropImage.src = dataUrl;
+    }
+
+    function closeCropModal() {
+      cropModal.style.display = "none";
+      cropImage.src = "";
+    }
+
+    function cropOffsetFromPointer(e) {
+      const dx = e.clientX - cropDragStartX;
+      const dy = e.clientY - cropDragStartY;
+      cropOffsetX = cropDragStartOffsetX + dx;
+      cropOffsetY = cropDragStartOffsetY + dy;
+      clampCropOffset();
+      applyCropTransform();
+    }
+
+    cropViewport.addEventListener("pointerdown", (e) => {
+      cropDragging = true;
+      cropViewport.classList.add("dragging");
+      cropDragStartX = e.clientX;
+      cropDragStartY = e.clientY;
+      cropDragStartOffsetX = cropOffsetX;
+      cropDragStartOffsetY = cropOffsetY;
+      cropViewport.setPointerCapture(e.pointerId);
+    });
+
+    cropViewport.addEventListener("pointermove", (e) => {
+      if (!cropDragging) return;
+      cropOffsetFromPointer(e);
+    });
+
+    function endCropDrag() {
+      cropDragging = false;
+      cropViewport.classList.remove("dragging");
+    }
+
+    cropViewport.addEventListener("pointerup", endCropDrag);
+    cropViewport.addEventListener("pointercancel", endCropDrag);
+
+    cropZoom.addEventListener("input", () => {
+      const oldScale = cropCurrentScale();
+      cropZoomValue = Number(cropZoom.value);
+      const newScale = cropCurrentScale();
+
+      // 枠の中心が指す画像上の位置を、ズーム後も変わらないようにする
+      const center = CROP_VIEWPORT_SIZE / 2;
+      const imgX = (center - cropOffsetX) / oldScale;
+      const imgY = (center - cropOffsetY) / oldScale;
+      cropOffsetX = center - imgX * newScale;
+      cropOffsetY = center - imgY * newScale;
+
+      clampCropOffset();
+      applyCropTransform();
+    });
+
+    function cancelCrop() {
+      closeCropModal();
+    }
+
+    async function confirmCrop() {
       const msg = document.getElementById("avatarMsg");
+      const scale = cropCurrentScale();
+      const sSize = CROP_VIEWPORT_SIZE / scale;
+      const sx = -cropOffsetX / scale;
+      const sy = -cropOffsetY / scale;
 
-      if (!file.type.startsWith("image/")) {
-        msg.textContent = "画像ファイルを選択してください";
-        msg.className = "notice";
-        return;
-      }
+      const canvas = document.createElement("canvas");
+      canvas.width = AVATAR_OUTPUT_SIZE;
+      canvas.height = AVATAR_OUTPUT_SIZE;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(cropImage, sx, sy, sSize, sSize, 0, 0, AVATAR_OUTPUT_SIZE, AVATAR_OUTPUT_SIZE);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+
+      closeCropModal();
 
       msg.textContent = "アップロード中...";
       msg.className = "notice";
 
       try {
-        const dataUrl = await resizeImageToDataUrl(file, AVATAR_MAX_SIZE);
-
         await db.collection("users").doc(currentUser.uid).set({
           photoURL: dataUrl
         }, { merge: true });
@@ -515,6 +698,31 @@
         msg.textContent = "エラー: " + err.message;
         msg.className = "notice";
       }
+    }
+
+    document.getElementById("avatarInput").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+
+      const msg = document.getElementById("avatarMsg");
+
+      if (!file.type.startsWith("image/")) {
+        msg.textContent = "画像ファイルを選択してください";
+        msg.className = "notice";
+        return;
+      }
+
+      msg.textContent = "";
+      msg.className = "notice";
+
+      const reader = new FileReader();
+      reader.onerror = () => {
+        msg.textContent = "ファイルの読み込みに失敗しました";
+        msg.className = "notice";
+      };
+      reader.onload = () => openCropModal(reader.result);
+      reader.readAsDataURL(file);
     });
 
     async function removeAvatar() {
