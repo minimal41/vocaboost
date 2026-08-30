@@ -367,16 +367,21 @@
     </div>
   </footer>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-auth.js";
-    import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
+  <script>
+    // 他ページと同じFirebase SDK(compatビルド, 9.23.0)で統一する。
+    // 以前このページだけ別バージョンのSDK(modularビルド, 11.8.1)で独自にinitializeAppしていたため、
+    // 他ページ(compat 9.23.0)とは別のFirebase Auth/Firestoreインスタンスが動作しており、
+    // 同じアカウントの認証状態の同期がずれて、長時間このページを開いたままテストしていると
+    // 勝手にログアウト扱いになってしまう不具合の原因になっていた。
     const firebaseConfig = { apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E", authDomain: "quiz1-4ffdc.firebaseapp.com", projectId: "quiz1-4ffdc", storageBucket: "quiz1-4ffdc.firebasestorage.app", messagingSenderId: "152062126332", appId: "1:152062126332:web:845af237a1a76207214f79" };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
     let currentUser = null;
 
     const statusDiv = document.getElementById("status");
@@ -407,7 +412,7 @@
     // 残っている場合は即座にログアウト扱いにせず、少し待ってから本当に
     // 未ログインのままかを再確認する（テスト中に実際はログインしたままなのに
     // 一瞬ログアウト状態の表示になってしまう不具合を防ぐため）。
-    onAuthStateChanged(auth, user => {
+    auth.onAuthStateChanged(user => {
       currentUser = user;
       if (user) {
         localStorage.setItem(
@@ -443,7 +448,7 @@
 
     window.logout = () => {
       localStorage.removeItem("cachedUser");
-      signOut(auth);
+      auth.signOut();
     };
 
     const id = new URLSearchParams(location.search).get("id");
@@ -461,11 +466,13 @@
 
     // 並び替え(order)フィールドで取得。未対応の単語帳（orderフィールド未付与）は
     // 結果が空になるため、その場合は作成日時順にフォールバックする
-    let snap = await getDocs(query(collection(db, "wordbooks", id, "words"), orderBy("order")));
-    if (snap.empty) {
-      snap = await getDocs(query(collection(db, "wordbooks", id, "words"), orderBy("createdAt")));
-    }
-    snap.forEach(d => words.push(d.data()));
+    (async function loadWords() {
+      let snap = await db.collection("wordbooks").doc(id).collection("words").orderBy("order").get();
+      if (snap.empty) {
+        snap = await db.collection("wordbooks").doc(id).collection("words").orderBy("createdAt").get();
+      }
+      snap.forEach(d => words.push(d.data()));
+    })();
 
     window.startTest = () => {
       selfMode = document.getElementById("selfCheck").checked;
