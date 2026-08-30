@@ -260,16 +260,21 @@
     </div>
   </footer>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-auth.js";
-    import { getFirestore, doc, getDoc, collection, getDocs, query, orderBy, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
+  <script>
+    // 他ページと同じFirebase SDK(compatビルド, 9.23.0)で統一する。
+    // 以前このページだけ別バージョンのSDK(modularビルド, 11.8.1)で独自にinitializeAppしていたため、
+    // 他ページ(compat 9.23.0)とは別のFirebase Auth/Firestoreインスタンスが動作しており、
+    // 同じアカウントの認証状態の同期がずれて勝手にログアウト扱いになってしまう不具合の原因になっていた
+    // （view.htmlは単語帳を開くたびに表示される最も閲覧数の多いページのため、影響が大きかった）。
     const firebaseConfig = { apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E", authDomain: "quiz1-4ffdc.firebaseapp.com", projectId: "quiz1-4ffdc", storageBucket: "quiz1-4ffdc.firebasestorage.app", messagingSenderId: "152062126332", appId: "1:152062126332:web:845af237a1a76207214f79" };
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
 
     const id = new URLSearchParams(location.search).get("id");
     const cacheKey = `book_${id}`;
@@ -349,24 +354,19 @@
     }
 
     // 単語帳情報を先に取得
-    const bookSnap = await getDoc(doc(db, "wordbooks", id));
+    (async function () {
+    const bookSnap = await db.collection("wordbooks").doc(id).get();
 
     // 単語一覧：並び替え(order)フィールドで取得する。
     // まだ並び替え機能導入前（orderフィールド未付与）の単語帳では
     // 該当クエリの結果が空になるため、その場合は作成日時順にフォールバックする
-    let wSnap = await getDocs(query(
-      collection(db, "wordbooks", id, "words"),
-      orderBy("order")
-    ));
+    let wSnap = await db.collection("wordbooks").doc(id).collection("words").orderBy("order").get();
 
     if (wSnap.empty) {
-      wSnap = await getDocs(query(
-        collection(db, "wordbooks", id, "words"),
-        orderBy("createdAt")
-      ));
+      wSnap = await db.collection("wordbooks").doc(id).collection("words").orderBy("createdAt").get();
     }
 
-    if (!bookSnap.exists()) {
+    if (!bookSnap.exists) {
       alert("単語帳が見つかりません");
       location.href = "index.html";
     }
@@ -504,7 +504,7 @@
     // 残っている場合は即座にログアウト扱いにせず、少し待ってから本当に
     // 未ログインのままかを再確認する（実際はログインしたままなのに一瞬
     // ログアウト状態の表示になってしまう不具合を防ぐため）。
-    onAuthStateChanged(auth, user => {
+    auth.onAuthStateChanged(user => {
       currentUser = user;
 
       if (user) {
@@ -528,9 +528,19 @@
           document.getElementById("reportLink").style.display = "block";
         }
       } else if (localStorage.getItem("cachedUser")) {
-        setTimeout(() => {
-          if (!auth.currentUser) handleSignedOut();
-        }, 1500);
+        (function () {
+          // 端末やネットワークが遅いと1回・1.5秒の再確認だけでは間に合わないことがあるため、
+          // 間隔を広げながら最大4回(合計15秒)まで再確認してから本当に未ログインと判断する。
+          const delays = [1000, 2000, 4000, 8000];
+          const recheck = (i) => {
+            setTimeout(() => {
+              if (auth.currentUser) return;
+              if (i + 1 < delays.length) recheck(i + 1);
+              else handleSignedOut();
+            }, delays[i]);
+          };
+          recheck(0);
+        })();
       } else {
         handleSignedOut();
       }
@@ -570,24 +580,24 @@
       msg.textContent = "送信しています...";
 
       try {
-        await addDoc(collection(db, "reports"), {
+        await db.collection("reports").add({
           type: "wordbook",
           targetId: id,
           targetLabel: book.title || "",
           reason: reason,
           reportedBy: currentUser.uid,
           reportedByEmail: currentUser.email || "",
-          createdAt: serverTimestamp()
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
 
         // 運営のヘッダー通知ベルにだけ届く通知（通報理由の中身は含めない）
         try {
-          await addDoc(collection(db, "notifications"), {
+          await db.collection("notifications").add({
             title: "新しい通報があります",
             body: `単語帳「${book.title || "(無題)"}」が通報されました`,
             target: "admin",
             targetUserIds: [],
-            createdAt: serverTimestamp(),
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             createdBy: currentUser.uid
           });
         } catch (e) {
@@ -603,6 +613,7 @@
         msg.textContent = "送信に失敗しました: " + e.message;
       }
     };
+    })();
   </script>
   <script src="account-widgets.js"></script>
   <script src="analytics-tracker.js"></script>

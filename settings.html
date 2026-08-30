@@ -803,9 +803,19 @@
     auth.onAuthStateChanged(async user => {
       if (!user) {
         if (localStorage.getItem("cachedUser")) {
-          setTimeout(() => {
-            if (!auth.currentUser) handleSignedOut();
-          }, 1500);
+          (function () {
+            // 端末やネットワークが遅いと1回・1.5秒の再確認だけでは間に合わないことがあるため、
+            // 間隔を広げながら最大4回(合計15秒)まで再確認してから本当に未ログインと判断する。
+            const delays = [1000, 2000, 4000, 8000];
+            const recheck = (i) => {
+              setTimeout(() => {
+                if (auth.currentUser) return;
+                if (i + 1 < delays.length) recheck(i + 1);
+                else handleSignedOut();
+              }, delays[i]);
+            };
+            recheck(0);
+          })();
           return;
         }
         handleSignedOut();

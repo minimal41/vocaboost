@@ -1,6 +1,6 @@
 // Cache name
 // キャッシュ内容を変更したら必ずバージョンを上げる（古いキャッシュが残り続けるのを防ぐため）
-const CACHE_NAME = 'pwa-sample-caches-v10';
+const CACHE_NAME = 'pwa-sample-caches-v11';
 // Cache targets
 const urlsToCache = [
   './',
