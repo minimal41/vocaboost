@@ -548,14 +548,19 @@
       loginBtn.style.display = "none";
     }
 
+    // このページでは単語の入力内容がすべてブラウザ上だけに保持されており、
+    // 「保存する」を押すまでどこにも保存されない。そのため、以前はログアウト検知時に
+    // 即座にlogin.htmlへ強制遷移していたが、入力中に一時的な認証エラーが起きただけでも
+    // それまで入力していた単語がすべて失われてしまう不具合があった。
+    // ここでは画面遷移はせず、ヘッダーの表示とメッセージだけ更新して入力内容を保持する。
     function handleSignedOut() {
       localStorage.removeItem("cachedUser");
       statusDiv.textContent = "ログアウト中";
       loginBtn.style.display = "inline-block";
       logoutBtn.style.display = "none";
       settingsBtn.style.display = "none";
-      alert("ログインしてください");
-      location.href = "login.html";
+      document.getElementById("msg").textContent =
+        "ログインセッションが切れました。保存するには右上から再度ログインしてください（このページの入力内容はそのまま残っています）。";
     }
 
     /* Firebaseが端末に保存された認証状態を復元し終える前に、onAuthStateChangedが
@@ -659,6 +664,12 @@
       if (blockIfRestricted()) return;
 
       if (isSaving) return; // 保存処理が完了するまで連打による多重作成を防ぐ
+
+      const msgEl = document.getElementById("msg");
+      if (!currentUser) {
+        msgEl.textContent = "ログインしてください（右上の「ログイン」から再度ログインすると保存できます）。";
+        return;
+      }
 
       const title = document.getElementById("title").value.trim();
       const description = document.getElementById("description").value.trim();
