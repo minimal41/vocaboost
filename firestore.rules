@@ -6,7 +6,7 @@ rules_version = '2';
 // Firebase コンソール（Firestore Database → ルール）に手動で貼り付けて公開するか、
 // Firebase CLI をお持ちの場合は `firebase deploy --only firestore:rules` を実行してください。
 //
-// admin.html / account-widgets.js が管理者と判定するメールアドレスと、
+// admin.html / analytics.html / account-widgets.js が管理者と判定するメールアドレスと、
 // ここでの isAdmin() の一覧は必ず一致させてください。
 //
 // また notifications コレクションへのクエリ（target==での絞り込み、
@@ -121,6 +121,59 @@ service cloud.firestore {
         && request.resource.data.reason is string
         && request.resource.data.reason.size() > 0;
       allow read, update, delete: if isAdmin();
+    }
+
+    // アクセス解析（analytics.html、運営専用）。analytics-tracker.js が全ページから書き込む。
+    // バックエンドを持たない静的サイトのため、未ログインの利用者（ログイン画面等）からも
+    // 直接Firestoreに書き込めるようにする必要があり、書き込み自体はログイン状態を問わず許可している。
+    // その代わり、1回の書き込みで変化させられる内容を厳しく制限することで、
+    // 悪意のある大量アクセス・改ざんの影響をある程度抑える（完全な不正対策ではない点に注意）。
+    //
+    // ドキュメントID（バケットID）は「YYYYMMDDHHmm」形式（30分単位に切り捨てた時刻、例:
+    // "202608301330"）。bucketStart はそのバケットの開始時刻で、現在時刻から見て
+    // 前後31分以内のものしか書き込めないようにし、過去・未来の日時を偽装したバケットが
+    // 作成されるのを防ぐ。
+    function isRecentBucketStart(ts) {
+      return ts is timestamp
+        && ts <= request.time
+        && request.time < ts + duration.value(31, 'm');
+    }
+
+    match /analytics/{bucketId} {
+      allow read: if isAdmin();
+
+      // 新規作成: このバケットへの最初の書き込み。Pvは1、Ssは0か1から始まる。
+      allow create: if bucketId.matches('^[0-9]{12}$')
+        && request.resource.data.keys().hasOnly(['bucketStart', 'pv', 'ss', 'updatedAt'])
+        && isRecentBucketStart(request.resource.data.bucketStart)
+        && request.resource.data.pv == 1
+        && request.resource.data.ss in [0, 1]
+        && request.resource.data.updatedAt == request.time;
+
+      // 更新: 1回の表示ごとにPvは必ず+1、Ssは+0か+1のみ（bucketStartは変更不可）。
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pv', 'ss', 'updatedAt'])
+        && request.resource.data.pv == resource.data.pv + 1
+        && (request.resource.data.ss == resource.data.ss || request.resource.data.ss == resource.data.ss + 1)
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if isAdmin();
+    }
+
+    // Ssの重複加算を防ぐための「この30分バケットでこの端末からの計測は済み」マーカー。
+    // ドキュメントID（"{バケットID}_{端末ID}"）ごとに一度しか作成できないため、
+    // 2回目以降の作成（＝同じ端末からの同一バケット内の再訪問）は自動的に拒否される。
+    match /analyticsSessionMarkers/{markerId} {
+      allow read: if isAdmin();
+      allow create: if request.resource.data.keys().hasOnly(['bucket', 'device', 'createdAt'])
+        && request.resource.data.bucket is string
+        && request.resource.data.bucket.matches('^[0-9]{12}$')
+        && request.resource.data.device is string
+        && request.resource.data.device.size() > 0
+        && request.resource.data.device.size() <= 100
+        && markerId == request.resource.data.bucket + '_' + request.resource.data.device
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      allow delete: if isAdmin();
     }
   }
 }

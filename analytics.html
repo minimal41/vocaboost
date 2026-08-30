@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
+  <title>アクセス解析</title>
+  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script src="theme.js"></script>
+
+  <style>
+    .card {
+      background: var(--color-surface);
+      color: var(--color-text);
+      padding: 25px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    .card h2 {
+      margin-top: 0;
+    }
+
+    #accessDenied {
+      text-align: center;
+      padding: 60px 20px;
+    }
+
+    .backLink {
+      display: inline-block;
+      margin-bottom: 16px;
+      color: var(--color-accent);
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .summaryRow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .summaryTile {
+      flex: 1 1 140px;
+      background: var(--color-bg, transparent);
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+
+    .summaryTile .label {
+      font-size: 12px;
+      color: var(--color-text-sub);
+    }
+
+    .summaryTile .value {
+      font-size: 22px;
+      font-weight: bold;
+      margin-top: 4px;
+    }
+
+    .summaryTile .value .unit {
+      font-size: 13px;
+      font-weight: normal;
+      color: var(--color-text-sub);
+      margin-left: 4px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--color-text-sub);
+      margin: 4px 0 12px;
+    }
+
+    .legendItem {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legendDot {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    .legendDot.pv {
+      background: var(--color-accent);
+    }
+
+    .legendDot.ss {
+      background: var(--color-success);
+    }
+
+    .dateNav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .dateNav .dateLabel {
+      font-weight: bold;
+      min-width: 130px;
+    }
+
+    .smallActionBtn {
+      display: inline-block;
+      background: var(--color-border);
+      color: var(--color-text);
+      border: none;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .smallActionBtn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    .chartWrap {
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 160px;
+      min-width: 720px;
+      border-bottom: 1px solid var(--color-border);
+      padding-bottom: 2px;
+    }
+
+    .chartCol {
+      flex: 1 1 0;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 1px;
+      height: 100%;
+      min-width: 10px;
+    }
+
+    .chartBar {
+      width: 45%;
+      min-height: 1px;
+      border-radius: 2px 2px 0 0;
+    }
+
+    .chartBar.pv {
+      background: var(--color-accent);
+    }
+
+    .chartBar.ss {
+      background: var(--color-success);
+    }
+
+    .chartAxis {
+      display: flex;
+      gap: 3px;
+      min-width: 720px;
+      font-size: 10px;
+      color: var(--color-text-sub);
+      margin-top: 4px;
+    }
+
+    .chartAxis span {
+      flex: 1 1 0;
+      text-align: center;
+      min-width: 10px;
+      white-space: nowrap;
+    }
+
+    .tableWrap {
+      overflow-x: auto;
+      margin-top: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      min-width: 420px;
+    }
+
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--color-border);
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      color: var(--color-text-sub);
+      font-weight: bold;
+      white-space: nowrap;
+    }
+
+    td.num {
+      text-align: right;
+    }
+
+    .trendTable td, .trendTable th {
+      text-align: right;
+    }
+
+    .trendTable td:first-child, .trendTable th:first-child {
+      text-align: left;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <p class="headertitle"><a href="index.html"><img src="./images/rogo.png" height="70vh"></a></p>
+    <div id="status" style="display:none">ログイン確認中...</div>
+    <div>
+      <span id="notifBellContainer"></span>
+      <button id="settingsBtn" class="header-btn" style="display:none" onclick="goPage('settings.html')">設定</button>
+      <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
+      <button id="logoutBtn" class="header-btn" style="display:none" onclick="logout()">ログアウト</button>
+    </div>
+  </header>
+
+  <main>
+
+    <div id="loadingArea" style="padding:60px 20px;">確認中...</div>
+
+    <div id="accessDenied" style="display:none">
+      <p>このページには管理者のみアクセスできます。</p>
+    </div>
+
+    <div id="analyticsContent" style="display:none">
+      <a class="backLink" href="admin.html">← 運営ページに戻る</a>
+      <h1>アクセス解析</h1>
+      <p style="color:var(--color-text-sub);font-size:13px;">
+        Pv（ページビュー）: 30分ごとの集計期間内のアクセスを、同じ端末からのものも含めてすべて数えます。<br>
+        Ss（セッション）: 30分ごとの集計期間内で、同じ端末からのアクセスは1回のみ数えます（期間が変わると同じ端末からのアクセスも改めて1回として数えます）。
+      </p>
+
+      <!-- 日別の30分ごとの推移 -->
+      <section class="card">
+        <h2>日別の推移（30分ごと）</h2>
+
+        <div class="dateNav">
+          <button class="smallActionBtn" onclick="shiftDay(-1)">← 前の日</button>
+          <span class="dateLabel" id="selectedDateLabel"></span>
+          <button class="smallActionBtn" id="nextDayBtn" onclick="shiftDay(1)">次の日 →</button>
+          <button class="smallActionBtn" onclick="goToday()">今日</button>
+        </div>
+
+        <div class="summaryRow">
+          <div class="summaryTile">
+            <div class="label">この日のPv合計</div>
+            <div class="value" id="dayPvTotal">-</div>
+          </div>
+          <div class="summaryTile">
+            <div class="label">この日のSs合計</div>
+            <div class="value" id="daySsTotal">-</div>
+          </div>
+        </div>
+
+        <div class="legend">
+          <span class="legendItem"><span class="legendDot pv"></span>Pv</span>
+          <span class="legendItem"><span class="legendDot ss"></span>Ss</span>
+        </div>
+
+        <div id="dayChartArea">
+          <div class="chartWrap">
+            <div class="chart" id="dayChart"></div>
+            <div class="chartAxis" id="dayChartAxis"></div>
+          </div>
+        </div>
+
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>時間帯</th>
+                <th class="num">Pv</th>
+                <th class="num">Ss</th>
+              </tr>
+            </thead>
+            <tbody id="dayTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 直近7日間の推移 -->
+      <section class="card">
+        <h2>直近7日間の推移</h2>
+
+        <div class="summaryRow">
+          <div class="summaryTile">
+            <div class="label">7日間のPv合計</div>
+            <div class="value" id="weekPvTotal">-</div>
+          </div>
+          <div class="summaryTile">
+            <div class="label">7日間のSs合計</div>
+            <div class="value" id="weekSsTotal">-</div>
+          </div>
+        </div>
+
+        <div class="legend">
+          <span class="legendItem"><span class="legendDot pv"></span>Pv</span>
+          <span class="legendItem"><span class="legendDot ss"></span>Ss</span>
+        </div>
+
+        <div class="chartWrap">
+          <div class="chart" id="weekChart" style="min-width:0;"></div>
+          <div class="chartAxis" id="weekChartAxis" style="min-width:0;"></div>
+        </div>
+
+        <div class="tableWrap">
+          <table class="trendTable">
+            <thead>
+              <tr>
+                <th>日付</th>
+                <th>Pv</th>
+                <th>Ss</th>
+              </tr>
+            </thead>
+            <tbody id="weekTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footertitle"><img src="./images/rogo.png" height="70vh"></div>
+      <div class="footer-links">
+        <a href="index.html">ホーム</a>
+        <a href="list.html">検索</a>
+        <a href="create.html">作成</a>
+        <a href="settings.html">設定</a>
+        <a href="update.html">更新履歴</a>
+        <a href="contact.html">お問い合わせ</a>
+      </div>
+      <div class="copy">© 2026 TEAM-Minimal, Shiratae</div>
+    </div>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    // account-widgets.js にも同じ一覧がある。管理者を追加/削除する場合はこのファイル・admin.html・
+    // account-widgets.js・firestore.rules のすべてを書き換えること。
+    const ADMIN_EMAILS = [
+      "202301745@edu.nishiyamato.ed.jp",
+      "202305145@edu.nishiyamato.ed.jp"
+    ];
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E",
+      authDomain: "quiz1-4ffdc.firebaseapp.com",
+      projectId: "quiz1-4ffdc",
+      storageBucket: "quiz1-4ffdc.firebasestorage.app",
+      messagingSenderId: "152062126332",
+      appId: "1:152062126332:web:845af237a1a76207214f79"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    let currentUser = null;
+
+    const statusDiv = document.getElementById("status");
+    const loginBtn = document.getElementById("loginBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const settingsBtn = document.getElementById("settingsBtn");
+
+    const savedUser = JSON.parse(localStorage.getItem("cachedUser"));
+    if (savedUser) {
+      settingsBtn.style.display = "inline-block";
+      logoutBtn.style.display = "inline-block";
+      loginBtn.style.display = "none";
+    }
+
+    function goPage(page) {
+      const hasCachedUser = !!localStorage.getItem("cachedUser");
+      if (currentUser || hasCachedUser) {
+        location.href = page;
+      } else {
+        alert("ログインしてください");
+        location.href = "login.html";
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("cachedUser");
+      auth.signOut();
+    }
+
+    function handleSignedOut() {
+      localStorage.removeItem("cachedUser");
+      statusDiv.textContent = "ログアウト中";
+      loginBtn.style.display = "inline-block";
+      logoutBtn.style.display = "none";
+      settingsBtn.style.display = "none";
+      alert("ログインしてください");
+      location.href = "login.html";
+    }
+
+    auth.onAuthStateChanged(async (user) => {
+      currentUser = user;
+
+      if (!user) {
+        if (localStorage.getItem("cachedUser")) {
+          setTimeout(() => {
+            if (!auth.currentUser) handleSignedOut();
+          }, 1500);
+          return;
+        }
+        handleSignedOut();
+        return;
+      }
+
+      localStorage.setItem("cachedUser", JSON.stringify({ uid: user.uid }));
+      statusDiv.textContent = "ログイン中: " + user.uid;
+      loginBtn.style.display = "none";
+      logoutBtn.style.display = "inline-block";
+      settingsBtn.style.display = "inline-block";
+
+      if (!ADMIN_EMAILS.includes(user.email)) {
+        document.getElementById("loadingArea").style.display = "none";
+        document.getElementById("accessDenied").style.display = "block";
+        return;
+      }
+
+      document.getElementById("loadingArea").style.display = "none";
+      document.getElementById("analyticsContent").style.display = "block";
+
+      await loadDay(selectedDate);
+      await loadWeek();
+    });
+
+    /* ===================== 共通ユーティリティ ===================== */
+
+    function pad(n) {
+      return String(n).padStart(2, "0");
+    }
+
+    function startOfDay(date) {
+      const d = new Date(date.getTime());
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+
+    function addDays(date, n) {
+      const d = new Date(date.getTime());
+      d.setDate(d.getDate() + n);
+      return d;
+    }
+
+    function dateLabel(date) {
+      const wd = ["日", "月", "火", "水", "木", "金", "土"][date.getDay()];
+      return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日（${wd}）`;
+    }
+
+    // 指定した範囲[from, to)の analytics ドキュメントを bucketStart で取得する
+    async function fetchBuckets(from, to) {
+      const snap = await db.collection("analytics")
+        .where("bucketStart", ">=", firebase.firestore.Timestamp.fromDate(from))
+        .where("bucketStart", "<", firebase.firestore.Timestamp.fromDate(to))
+        .orderBy("bucketStart")
+        .get();
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+
+    /* ===================== 日別の30分ごとの推移 ===================== */
+
+    let selectedDate = startOfDay(new Date());
+
+    function shiftDay(n) {
+      const next = addDays(selectedDate, n);
+      if (next > startOfDay(new Date())) return; // 未来の日には移動しない
+      selectedDate = next;
+      loadDay(selectedDate);
+    }
+
+    function goToday() {
+      selectedDate = startOfDay(new Date());
+      loadDay(selectedDate);
+    }
+
+    async function loadDay(day) {
+      document.getElementById("selectedDateLabel").textContent = dateLabel(day);
+      document.getElementById("nextDayBtn").disabled = addDays(day, 1) > startOfDay(new Date());
+
+      const from = day;
+      const to = addDays(day, 1);
+      const docs = await fetchBuckets(from, to);
+      const byBucket = new Map(docs.map(d => [d.id, d]));
+
+      // その日の00:00〜翌日00:00までを30分刻みで48スロット作り、データが無い所は0で埋める
+      const slots = [];
+      for (let i = 0; i < 48; i++) {
+        const slotStart = new Date(from.getTime() + i * 30 * 60 * 1000);
+        const id = "" + slotStart.getFullYear() + pad(slotStart.getMonth() + 1) + pad(slotStart.getDate()) + pad(slotStart.getHours()) + pad(slotStart.getMinutes());
+        const doc = byBucket.get(id);
+        slots.push({
+          start: slotStart,
+          pv: doc ? (doc.pv || 0) : 0,
+          ss: doc ? (doc.ss || 0) : 0
+        });
+      }
+
+      renderDayChart(slots);
+      renderDayTable(slots);
+
+      const pvTotal = slots.reduce((s, x) => s + x.pv, 0);
+      const ssTotal = slots.reduce((s, x) => s + x.ss, 0);
+      document.getElementById("dayPvTotal").textContent = pvTotal;
+      document.getElementById("daySsTotal").textContent = ssTotal;
+    }
+
+    function slotTimeLabel(start) {
+      const end = new Date(start.getTime() + 30 * 60 * 1000);
+      return `${pad(start.getHours())}:${pad(start.getMinutes())}〜${pad(end.getHours())}:${pad(end.getMinutes())}`;
+    }
+
+    function renderDayChart(slots) {
+      const max = Math.max(1, ...slots.map(s => Math.max(s.pv, s.ss)));
+      const chart = document.getElementById("dayChart");
+      const axis = document.getElementById("dayChartAxis");
+
+      chart.innerHTML = slots.map(s => {
+        const pvH = Math.round((s.pv / max) * 100);
+        const ssH = Math.round((s.ss / max) * 100);
+        const title = `${slotTimeLabel(s.start)} Pv:${s.pv} Ss:${s.ss}`;
+        return `<div class="chartCol" title="${title}">
+          <div class="chartBar pv" style="height:${pvH}%"></div>
+          <div class="chartBar ss" style="height:${ssH}%"></div>
+        </div>`;
+      }).join("");
+
+      axis.innerHTML = slots.map(s => {
+        const showLabel = s.start.getMinutes() === 0 && s.start.getHours() % 2 === 0;
+        return `<span>${showLabel ? pad(s.start.getHours()) + ":00" : ""}</span>`;
+      }).join("");
+    }
+
+    function renderDayTable(slots) {
+      const body = document.getElementById("dayTableBody");
+      body.innerHTML = slots.map(s => `
+        <tr>
+          <td>${slotTimeLabel(s.start)}</td>
+          <td class="num">${s.pv}</td>
+          <td class="num">${s.ss}</td>
+        </tr>
+      `).join("");
+    }
+
+    /* ===================== 直近7日間の推移 ===================== */
+
+    async function loadWeek() {
+      const todayStart = startOfDay(new Date());
+      const from = addDays(todayStart, -6);
+      const to = addDays(todayStart, 1);
+      const docs = await fetchBuckets(from, to);
+
+      // バケットの開始時刻の「日付」ごとに合算する
+      const byDay = new Map();
+      for (let i = 0; i < 7; i++) {
+        const d = addDays(from, i);
+        byDay.set(d.getTime(), { date: d, pv: 0, ss: 0 });
+      }
+      docs.forEach(doc => {
+        if (!doc.bucketStart || !doc.bucketStart.toDate) return;
+        const d = startOfDay(doc.bucketStart.toDate());
+        const entry = byDay.get(d.getTime());
+        if (entry) {
+          entry.pv += doc.pv || 0;
+          entry.ss += doc.ss || 0;
+        }
+      });
+
+      const days = Array.from(byDay.values());
+      renderWeekChart(days);
+      renderWeekTable(days);
+
+      document.getElementById("weekPvTotal").textContent = days.reduce((s, x) => s + x.pv, 0);
+      document.getElementById("weekSsTotal").textContent = days.reduce((s, x) => s + x.ss, 0);
+    }
+
+    function shortDateLabel(date) {
+      const wd = ["日", "月", "火", "水", "木", "金", "土"][date.getDay()];
+      return `${date.getMonth() + 1}/${date.getDate()}(${wd})`;
+    }
+
+    function renderWeekChart(days) {
+      const max = Math.max(1, ...days.map(d => Math.max(d.pv, d.ss)));
+      const chart = document.getElementById("weekChart");
+      const axis = document.getElementById("weekChartAxis");
+
+      chart.innerHTML = days.map(d => {
+        const pvH = Math.round((d.pv / max) * 100);
+        const ssH = Math.round((d.ss / max) * 100);
+        const title = `${shortDateLabel(d.date)} Pv:${d.pv} Ss:${d.ss}`;
+        return `<div class="chartCol" title="${title}">
+          <div class="chartBar pv" style="height:${pvH}%"></div>
+          <div class="chartBar ss" style="height:${ssH}%"></div>
+        </div>`;
+      }).join("");
+
+      axis.innerHTML = days.map(d => `<span>${shortDateLabel(d.date)}</span>`).join("");
+    }
+
+    function renderWeekTable(days) {
+      const body = document.getElementById("weekTableBody");
+      body.innerHTML = days.map(d => `
+        <tr>
+          <td>${shortDateLabel(d.date)}</td>
+          <td>${d.pv}</td>
+          <td>${d.ss}</td>
+        </tr>
+      `).join("");
+    }
+  </script>
+
+  <script src="account-widgets.js"></script>
+</body>
+
+</html>

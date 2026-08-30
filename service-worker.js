@@ -1,6 +1,6 @@
 // Cache name
 // キャッシュ内容を変更したら必ずバージョンを上げる（古いキャッシュが残り続けるのを防ぐため）
-const CACHE_NAME = 'pwa-sample-caches-v8';
+const CACHE_NAME = 'pwa-sample-caches-v9';
 // Cache targets
 const urlsToCache = [
   './',
@@ -22,6 +22,7 @@ const urlsToCache = [
   './style.css',
   './login.css',
   './theme.js',
+  './analytics-tracker.js',
   './manifest.json',
   './images/icon.png',
   './images/rogo.png',

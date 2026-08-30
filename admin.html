@@ -256,6 +256,8 @@
     <div id="adminContent" style="display:none">
       <h1>運営専用ページ</h1>
 
+      <p><a class="smallActionBtn" href="analytics.html">📊 アクセス解析を見る</a></p>
+
       <!-- 通知送信 -->
       <section class="card">
         <h2>通知を送信</h2>
@@ -422,7 +424,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
   <script>
-    // account-widgets.js にも同じ一覧がある。管理者を追加/削除する場合は両方を書き換えること。
+    // account-widgets.js / analytics.html / firestore.rules にも同じ一覧がある。管理者を追加/削除する場合はすべて書き換えること。
     const ADMIN_EMAILS = [
       "202301745@edu.nishiyamato.ed.jp",
       "202305145@edu.nishiyamato.ed.jp"
