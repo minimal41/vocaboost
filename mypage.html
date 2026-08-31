@@ -141,7 +141,11 @@
 
     function handleSignedOut() {
       localStorage.removeItem("cachedUser");
-      location.href = "login.html";
+      loginBtn.style.display = "inline-block";
+      logoutBtn.style.display = "none";
+      mypageBtn.style.display = "none";
+      // 一時的な認証エラーで強制的にログイン画面へ飛ばされることがないよう、
+      // ここでは画面遷移はせずヘッダー表示のみ更新する。
     }
 
     /* ===== ログインチェック =====

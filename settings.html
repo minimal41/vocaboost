@@ -789,7 +789,11 @@
     function handleSignedOut() {
       localStorage.removeItem("cachedUser");
       localStorage.removeItem(PROFILE_CACHE_KEY);
-      location.href = "login.html";
+      loginBtn.style.display = "inline-block";
+      logoutBtn.style.display = "none";
+      settingsBtn.style.display = "none";
+      // プロフィール編集中に強制的にログイン画面へ飛ばされて入力内容が
+      // 失われることがないよう、ここでは画面遷移はせずヘッダー表示のみ更新する。
     }
 
     /* ===== ログインチェック =====
