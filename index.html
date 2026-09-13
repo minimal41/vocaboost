@@ -739,38 +739,63 @@
         showLoading();
       }
 
+      const finish = (books) => {
+        // キャッシュ保存
+        localStorage.setItem(
+          cacheKey,
+          JSON.stringify(books)
+        );
+
+        displayBooks(books);
+
+        hideLoading();
+      };
+
+      const toBooks = (snapshot) => {
+        const books = [];
+        snapshot.forEach(doc => {
+          books.push({
+            id: doc.id,
+            ...doc.data()
+          });
+        });
+        return books;
+      };
+
+      // createdAtでの並び替えにはowner/createdAtの複合インデックスが必要。
+      // 未作成の環境や、作成直後でcreatedAtがまだ無い/反映されていない単語帳が
+      // 単語帳一覧から消えてしまわないよう、失敗時はorderByなしで取得して
+      // クライアント側で並び替える。
       db.collection("wordbooks")
         .where("owner", "==", uid)
         .orderBy("createdAt", "desc")
         .get()
-        .then(snapshot => {
-
-          const books = [];
-
-          snapshot.forEach(doc => {
-            books.push({
-              id: doc.id,
-              ...doc.data()
-            });
-          });
-
-          // キャッシュ保存
-          localStorage.setItem(
-            cacheKey,
-            JSON.stringify(books)
-          );
-
-          displayBooks(books);
-
-          hideLoading();
-        })
+        .then(snapshot => finish(toBooks(snapshot)))
         .catch(err => {
-          hideLoading();
-          console.error(err);
+          console.warn("createdAt順の取得に失敗。フォールバックします。", err);
 
-          if (!cachedBooks) {
-            alert("読み込みエラー: " + err.message);
-          }
+          db.collection("wordbooks")
+            .where("owner", "==", uid)
+            .get()
+            .then(snapshot => {
+              const books = toBooks(snapshot);
+
+              books.sort((a, b) => {
+                const aTime = a.createdAt ? a.createdAt.toMillis() : 0;
+                const bTime = b.createdAt ? b.createdAt.toMillis() : 0;
+                return bTime - aTime;
+              });
+
+              finish(books);
+            })
+            .catch(fallbackErr => {
+              hideLoading();
+              console.error(fallbackErr);
+
+              if (!cachedBooks) {
+                alert("読み込みエラー: " + fallbackErr.message);
+              }
+            });
         });
     }
 

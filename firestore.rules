@@ -11,9 +11,13 @@ rules_version = '2';
 //
 // また notifications コレクションへのクエリ（target==での絞り込み、
 // targetUserIds のarray-containsでの絞り込み、いずれも createdAt での並び替えと
-// 組み合わせる）には複合インデックスが必要です。firestore.indexes.json を参照し、
+// 組み合わせる）や、wordbooks コレクションへのクエリ（owner==での絞り込みと
+// createdAt での並び替えを組み合わせる、index.htmlの「自分の単語帳」一覧など）
+// には複合インデックスが必要です。firestore.indexes.json を参照し、
 // Firebaseコンソールの「Firestore Database → インデックス」で作成してください
 // （Firebase CLIがあれば `firebase deploy --only firestore:indexes` でも可）。
+// このインデックスが無い環境でも一覧が空にならないよう、index.html側では
+// クエリ失敗時にorderByなしで取得してクライアント側で並び替えるフォールバックを実装済み。
 
 service cloud.firestore {
   match /databases/{database}/documents {
