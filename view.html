@@ -470,17 +470,23 @@
 
     wordsDiv.innerHTML = wordsHtml;
 
-    // 最新データをキャッシュ保存
-    localStorage.setItem(
-      cacheKey,
-      JSON.stringify({
-        owner: owner,
-        title: book.title,
-        detailHtml: document.getElementById("detailInfo").innerHTML,
-        descriptionHtml: document.getElementById("description").innerHTML,
-        wordsHtml
-      })
-    );
+    // 最新データをキャッシュ保存。容量超過(QuotaExceededError)などで失敗しても、
+    // この後に続く編集ボタン表示(onAuthStateChanged)やgoStudyの定義が
+    // 止まってしまわないようtry/catchで保護する。
+    try {
+      localStorage.setItem(
+        cacheKey,
+        JSON.stringify({
+          owner: owner,
+          title: book.title,
+          detailHtml: document.getElementById("detailInfo").innerHTML,
+          descriptionHtml: document.getElementById("description").innerHTML,
+          wordsHtml
+        })
+      );
+    } catch (e) {
+      console.warn("単語帳のキャッシュ保存に失敗しました(表示には影響しません)", e);
+    }
 
     window.goStudy = (page) => {
       if (currentUser) {
@@ -509,12 +515,16 @@
 
       if (user) {
 
-        localStorage.setItem(
-          "cachedUser",
-          JSON.stringify({
-            uid: user.uid
-          })
-        );
+        try {
+          localStorage.setItem(
+            "cachedUser",
+            JSON.stringify({
+              uid: user.uid
+            })
+          );
+        } catch (e) {
+          console.warn("ログイン状態のキャッシュ保存に失敗しました", e);
+        }
         statusDiv.textContent = "ログイン中: " + user.uid;
         loginBtn.style.display = "none";
         logoutBtn.style.display = "inline-block";
