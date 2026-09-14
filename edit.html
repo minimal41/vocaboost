@@ -843,6 +843,18 @@
             })
           );
 
+          // view.htmlは開いた単語帳をbook_{id}というキーでキャッシュし、
+          // 次回表示時にまずそのキャッシュを即座に出してから最新データを取得する。
+          // 保存ボタンを押した後history.back()でview.htmlに戻ると、この
+          // キャッシュが編集前の内容のままのため、一瞬だけ古い単語帳が
+          // 表示されてしまっていた。編集内容が変わるたびに無効化しておき、
+          // view.html側では必ず最新データを取得し直させる。
+          try {
+            localStorage.removeItem(`book_${bookId}`);
+          } catch (e) {
+            console.warn("view.html用キャッシュの無効化に失敗しました", e);
+          }
+
         }
 
         function updatePublicStatusText(isPublic) {

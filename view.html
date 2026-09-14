@@ -281,6 +281,17 @@
     let owner;
     let currentUser = null;
 
+    // edit.htmlで保存した後history.back()でこのページに戻ってくると、ブラウザの
+    // bfcache(back/forwardキャッシュ)によりスクリプトを再実行せず編集前の
+    // DOMがそのまま復元され、一瞬だけ古い内容の単語帳が表示されてしまうことが
+    // あった。bfcacheから復元された場合は最新データで確実に再描画されるよう
+    // ページを再読み込みする。
+    window.addEventListener("pageshow", (event) => {
+      if (event.persisted) {
+        location.reload();
+      }
+    });
+
     const statusDiv = document.getElementById("status");
     const loginBtn = document.getElementById("loginBtn");
     const logoutBtn = document.getElementById("logoutBtn");
