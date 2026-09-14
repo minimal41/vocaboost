@@ -1531,7 +1531,7 @@ async function exportReverseCSV() {
 /* ===== 他の単語帳から単語を取り込む ===== */
 
 let importSelectedBookId = null;
-let importWords = []; // {id, front, back} の配列（取り込み元の単語、createdAt順）
+let importWords = []; // {id, front, back} の配列（取り込み元の単語、表示順=orderフィールド順）
 
 async function openImportModal() {
   document.getElementById("importModal").style.display = "flex";
@@ -1586,11 +1586,23 @@ async function selectImportBook(id, title) {
   document.getElementById("importMsg").textContent = "";
 
   try {
-    const snap = await db.collection("wordbooks")
+    // 単語一覧はドラッグ&ドロップで並び替えられるため、表示上の並び順は
+    // createdAt(作成日時)ではなくorderフィールドで決まる。取り込み元の
+    // 単語帳を開いた時と同じ順番で持ってこられるよう、view.htmlと同様に
+    // order順で取得し、まだorderが無い古いデータのみcreatedAt順にフォールバックする。
+    let snap = await db.collection("wordbooks")
       .doc(id)
       .collection("words")
-      .orderBy("createdAt")
+      .orderBy("order")
       .get();
+
+    if (snap.empty) {
+      snap = await db.collection("wordbooks")
+        .doc(id)
+        .collection("words")
+        .orderBy("createdAt")
+        .get();
+    }
 
     importWords = snap.docs.map(d => ({
       id: d.id,
