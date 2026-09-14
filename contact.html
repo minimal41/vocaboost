@@ -85,7 +85,8 @@
     }
 
     function handleSignedOut() {
-      localStorage.removeItem("cachedUser");
+      // cachedUserは明示的なログアウト操作(logout())でのみ削除する
+      // (ここで消すと、次に一時的にnullが発火した際の再確認猶予が効かなくなるため)
       statusDiv.textContent = "ログアウト中";
       loginBtn.style.display = "inline-block";
       logoutBtn.style.display = "none";

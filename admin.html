@@ -536,7 +536,10 @@
     }
 
     function handleSignedOut() {
-      localStorage.removeItem("cachedUser");
+      // cachedUserはここでは消さない。一時的な認証エラーの度に消してしまうと、
+      // 次に一瞬でもnullが発火した際の再確認猶予(recheck)が効かなくなり、
+      // 些細なネットワーク瞬断でも即座にログアウト扱いになってしまうため。
+      // 明示的なログアウト操作(logout())側でのみ削除する。
       statusDiv.textContent = "ログアウト中";
       loginBtn.style.display = "inline-block";
       logoutBtn.style.display = "none";

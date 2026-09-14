@@ -554,7 +554,8 @@
     // それまで入力していた単語がすべて失われてしまう不具合があった。
     // ここでは画面遷移はせず、ヘッダーの表示とメッセージだけ更新して入力内容を保持する。
     function handleSignedOut() {
-      localStorage.removeItem("cachedUser");
+      // cachedUserは明示的なログアウト操作(logout())でのみ削除する
+      // (ここで消すと、次に一時的にnullが発火した際の再確認猶予が効かなくなるため)
       statusDiv.textContent = "ログアウト中";
       loginBtn.style.display = "inline-block";
       logoutBtn.style.display = "none";

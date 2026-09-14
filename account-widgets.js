@@ -16,6 +16,38 @@
     }
   }
 
+  // ===== 単語帳キャッシュ(book_*)の上限管理 =====
+  // list.html/view.htmlは、開いた単語帳ごとに作成者の写真(base64のdata URL)を
+  // 含んだキャッシュを book_{id} というキーでlocalStorageに保存し続けており、
+  // 削除されることが無いため公開単語帳を見るほど際限なく増え続けていた。
+  // これがlocalStorageの容量超過(QuotaExceededError)の主な原因になっており、
+  // 単語帳一覧や編集ボタンが表示されない不具合を引き起こしていた。
+  // 件数が一定数を超えたら古いものから間引き、容量を圧迫し続けないようにする。
+  const BOOK_CACHE_MAX_ENTRIES = 30;
+
+  function pruneBookCache() {
+    try {
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.indexOf("book_") === 0) {
+          keys.push(key);
+        }
+      }
+
+      // localStorageのキー列挙順は多くのブラウザで書き込み順(古い順)になるため、
+      // 先頭(古いもの)から超過分だけ削除する。
+      const overflow = keys.length - BOOK_CACHE_MAX_ENTRIES;
+      for (let i = 0; i < overflow; i++) {
+        localStorage.removeItem(keys[i]);
+      }
+    } catch (e) {
+      console.warn("単語帳キャッシュの整理に失敗しました", e);
+    }
+  }
+
+  pruneBookCache();
+
   function escapeHtml(str) {
     return String(str == null ? "" : str)
       .replace(/&/g, "&amp;")

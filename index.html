@@ -619,7 +619,8 @@
       settingsBtn.style.display = "none";
       dashboardDiv.style.display = "none";
       hideLoading();
-      localStorage.removeItem("cachedUser");
+      // cachedUserは明示的なログアウト操作(logout())でのみ削除する
+      // (ここで消すと、次に一時的にnullが発火した際の再確認猶予が効かなくなるため)
     }
 
     /* Firebaseが端末に保存された認証状態を復元し終える前に、onAuthStateChangedが
