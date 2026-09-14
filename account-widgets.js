@@ -48,6 +48,45 @@
 
   pruneBookCache();
 
+  // ===== オフライン等によるセッション切れの通知 =====
+  // ネットワーク切断でFirebase側の認証が無効になり再ログインが必要になった際、
+  // 画面上はヘッダーの「ログイン」ボタンに切り替わるだけで理由が分からず、
+  // 不具合のように見えてしまっていた。ページ再読み込みなしで理由を伝える
+  // ための、他ページのCSSに依存しない簡易バナーを表示する。
+  let sessionLostBannerShown = false;
+
+  function showSessionLostNotice(offline) {
+    if (sessionLostBannerShown) return;
+    sessionLostBannerShown = true;
+
+    const message = offline
+      ? "インターネット接続が失われたため、ログアウトしました。接続を確認のうえ、再度ログインしてください。"
+      : "ログインセッションが切れました。お手数ですが、再度ログインしてください。";
+
+    const bar = document.createElement("div");
+    bar.setAttribute("role", "alert");
+    bar.style.cssText =
+      "position:fixed;left:0;right:0;top:0;z-index:9999;" +
+      "background:var(--color-danger,#b60033);color:#fff;" +
+      "font-size:13px;line-height:1.5;padding:10px 40px 10px 14px;" +
+      "box-sizing:border-box;box-shadow:0 2px 6px rgba(0,0,0,0.2);";
+    bar.textContent = message;
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.textContent = "×";
+    closeBtn.setAttribute("aria-label", "閉じる");
+    closeBtn.style.cssText =
+      "position:absolute;right:8px;top:6px;background:none;border:none;" +
+      "color:#fff;font-size:18px;line-height:1;cursor:pointer;padding:4px 8px;";
+    closeBtn.onclick = () => bar.remove();
+    bar.appendChild(closeBtn);
+
+    document.body.appendChild(bar);
+  }
+
+  window.VOCABOOST_SHOW_SESSION_LOST_NOTICE = showSessionLostNotice;
+
   function escapeHtml(str) {
     return String(str == null ? "" : str)
       .replace(/&/g, "&amp;")

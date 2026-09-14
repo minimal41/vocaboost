@@ -118,7 +118,12 @@
             setTimeout(() => {
               if (auth.currentUser) return;
               if (i + 1 < delays.length) recheck(i + 1);
-              else handleSignedOut();
+              else {
+                handleSignedOut();
+                if (window.VOCABOOST_SHOW_SESSION_LOST_NOTICE) {
+                  window.VOCABOOST_SHOW_SESSION_LOST_NOTICE(!navigator.onLine);
+                }
+              }
             }, delays[i]);
           };
           recheck(0);
