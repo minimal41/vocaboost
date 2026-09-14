@@ -502,7 +502,10 @@
        account-widgets.js の読み込みタイミングに依存しないよう、
        このページ内で完結する形で写真の表示・検証・アップロードを行う。 */
     const PROFILE_PHOTO_DATA_URL_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
-    const AVATAR_OUTPUT_SIZE = 480;
+    // 表示箇所の最大サイズはuser.htmlの120pxのため、高DPI(2倍)分を見込んだ240pxで十分。
+    // 480pxは過剰な解像度で、この写真はlocalStorageにも(単語帳ごとに複製されて)
+    // 保存されるため、サイズを落として容量超過(QuotaExceededError)を起きにくくする。
+    const AVATAR_OUTPUT_SIZE = 240;
 
     function isValidPhotoDataUrl(url) {
       return typeof url === "string" && PROFILE_PHOTO_DATA_URL_RE.test(url);
@@ -708,7 +711,7 @@
       canvas.height = AVATAR_OUTPUT_SIZE;
       const ctx = canvas.getContext("2d");
       ctx.drawImage(cropImage, sx, sy, sSize, sSize, 0, 0, AVATAR_OUTPUT_SIZE, AVATAR_OUTPUT_SIZE);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
 
       closeCropModal();
 
