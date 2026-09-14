@@ -366,32 +366,39 @@
 
         books = await Promise.all(bookPromises);
 
-        // view.html用キャッシュ（作成者ボタンの見た目をview.html側の描画と合わせておく）
-        books.forEach(b => {
-          localStorage.setItem(
-            `book_${b.id}`,
-            JSON.stringify({
-              owner: b.ownerId,
-              title: b.title,
-              detailHtml: `
-                <a href="user.html?id=${b.ownerId}" class="creator-btn">
-                  ${window.VOCABOOST_AVATAR_HTML(b.ownerPhotoURL, 24)}
-                  <span>${escapeHtml(b.ownerName)}</span>
-                </a>
-                <div class="meta-row">計 ${b.count} 単語</div>
-              `,
-              wordsHtml: ""
-            })
-          );
-        });
-
-        // キャッシュ更新
-        localStorage.setItem(
-          "publicBooks",
-          JSON.stringify(books)
-        );
-
+        // 描画を最優先で行う。キャッシュ保存(localStorage)はプロフィール写真の
+        // data URLを多数含むため容量超過(QuotaExceededError)になることがあるが、
+        // その場合でも取得できたデータは必ず表示する。
         render();
+
+        try {
+          // view.html用キャッシュ（作成者ボタンの見た目をview.html側の描画と合わせておく）
+          books.forEach(b => {
+            localStorage.setItem(
+              `book_${b.id}`,
+              JSON.stringify({
+                owner: b.ownerId,
+                title: b.title,
+                detailHtml: `
+                  <a href="user.html?id=${b.ownerId}" class="creator-btn">
+                    ${window.VOCABOOST_AVATAR_HTML(b.ownerPhotoURL, 24)}
+                    <span>${escapeHtml(b.ownerName)}</span>
+                  </a>
+                  <div class="meta-row">計 ${b.count} 単語</div>
+                `,
+                wordsHtml: ""
+              })
+            );
+          });
+
+          // キャッシュ更新
+          localStorage.setItem(
+            "publicBooks",
+            JSON.stringify(books)
+          );
+        } catch (e) {
+          console.warn("単語帳一覧のキャッシュ保存に失敗しました(表示には影響しません)", e);
+        }
 
       } catch (e) {
 

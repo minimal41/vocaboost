@@ -740,15 +740,20 @@
       }
 
       const finish = (books) => {
-        // キャッシュ保存
-        localStorage.setItem(
-          cacheKey,
-          JSON.stringify(books)
-        );
-
+        // 描画を最優先で行う。キャッシュ保存(localStorage)は容量超過(QuotaExceededError)
+        // などで失敗することがあるが、その場合でも取得できたデータは必ず表示する。
         displayBooks(books);
 
         hideLoading();
+
+        try {
+          localStorage.setItem(
+            cacheKey,
+            JSON.stringify(books)
+          );
+        } catch (e) {
+          console.warn("単語帳一覧のキャッシュ保存に失敗しました(表示には影響しません)", e);
+        }
       };
 
       const toBooks = (snapshot) => {
