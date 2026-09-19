@@ -23,16 +23,84 @@
 
     .wordItemCols {
       display: grid;
-      grid-template-columns: 22px 26px minmax(80px, 1fr) 32px minmax(80px, 1fr) 96px;
+      grid-template-columns: 24px 26px minmax(80px, 1fr) 32px minmax(80px, 1fr) 96px 22px;
       align-items: center;
       column-gap: 8px;
-      min-width: 480px;
+      min-width: 530px;
     }
 
     .wordItemCols .smallBtn {
       width: 100%;
       box-sizing: border-box;
       text-align: center;
+    }
+
+    .wordNumber {
+      font-size: 12px;
+      color: var(--color-text-sub);
+      text-align: center;
+    }
+
+    .fieldWrap {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .fieldWrap .editInput {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .fieldToggleBtn {
+      flex-shrink: 0;
+      background: var(--color-border);
+      color: var(--color-text);
+      border: none;
+      border-radius: 6px;
+      padding: 6px 6px;
+      font-size: 11px;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .fieldToggleBtn.hasValue {
+      background: var(--color-accent);
+      color: var(--color-accent-text);
+    }
+
+    .wordExtraFields {
+      display: grid;
+      grid-template-columns: 24px 26px minmax(80px, 1fr) 32px minmax(80px, 1fr) 96px 22px;
+      column-gap: 8px;
+      min-width: 530px;
+    }
+
+    .extraFieldRow {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .extraFieldRow.hintFieldRow {
+      grid-column: 3;
+    }
+
+    .extraFieldRow.noteFieldRow {
+      grid-column: 5;
+    }
+
+    .extraFieldLabel {
+      font-size: 11px;
+      color: var(--color-text-sub);
+      flex-shrink: 0;
+    }
+
+    .extraFieldRow input {
+      flex: 1;
+      min-width: 0;
     }
 
     .smallBtn {
@@ -47,7 +115,7 @@
 
     .wordListHeader {
       margin-top: 10px;
-      min-width: 480px;
+      min-width: 530px;
     }
 
     .wordListHeader button {
@@ -487,9 +555,10 @@
         <button class="danger" onclick="deleteSelectedWords()">
           選択削除
         </button>
+        <span></span>
       </div>
       <p style="font-size:12px;color:var(--color-text-sub);text-align:left;margin:6px 2px;">
-        ☰ を掴んでドラッグすると単語の並び順を変更できます
+        右端の ☰ を掴んでドラッグすると単語の並び順を変更できます／各入力欄の右の「+ヒント」「+解説」ボタンから表・裏それぞれのヒントや解説を入力できます
       </p>
       <div id="wordList"></div>
     </div>
@@ -748,6 +817,7 @@
           document.getElementById("description").value = data.description;
           document.getElementById("owner").textContent = data.owner;
           document.getElementById("wordList").innerHTML = data.wordsHtml;
+          renumberWords();
 
           if (typeof data.isPublic === "boolean") {
             document.getElementById("isPublic").checked = data.isPublic;
@@ -821,10 +891,32 @@
 
           });
 
+          renumberWords();
           updateCache();
           applyPendingWordFocus();
 
       });
+    }
+
+    function renumberWords() {
+      const rows = document.querySelectorAll("#wordList .wordItem");
+      rows.forEach((row, idx) => {
+        const numEl = row.querySelector(".wordNumber");
+        if (numEl) numEl.textContent = idx + 1;
+      });
+    }
+
+    function toggleWordField(id, field) {
+      const row = document.getElementById(`${field === "hint" ? "hintRow" : "noteRow"}_${id}`);
+      if (!row) return;
+
+      const willShow = row.style.display === "none";
+      row.style.display = willShow ? "flex" : "none";
+
+      if (willShow) {
+        const input = row.querySelector(`[data-type="${field}"]`);
+        if (input) input.focus();
+      }
     }
 
         document.getElementById("title").addEventListener("input", updateCache);
@@ -1209,6 +1301,8 @@
           const newWordData = {
             front: w.front,
             back: w.back,
+            hint: w.hint || "",
+            note: w.note || "",
             createdAt: w.createdAt || firebase.firestore.FieldValue.serverTimestamp()
           };
           if (w.order !== undefined) {
@@ -1408,41 +1502,69 @@
     }
 
     function createWordHTML(id, w) {
+      const hint = w.hint || "";
+      const note = w.note || "";
+
       return `
-        <div class="wordItem wordItemCols" id="word_${id}">
+        <div class="wordItem" id="word_${id}">
+          <div class="wordItemMain wordItemCols">
+            <span class="wordNumber"></span>
 
-          <span class="dragHandle" title="ドラッグして並び替え">
-            <span></span><span></span><span></span>
-          </span>
+            <label class="checkWrap">
+              <input type="checkbox"
+                    class="deleteCheck"
+                    value="${id}">
+              <span class="checkMark"></span>
+            </label>
 
-          <label class="checkWrap">
-            <input type="checkbox"
-                  class="deleteCheck"
-                  value="${id}">
-            <span class="checkMark"></span>
-          </label>
+            <div class="fieldWrap">
+              <input class="editInput frontInput"
+                    value="${escapeHtml(w.front)}"
+                    onchange="updateWord('${id}')"
+                    data-type="front">
+              <button type="button" class="fieldToggleBtn${hint ? " hasValue" : ""}" onclick="toggleWordField('${id}','hint')">+ヒント</button>
+            </div>
 
-          <input class="editInput frontInput"
-                value="${escapeHtml(w.front)}"
-                onchange="updateWord('${id}')"
-                data-type="front">
+            <button
+              class="swapBtn"
+              onclick="swapWord('${id}')">
+              ⇄
+            </button>
 
-          <button
-            class="swapBtn"
-            onclick="swapWord('${id}')">
-            ⇄
-          </button>
+            <div class="fieldWrap">
+              <input class="editInput backInput"
+                    value="${escapeHtml(w.back)}"
+                    onchange="updateWord('${id}')"
+                    data-type="back">
+              <button type="button" class="fieldToggleBtn${note ? " hasValue" : ""}" onclick="toggleWordField('${id}','note')">+解説</button>
+            </div>
 
-          <input class="editInput backInput"
-                value="${escapeHtml(w.back)}"
-                onchange="updateWord('${id}')"
-                data-type="back">
+            <button class="smallBtn"
+                    onclick="deleteWord('${id}')">
+              削除
+            </button>
 
-          <button class="smallBtn"
-                  onclick="deleteWord('${id}')">
-            削除
-          </button>
+            <span class="dragHandle" title="ドラッグして並び替え">
+              <span></span><span></span><span></span>
+            </span>
+          </div>
 
+          <div class="wordExtraFields">
+            <div class="extraFieldRow hintFieldRow" id="hintRow_${id}" style="display:${hint ? "flex" : "none"};">
+              <span class="extraFieldLabel">ヒント</span>
+              <input class="editInput" value="${escapeHtml(hint)}"
+                    onchange="updateWord('${id}')"
+                    data-type="hint"
+                    placeholder="表を暗記・出題する時に一緒に表示されます">
+            </div>
+            <div class="extraFieldRow noteFieldRow" id="noteRow_${id}" style="display:${note ? "flex" : "none"};">
+              <span class="extraFieldLabel">解説</span>
+              <input class="editInput" value="${escapeHtml(note)}"
+                    onchange="updateWord('${id}')"
+                    data-type="note"
+                    placeholder="裏の答え合わせの時に一緒に表示されます">
+            </div>
+          </div>
         </div>
       `;
     }
@@ -1456,12 +1578,18 @@
 
       let front = "";
       let back = "";
+      let hint = "";
+      let note = "";
 
       inputs.forEach(input => {
         if (input.dataset.type === "front") {
           front = input.value.trim();
-        } else {
+        } else if (input.dataset.type === "back") {
           back = input.value.trim();
+        } else if (input.dataset.type === "hint") {
+          hint = input.value.trim();
+        } else if (input.dataset.type === "note") {
+          note = input.value.trim();
         }
       });
 
@@ -1471,9 +1599,11 @@
         .doc(id)
         .update({
           front,
-          back
+          back,
+          hint,
+          note
         });
-      
+
     }
 
     async function deleteSelectedWords() {
@@ -1624,7 +1754,9 @@ async function selectImportBook(id, title) {
     importWords = snap.docs.map(d => ({
       id: d.id,
       front: d.data().front,
-      back: d.data().back
+      back: d.data().back,
+      hint: d.data().hint || "",
+      note: d.data().note || ""
     }));
 
     if (importWords.length === 0) {
@@ -1709,6 +1841,8 @@ async function confirmImportWords() {
       await db.collection("wordbooks").doc(bookId).collection("words").add({
         front: w.front,
         back: w.back,
+        hint: w.hint || "",
+        note: w.note || "",
         createdAt: new Date(baseTime + idx),
         order: baseTime + idx
       });
@@ -1769,7 +1903,9 @@ async function reverseSelectedWords() {
 
     batch.update(ref, {
       front: data.back,
-      back: data.front
+      back: data.front,
+      hint: data.note || "",
+      note: data.hint || ""
     });
   }
 
@@ -1786,12 +1922,18 @@ async function swapWord(id) {
 
   const frontInput = row.querySelector('[data-type="front"]');
   const backInput = row.querySelector('[data-type="back"]');
+  const hintInput = row.querySelector('[data-type="hint"]');
+  const noteInput = row.querySelector('[data-type="note"]');
 
   const f = frontInput.value;
   const b = backInput.value;
+  const h = hintInput ? hintInput.value : "";
+  const n = noteInput ? noteInput.value : "";
 
   frontInput.value = b;
   backInput.value = f;
+  if (hintInput) hintInput.value = n;
+  if (noteInput) noteInput.value = h;
 
   await db.collection("wordbooks")
     .doc(bookId)
@@ -1799,7 +1941,9 @@ async function swapWord(id) {
     .doc(id)
     .update({
       front: b,
-      back: f
+      back: f,
+      hint: n,
+      note: h
     });
 
   updateCache();
