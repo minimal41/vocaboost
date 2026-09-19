@@ -1382,16 +1382,28 @@
       let addedCount = 0;
       const baseTime = Date.now();
       const area = document.getElementById("wordList");
+      // 1行のカラム数で判定する。2列なら従来通り「表,裏」、
+      // 4列なら「表,ヒント,裏,解説」として読み込む。
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        const [f, b] = line.split(",");
+        const cols = line.split(",").map(c => c.trim());
+
+        let f = "", b = "", hint = "", note = "";
+        if (cols.length >= 4) {
+          [f, hint, b, note] = cols;
+        } else {
+          [f, b] = cols;
+        }
+
         if (f && b) {
           const doc = await db.collection("wordbooks")
             .doc(bookId)
             .collection("words")
             .add({
-              front: f.trim(),
-              back: b.trim(),
+              front: f,
+              back: b,
+              hint: hint || "",
+              note: note || "",
               createdAt: new Date(baseTime + i),
               order: baseTime + i
             });

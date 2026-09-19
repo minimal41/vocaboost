@@ -32,6 +32,19 @@
       font-size: 25px;
       min-height: 60px;
     }
+
+    #hintBtn {
+      font-size: 13px;
+      padding: 6px 12px;
+    }
+
+    #hintText,
+    #noteText {
+      font-size: 14px;
+      color: var(--color-text-sub);
+      margin-top: 8px;
+    }
+
     #quizCard {
       display: flex;
       flex-direction: column;
@@ -104,7 +117,10 @@
 
       <div id="quizContent">
         <h2 id="front"></h2>
+        <button id="hintBtn" type="button" onclick="showHint()" style="display:none">ヒントを表示</button>
+        <p id="hintText" style="display:none"></p>
         <p id="back" style="display:none"></p>
+        <p id="noteText" style="display:none"></p>
         <button onclick="showBack()">答えを見る (Enter)</button>
       </div>
 
@@ -253,6 +269,10 @@
       snap.forEach(d => words.push(d.data()));
     })();
 
+    const hintBtn = document.getElementById("hintBtn");
+    const hintText = document.getElementById("hintText");
+    const noteText = document.getElementById("noteText");
+
     function render() {
       if (i >= words.length) {
         quizCard.style.display = "none";
@@ -263,15 +283,32 @@
       back.textContent = words[i].back;
       back.style.display = "none";
       show = false;
+
+      // ヒントは普段は非表示にしておき、「ヒントを表示」ボタンを押したときだけ見せる
+      const hint = words[i].hint || "";
+      hintBtn.style.display = hint ? "inline-block" : "none";
+      hintText.textContent = hint ? `ヒント: ${hint}` : "";
+      hintText.style.display = "none";
+
+      // 解説は答えと一緒に常に表示する
+      const note = words[i].note || "";
+      noteText.textContent = note ? `解説: ${note}` : "";
+      noteText.style.display = "none";
+
       const progress = Math.round(i / words.length * 100);
       document.getElementById("progressBar").style.width = progress + "%";
       document.getElementById("progressText").textContent =
         `${i+1}/${words.length} 問`;
     }
 
+    window.showHint = () => {
+      hintText.style.display = "block";
+    };
+
     window.showBack = () => {
       if (!show) {
         back.style.display = "block";
+        noteText.style.display = noteText.textContent ? "block" : "none";
         show = true;
       } else {
         i++;

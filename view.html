@@ -93,6 +93,25 @@
       padding: 6px 0;
       cursor: text;
     }
+    .wordMain {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      text-align: left;
+    }
+    .wordNum {
+      font-size: 12px;
+      color: var(--color-text-sub);
+      flex-shrink: 0;
+      min-width: 1.5em;
+      text-align: right;
+    }
+    .wordHint {
+      margin: 2px 0 0 calc(1.5em + 8px);
+      font-size: 12px;
+      color: var(--color-text-sub);
+      text-align: left;
+    }
     .detail-info {
       font-size: 15px;
     }
@@ -469,12 +488,22 @@
 
     let wordsHtml = "";
 
+    let wordNo = 0;
     wSnap.forEach(d => {
       const data = d.data();
+      wordNo++;
+
+      const hintHtml = data.hint
+        ? `<div class="wordHint">ヒント: ${escapeHtml(data.hint)}</div>`
+        : "";
 
       wordsHtml += `
         <div class="word">
-          ${data.front} - ${data.back}
+          <div class="wordMain">
+            <span class="wordNum">${wordNo}.</span>
+            <span>${escapeHtml(data.front)} - ${escapeHtml(data.back)}</span>
+          </div>
+          ${hintHtml}
         </div>
       `;
     });

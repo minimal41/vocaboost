@@ -110,6 +110,35 @@ button:active {
   opacity: 0.7;
 }
 
+/* input[type="file"]の「ファイルを選択」部分はブラウザのシャドウDOM内の
+   要素のため、上のbuttonセレクタが効かず他のボタンだけ浮いて見えていた。
+   ::file-selector-button(標準)と::-webkit-file-upload-button(Safari/Chrome旧)の
+   両方に同じ見た目を当てて統一する。 */
+input[type="file"] {
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 14px;
+}
+
+input[type="file"]::file-selector-button,
+input[type="file"]::-webkit-file-upload-button {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  margin-right: 10px;
+  font-size: 16px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.2s;
+}
+
+input[type="file"]::file-selector-button:active,
+input[type="file"]::-webkit-file-upload-button:active {
+  opacity: 0.7;
+}
+
 .header-btn {
   font-size: 18px !important;
   margin: 9px 12px !important;

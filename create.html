@@ -1158,10 +1158,21 @@
       const text = await file.text();
       const lines = text.split("\n");
 
+      // 1行のカラム数で判定する。2列なら従来通り「表,裏」、
+      // 4列なら「表,ヒント,裏,解説」として読み込む。
       for (const line of lines) {
-        const [f, b] = line.split(",");
-        if (f && b) {
-          addWordToList(nextLocalId(), f.trim(), b.trim());
+        const cols = line.split(",").map(c => c.trim());
+
+        if (cols.length >= 4) {
+          const [f, hint, b, note] = cols;
+          if (f && b) {
+            addWordToList(nextLocalId(), f, b, hint, note);
+          }
+        } else {
+          const [f, b] = cols;
+          if (f && b) {
+            addWordToList(nextLocalId(), f, b);
+          }
         }
       }
 

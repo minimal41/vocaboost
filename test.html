@@ -78,6 +78,18 @@
       min-height: 100px;
     }
 
+    #hintBtn {
+      font-size: 13px;
+      padding: 6px 12px;
+    }
+
+    #hintText,
+    #noteText {
+      font-size: 14px;
+      color: var(--color-text-sub);
+      margin-top: 8px;
+    }
+
     #result {
       font-size: 20px;
       min-height: 60px;
@@ -322,8 +334,11 @@
       <!-- 上のコンテンツ -->
       <div id="quizContent">
         <h2 id="q"></h2>
+        <button id="hintBtn" type="button" onclick="showHint()" style="display:none">ヒントを表示</button>
+        <p id="hintText" style="display:none"></p>
         <input id="ans" placeholder="答えを入力" autocomplete="off"><br>
         <p id="result"></p>
+        <p id="noteText" style="display:none"></p>
         <button id="answerBtn" onclick="check()">回答 (Enter)</button>
         <div id="selfButtons" style="display:none;">
           <button onclick="markCorrect()">正解</button>
@@ -529,6 +544,29 @@
     function getAnswerText(word) {
       return swapMode ? word.front : word.back;
     }
+    // ヒントは出題側の単語に、解説は答え側の単語に紐づく。
+    // 「表と裏を入れ替える」がONのときは出題・答えが入れ替わるため、
+    // それに合わせてヒント/解説がどちらの語に付くかも入れ替える。
+    function getQuestionHint(word) {
+      return (swapMode ? word.note : word.hint) || "";
+    }
+    function getAnswerExtra(word) {
+      return (swapMode ? word.hint : word.note) || "";
+    }
+
+    const hintBtn = document.getElementById("hintBtn");
+    const hintText = document.getElementById("hintText");
+    const noteText = document.getElementById("noteText");
+
+    window.showHint = () => {
+      hintText.style.display = "block";
+    };
+
+    function revealNote() {
+      const note = getAnswerExtra(filteredWords[i]);
+      noteText.textContent = note ? `解説: ${note}` : "";
+      noteText.style.display = note ? "block" : "none";
+    }
 
     function render() {
       if (i >= filteredWords.length) {
@@ -542,6 +580,16 @@
       ans.readOnly = false;
       result.textContent = "";
       phase = 0;
+
+      // ヒントは普段は非表示にしておき、「ヒントを表示」ボタンを押したときだけ見せる
+      const hint = getQuestionHint(filteredWords[i]);
+      hintBtn.style.display = hint ? "inline-block" : "none";
+      hintText.textContent = hint ? `ヒント: ${hint}` : "";
+      hintText.style.display = "none";
+
+      // 解説は回答するまでは表示しない（正解と一緒に出す）
+      noteText.textContent = "";
+      noteText.style.display = "none";
 
       ans.style.display = "";
       const answerBtn = document.getElementById("answerBtn");
@@ -575,6 +623,7 @@
                         localStorage.setItem("learnedWords", JSON.stringify(learned));
                     }
 
+                    revealNote();
                     phase = 1;
                     document.getElementById("answerBtn").textContent = "次へ (Enter)";
                     return;
@@ -596,6 +645,7 @@
                 document.getElementById("answerBtn").style.display = "none";
                 document.getElementById("selfButtons").style.display = "block";
 
+                revealNote();
                 phase = 2;
                 return;
             }
@@ -611,6 +661,7 @@
         } else {
           result.innerHTML = '<span class="wrong">不正解</span>　正解: ' + getAnswerText(filteredWords[i]);
         }
+        revealNote();
         phase = 1;
         document.getElementById("answerBtn").textContent = "次へ (Enter)";
       } else {
