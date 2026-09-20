@@ -615,6 +615,7 @@
         <a href="index.html">ホーム</a>
         <a href="list.html">公開単語帳</a>
         <a href="create.html">作成</a>
+        <a href="favorites.html">お気に入り</a>
         <a href="settings.html">設定</a>
         <a href="update.html">更新履歴</a>
         <a href="contact.html">お問い合わせ</a>
@@ -1276,10 +1277,13 @@
         // 新しい単語帳を作成する（タイトルに「のコピー」を付与）。
         // wordCountは元のフィールド値ではなく、実際にコピーする単語数を使う
         // （元データのwordCountフィールドが何らかの理由で実数とズレていた場合の不整合を防ぐため）
+        const newTitle = (bookData.title || "") + "のコピー";
+        const newIsPublic = bookData.isPublic !== undefined ? bookData.isPublic : true;
+
         const newBookRef = await db.collection("wordbooks").add({
-          title: (bookData.title || "") + "のコピー",
+          title: newTitle,
           description: bookData.description || "",
-          isPublic: bookData.isPublic !== undefined ? bookData.isPublic : true,
+          isPublic: newIsPublic,
           owner: currentUser.uid,
           ownerName: currentUser.displayName || "名無し",
           ownerPhotoURL: ownerPhotoURL,
@@ -1325,6 +1329,14 @@
 
         duplicateMsg.className = "success";
         duplicateMsg.textContent = "複製しました";
+
+        // 公開単語帳のときだけ、フォロワーに新規作成を通知する
+        // （非公開の単語帳はフォロワーが開けないため通知しない）
+        if (newIsPublic && window.VOCABOOST_NOTIFY_FOLLOWERS_NEW_BOOK) {
+          window.VOCABOOST_NOTIFY_FOLLOWERS_NEW_BOOK(
+            db, currentUser.uid, currentUser.displayName, newBookRef.id, newTitle
+          );
+        }
 
         // 複製した単語帳の編集画面を開く
         location.href = "edit.html?id=" + newBookRef.id;

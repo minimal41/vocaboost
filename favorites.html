@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
+  <title>お気に入り</title>
+  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script src="theme.js"></script>
+
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card {
+      background: var(--color-surface);
+      color: var(--color-text);
+      padding: 25px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    .card h2 {
+      text-align: center;
+      margin-top: 0;
+    }
+
+    .emptyMsg {
+      color: var(--color-text-sub);
+      font-size: 14px;
+      text-align: center;
+      padding: 10px 0;
+    }
+
+    .bookRow {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+    }
+
+    .bookRow a.bookTitle {
+      color: var(--color-text);
+      font-weight: bold;
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+
+    .bookRow .bookOwner {
+      font-size: 12px;
+      color: var(--color-text-sub);
+      margin-top: 2px;
+    }
+
+    .unfavBtn {
+      background: none;
+      border: 1px solid var(--color-danger);
+      color: var(--color-danger);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .userRow {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+    }
+
+    .userRow a.userLink {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--color-text);
+      text-decoration: none;
+      flex: 1;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .unfollowBtn {
+      background: var(--color-surface);
+      border: 1.5px solid var(--color-accent);
+      color: var(--color-accent);
+      border-radius: 999px;
+      padding: 6px 16px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <p class="headertitle"><a href="index.html"><img src="./images/rogo.png" height="70vh"></a></p>
+    <div id="status" style="display:none">ログイン確認中...</div>
+    <div>
+      <span id="notifBellContainer"></span>
+      <button id="settingsBtn" class="header-btn" style="display:none" onclick="goPage('settings.html')">設定</button>
+      <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
+      <button id="logoutBtn" class="header-btn" style="display:none" onclick="logout()">ログアウト</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>お気に入りの単語帳</h2>
+      <div id="favBookList"><p class="emptyMsg">読み込み中...</p></div>
+    </div>
+
+    <div class="card">
+      <h2>フォロー中のユーザー</h2>
+      <div id="followingList"><p class="emptyMsg">読み込み中...</p></div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footertitle"><img src="./images/rogo.png" height="70vh"></div>
+      <div class="footer-links">
+        <a href="index.html">ホーム</a>
+        <a href="list.html">検索</a>
+        <a href="create.html">作成</a>
+        <a href="favorites.html">お気に入り</a>
+        <a href="settings.html">設定</a>
+        <a href="update.html">更新履歴</a>
+        <a href="contact.html">お問い合わせ</a>
+      </div>
+      <div class="copy">© 2026 TEAM-Minimal, Shiratae</div>
+    </div>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E",
+      authDomain: "quiz1-4ffdc.firebaseapp.com",
+      projectId: "quiz1-4ffdc",
+      storageBucket: "quiz1-4ffdc.firebasestorage.app",
+      messagingSenderId: "152062126332",
+      appId: "1:152062126332:web:845af237a1a76207214f79"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    let currentUser = null;
+
+    const statusDiv = document.getElementById("status");
+    const loginBtn = document.getElementById("loginBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const settingsBtn = document.getElementById("settingsBtn");
+
+    const savedUser = JSON.parse(localStorage.getItem("cachedUser"));
+
+    if (savedUser) {
+      settingsBtn.style.display = "inline-block";
+      logoutBtn.style.display = "inline-block";
+      loginBtn.style.display = "none";
+    } else {
+      // このページは自分のお気に入り/フォロー一覧を表示する専用ページのため、
+      // キャッシュされたログイン情報が無い時点で未ログインと判断してログイン画面に送る
+      // （ログイン後はこのページに戻ってくる）。
+      location.href = "login.html?redirect=" + encodeURIComponent("favorites.html");
+    }
+
+    function handleSignedOut() {
+      statusDiv.textContent = "ログアウト中";
+      loginBtn.style.display = "inline-block";
+      logoutBtn.style.display = "none";
+      settingsBtn.style.display = "none";
+    }
+
+    function escapeHtml(str) {
+      return String(str == null ? "" : str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    auth.onAuthStateChanged(user => {
+      currentUser = user;
+      if (user) {
+        localStorage.setItem("cachedUser", JSON.stringify({ uid: user.uid }));
+        statusDiv.textContent = "ログイン中: " + user.uid;
+        loginBtn.style.display = "none";
+        logoutBtn.style.display = "inline-block";
+        settingsBtn.style.display = "inline-block";
+
+        loadFavorites(user.uid);
+        loadFollowing(user.uid);
+      } else if (localStorage.getItem("cachedUser")) {
+        // 端末やネットワークが遅いと1回・1.5秒の再確認だけでは間に合わないことがあるため、
+        // 間隔を広げながら最大4回(合計15秒)まで再確認してから本当に未ログインと判断する。
+        (function () {
+          const delays = [1000, 2000, 4000, 8000];
+          const recheck = (i) => {
+            setTimeout(() => {
+              if (auth.currentUser) return;
+              if (i + 1 < delays.length) {
+                recheck(i + 1);
+              } else {
+                handleSignedOut();
+                location.href = "login.html?redirect=" + encodeURIComponent("favorites.html");
+              }
+            }, delays[i]);
+          };
+          recheck(0);
+        })();
+      } else {
+        handleSignedOut();
+        location.href = "login.html?redirect=" + encodeURIComponent("favorites.html");
+      }
+    });
+
+    function goPage(page) {
+      if (page === "index.html") {
+        location.href = "index.html";
+        return;
+      }
+      const hasCachedUser = !!localStorage.getItem("cachedUser");
+      if (currentUser || hasCachedUser) {
+        location.href = page;
+      } else {
+        alert("ログインしてください");
+        location.href = "login.html";
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("cachedUser");
+      auth.signOut();
+    }
+
+    // ===== お気に入りの単語帳 =====
+    async function loadFavorites(uid) {
+      const listEl = document.getElementById("favBookList");
+      try {
+        const userSnap = await db.collection("users").doc(uid).get();
+        const favoriteBookIds = (userSnap.exists && userSnap.data().favoriteBookIds) || [];
+
+        if (favoriteBookIds.length === 0) {
+          listEl.innerHTML = `<p class="emptyMsg">お気に入りの単語帳はまだありません。単語帳ページの「♡ お気に入り」ボタンから登録できます。</p>`;
+          return;
+        }
+
+        // 削除済み・アクセス権が無くなった単語帳(get失敗)は取得結果からそのまま除外する
+        const results = await Promise.allSettled(
+          favoriteBookIds.map(id => db.collection("wordbooks").doc(id).get())
+        );
+
+        const books = [];
+        results.forEach((r, idx) => {
+          if (r.status === "fulfilled" && r.value.exists) {
+            const data = r.value.data();
+            books.push({
+              id: favoriteBookIds[idx],
+              title: data.title || "(無題)",
+              ownerName: data.ownerName || "名無し"
+            });
+          }
+        });
+
+        if (books.length === 0) {
+          listEl.innerHTML = `<p class="emptyMsg">お気に入りの単語帳はまだありません。単語帳ページの「♡ お気に入り」ボタンから登録できます。</p>`;
+          return;
+        }
+
+        listEl.innerHTML = books.map(b => `
+          <div class="bookRow" id="favRow_${escapeHtml(b.id)}">
+            <div>
+              <a class="bookTitle" href="view.html?id=${encodeURIComponent(b.id)}">${escapeHtml(b.title)}</a>
+              <div class="bookOwner">作成者: ${escapeHtml(b.ownerName)}</div>
+            </div>
+            <button type="button" class="unfavBtn" title="お気に入りから外す" onclick="removeFavorite('${b.id}')">♥</button>
+          </div>
+        `).join("");
+      } catch (e) {
+        console.error(e);
+        listEl.innerHTML = `<p class="emptyMsg">読み込みに失敗しました</p>`;
+      }
+    }
+
+    window.removeFavorite = async (bookId) => {
+      if (!currentUser) return;
+      try {
+        await db.collection("users").doc(currentUser.uid).set({
+          favoriteBookIds: firebase.firestore.FieldValue.arrayRemove(bookId)
+        }, { merge: true });
+
+        const row = document.getElementById("favRow_" + bookId);
+        if (row) row.remove();
+
+        const listEl = document.getElementById("favBookList");
+        if (listEl && !listEl.querySelector(".bookRow")) {
+          listEl.innerHTML = `<p class="emptyMsg">お気に入りの単語帳はまだありません。単語帳ページの「♡ お気に入り」ボタンから登録できます。</p>`;
+        }
+      } catch (e) {
+        console.error(e);
+        alert("お気に入りの解除に失敗しました");
+      }
+    };
+
+    // ===== フォロー中のユーザー =====
+    async function loadFollowing(uid) {
+      const listEl = document.getElementById("followingList");
+      try {
+        const userSnap = await db.collection("users").doc(uid).get();
+        const followingIds = (userSnap.exists && userSnap.data().followingIds) || [];
+
+        if (followingIds.length === 0) {
+          listEl.innerHTML = `<p class="emptyMsg">フォロー中のユーザーはいません。ユーザーページの「フォロー」ボタンからフォローできます。</p>`;
+          return;
+        }
+
+        const results = await Promise.allSettled(
+          followingIds.map(id => db.collection("users").doc(id).get())
+        );
+
+        const users = [];
+        results.forEach((r, idx) => {
+          if (r.status === "fulfilled" && r.value.exists) {
+            const data = r.value.data();
+            users.push({
+              id: followingIds[idx],
+              username: data.username || "名無し",
+              photoURL: data.photoURL || null
+            });
+          }
+        });
+
+        if (users.length === 0) {
+          listEl.innerHTML = `<p class="emptyMsg">フォロー中のユーザーはいません。ユーザーページの「フォロー」ボタンからフォローできます。</p>`;
+          return;
+        }
+
+        listEl.innerHTML = users.map(u => `
+          <div class="userRow" id="followRow_${escapeHtml(u.id)}">
+            <a class="userLink" href="user.html?id=${encodeURIComponent(u.id)}">
+              ${window.VOCABOOST_AVATAR_HTML ? window.VOCABOOST_AVATAR_HTML(u.photoURL, 36) : ""}
+              <span>${escapeHtml(u.username)}</span>
+            </a>
+            <button type="button" class="unfollowBtn" onclick="unfollowUser('${u.id}')">フォロー解除</button>
+          </div>
+        `).join("");
+      } catch (e) {
+        console.error(e);
+        listEl.innerHTML = `<p class="emptyMsg">読み込みに失敗しました</p>`;
+      }
+    }
+
+    window.unfollowUser = async (targetUid) => {
+      if (!currentUser) return;
+      try {
+        await db.collection("users").doc(currentUser.uid).set({
+          followingIds: firebase.firestore.FieldValue.arrayRemove(targetUid)
+        }, { merge: true });
+
+        const row = document.getElementById("followRow_" + targetUid);
+        if (row) row.remove();
+
+        const listEl = document.getElementById("followingList");
+        if (listEl && !listEl.querySelector(".userRow")) {
+          listEl.innerHTML = `<p class="emptyMsg">フォロー中のユーザーはいません。ユーザーページの「フォロー」ボタンからフォローできます。</p>`;
+        }
+      } catch (e) {
+        console.error(e);
+        alert("フォロー解除に失敗しました");
+      }
+    };
+  </script>
+
+  <script src="account-widgets.js"></script>
+  <script src="analytics-tracker.js"></script>
+</body>
+
+</html>

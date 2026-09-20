@@ -46,6 +46,14 @@ service cloud.firestore {
     // 「公開用プロフィール(username等)」と「非公開情報(emailを含む)」をドキュメントごと
     // 分離する設計変更が別途必要（本ルールでは未対応）。
     // frozen / restrictedUntil / restrictedReason / frozenReason は管理者のみが変更できる。
+    //
+    // favoriteBookIds（お気に入りに登録した単語帳IDの配列, view.html/favorites.html）と
+    // followingIds（フォロー中のユーザーuidの配列, user.html/favorites.html）は、
+    // いずれも本人だけが自分のドキュメントを更新できる仕組みにそのまま乗せているため、
+    // 追加のルールは不要（下のisOwner(userId)の分岐で許可される）。followingIdsは
+    // 「誰が自分をフォローしているか」を調べる際にarray-containsで全ユーザーを横断検索する
+    // ため（account-widgets.jsのVOCABOOST_NOTIFY_FOLLOWERS_NEW_BOOK、favorites.html）、
+    // 上記の read: if isSignedIn(); により検索可能になっている。
     match /users/{userId} {
       allow read: if isSignedIn();
 
@@ -96,12 +104,18 @@ service cloud.firestore {
     // 通知の内容自体は運営からのお知らせであり機微な個人情報ではないため、
     // 読み取りはログイン済み全員に許可し、書き込み（作成・更新・削除）は
     // 基本的に管理者に限定することで確実に動作させる。
-    // 例外として target=="admin" の通知（通報が入った際に運営へ知らせる用途）だけは、
-    // 一般ユーザーが自分自身をcreatedByとして作成できるようにする
-    // （全員向け/特定ユーザー向けの通知を一般ユーザーが偽装送信できないよう、
-    // それ以外のtarget値での作成は引き続き管理者限定のまま）。
-    // account-widgets.js側は自分が管理者の場合のみ target=="admin" の通知を
-    // 問い合わせて表示するため、一般ユーザーの画面には表示されない。
+    // 例外として以下の2種類だけは、一般ユーザーが自分自身をcreatedByとして作成できる
+    // （それ以外のtarget値での作成は引き続き管理者限定のまま、全員向け通知等を
+    // 一般ユーザーが偽装送信することはできない）。
+    //   - target=="admin"（通報が入った際に運営へ知らせる用途。targetUserIdsは空。
+    //     account-widgets.js側は自分が管理者の場合のみこの通知を問い合わせて表示するため、
+    //     一般ユーザーの画面には表示されない）
+    //   - target=="follow_new_book"（フォロー中のユーザーが新しい単語帳を作成した通知。
+    //     targetUserIdsにフォロワーのuidを入れる。このtargetUserIdsが実際に
+    //     createdBy(=作成者本人)をfollowingIdsに含むユーザーの一覧と一致しているかは
+    //     ルール側では検証できない。バックエンドを持たない静的サイトのため、クライアントが
+    //     計算したフォロワー一覧をそのまま信頼する設計であり、悪意のあるユーザーが任意の
+    //     ユーザーへ通知を送りつけられる余地が残る点に注意。件数の上限だけルールで制限する）
     match /notifications/{notifId} {
       allow read: if isSignedIn();
       allow create: if isAdmin() || (
@@ -109,6 +123,12 @@ service cloud.firestore {
         request.resource.data.target == "admin" &&
         request.resource.data.targetUserIds == [] &&
         request.resource.data.createdBy == request.auth.uid
+      ) || (
+        isSignedIn() &&
+        request.resource.data.target == "follow_new_book" &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.targetUserIds is list &&
+        request.resource.data.targetUserIds.size() <= 2000
       );
       allow update, delete: if isAdmin();
     }

@@ -220,6 +220,20 @@
       min-height: 1.2em;
       font-size: 13px;
     }
+
+    #favoriteBtn {
+      flex: 0 0 auto;
+      width: auto;
+      font-size: 20px;
+      line-height: 1;
+      padding: 6px 16px;
+    }
+
+    #favoriteBtn.active {
+      background: var(--color-danger);
+      color: #fff;
+      border-color: var(--color-danger);
+    }
   </style>
 </head>
 
@@ -244,6 +258,7 @@
       <div id="description" style="display:none"></div>
       <div id="btn3">
         <a class="btn" id="editBtn" style="display:none">編集</a>
+        <button type="button" class="btn" id="favoriteBtn" title="お気に入り" onclick="toggleFavorite()">♡</button>
         <a class="btn" id="flashBtn" onclick="goStudy('flash.html')">暗記</a>
         <a class="btn" id="testBtn" onclick="goStudy('test.html')">テスト</a>
       </div>
@@ -271,6 +286,7 @@
         <a href="index.html">ホーム</a>
         <a href="list.html">公開単語帳</a>
         <a href="create.html">作成</a>
+        <a href="favorites.html">お気に入り</a>
         <a href="settings.html">設定</a>
         <a href="update.html">更新履歴</a>
         <a href="contact.html">お問い合わせ</a>
@@ -578,6 +594,8 @@
         } else {
           document.getElementById("reportLink").style.display = "block";
         }
+
+        loadFavoriteState(user.uid);
       } else if (localStorage.getItem("cachedUser")) {
         (function () {
           // 端末やネットワークが遅いと1回・1.5秒の再確認だけでは間に合わないことがあるため、
@@ -601,6 +619,58 @@
         handleSignedOut();
       }
     });
+
+    // ===== お気に入り =====
+    // users/{uid}.favoriteBookIds に単語帳IDの配列として保存する
+    // （通知の既読ID(readNotificationIds)と同様の、配列フィールドで持たせる方式）。
+    let favoriteBookIds = [];
+
+    async function loadFavoriteState(uid) {
+      try {
+        const snap = await db.collection("users").doc(uid).get();
+        favoriteBookIds = (snap.exists && snap.data().favoriteBookIds) || [];
+      } catch (e) {
+        console.error("お気に入り状態の取得に失敗しました", e);
+        favoriteBookIds = [];
+      }
+      updateFavoriteButton();
+    }
+
+    function updateFavoriteButton() {
+      const btn = document.getElementById("favoriteBtn");
+      if (!btn) return;
+      const isFav = favoriteBookIds.includes(id);
+      btn.classList.toggle("active", isFav);
+      btn.textContent = isFav ? "♥" : "♡";
+      btn.title = isFav ? "お気に入り済み（クリックで解除）" : "お気に入りに追加";
+    }
+
+    window.toggleFavorite = async () => {
+      if (!currentUser) {
+        const redirect = `view.html?id=${id}`;
+        location.href = `login.html?redirect=${encodeURIComponent(redirect)}`;
+        return;
+      }
+
+      const isFav = favoriteBookIds.includes(id);
+
+      try {
+        await db.collection("users").doc(currentUser.uid).set({
+          favoriteBookIds: isFav
+            ? firebase.firestore.FieldValue.arrayRemove(id)
+            : firebase.firestore.FieldValue.arrayUnion(id)
+        }, { merge: true });
+
+        favoriteBookIds = isFav
+          ? favoriteBookIds.filter(x => x !== id)
+          : favoriteBookIds.concat([id]);
+
+        updateFavoriteButton();
+      } catch (e) {
+        console.error(e);
+        alert("お気に入りの更新に失敗しました");
+      }
+    };
 
     window.openReportModal = () => {
       if (!currentUser) {

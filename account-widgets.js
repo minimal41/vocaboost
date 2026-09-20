@@ -137,6 +137,34 @@
   window.VOCABOOST_AVATAR_HTML = avatarHtml;
   window.VOCABOOST_IS_VALID_PHOTO_URL = isValidProfilePhotoUrl;
 
+  // ===== フォロー中のユーザーが新しい単語帳を作成したときの通知 =====
+  // create.html(新規作成)・edit.html(複製)から、公開状態の単語帳が新規に
+  // 保存された直後に呼び出す。フォロワー一覧は、他人のusersドキュメントの
+  // followingIds配列に自分のuidがarray-containsで含まれるかどうかで検索する
+  // （呼び出し元ページが既に初期化済みのfirebase/dbインスタンスをそのまま使う）。
+  window.VOCABOOST_NOTIFY_FOLLOWERS_NEW_BOOK = async function (db, ownerUid, ownerName, bookId, bookTitle) {
+    try {
+      const snap = await db.collection("users")
+        .where("followingIds", "array-contains", ownerUid)
+        .get();
+
+      const followerUids = snap.docs.map(d => d.id);
+      if (followerUids.length === 0) return;
+
+      await db.collection("notifications").add({
+        title: "フォロー中のユーザーが単語帳を作成しました",
+        body: `${ownerName || "名無し"}さんが「${bookTitle || "(無題)"}」を作成しました`,
+        target: "follow_new_book",
+        targetUserIds: followerUids,
+        link: `view.html?id=${bookId}`,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdBy: ownerUid
+      });
+    } catch (e) {
+      console.error("account-widgets: failed to notify followers of new book", e);
+    }
+  };
+
   let notifications = [];
   let readIds = [];
   let dropdownOpen = false;
@@ -252,12 +280,18 @@
     listEl.innerHTML = notifications.map(n => {
       const isUnread = !readIds.includes(n.id);
       const date = n.createdAt.toDate();
+      // linkがある通知（フォロー中のユーザーの新規単語帳など）はクリックで遷移できるようにする。
+      // 単語帳ID等から組み立てた相対パスのみを許可し、外部URLやjavascript:等の
+      // 意図しない遷移先を書き込まれても実害が出ないようにする。
+      const isSafeLink = typeof n.link === "string" && /^[a-zA-Z0-9_-]+\.html(\?[a-zA-Z0-9_=&%.-]*)?$/.test(n.link);
+      const tag = isSafeLink ? "a" : "div";
+      const hrefAttr = isSafeLink ? ` href="${escapeHtml(n.link)}"` : "";
       return `
-        <div class="notif-item${isUnread ? " notif-unread" : ""}">
+        <${tag} class="notif-item${isUnread ? " notif-unread" : ""}"${hrefAttr}>
           <div class="notif-item-title">${escapeHtml(n.title)}</div>
           <div class="notif-item-body">${escapeHtml(n.body)}</div>
           <div class="notif-item-time">${formatRelativeTime(date)}</div>
-        </div>
+        </${tag}>
       `;
     }).join("");
   }

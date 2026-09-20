@@ -149,6 +149,27 @@
       justify-content: center;
       margin-bottom: 15px;
     }
+
+    /* X/Instagram/Threadsのフォローボタンに近い見た目：
+       未フォロー時は塗りのピル型ボタン、フォロー中は輪郭のみに変える */
+    .followBtn {
+      display: none;
+      margin: 4px auto 10px;
+      padding: 8px 22px;
+      border-radius: 999px;
+      font-weight: bold;
+      font-size: 14px;
+      border: 1.5px solid var(--color-accent);
+      background: var(--color-accent);
+      color: var(--color-accent-text);
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .followBtn.following {
+      background: var(--color-surface);
+      color: var(--color-accent);
+    }
   </style>
 </head>
 
@@ -172,6 +193,7 @@
       <h2>ユーザー情報</h2>
       <div id="avatarContainer" class="profile-avatar"></div>
       <p id="userNameText">読み込み中...</p>
+      <button type="button" id="followBtn" class="followBtn" onclick="toggleFollow()">フォロー</button>
       <button type="button" id="reportLink" onclick="openReportModal()">このユーザーを報告する</button>
     </div>
 
@@ -202,6 +224,7 @@
         <a href="index.html">ホーム</a>
         <a href="list.html">検索</a>
         <a href="create.html">作成</a>
+        <a href="favorites.html">お気に入り</a>
         <a href="settings.html">設定</a>
         <a href="update.html">更新履歴</a>
         <a href="contact.html">お問い合わせ</a>
@@ -276,6 +299,10 @@
           const reportLink = document.getElementById("reportLink");
           if (reportLink && uid && user.uid !== uid) {
             reportLink.style.display = "inline";
+          }
+
+          if (uid && user.uid !== uid) {
+            loadFollowState(user.uid);
           }
         } else if (localStorage.getItem("cachedUser")) {
           (function () {
@@ -478,6 +505,59 @@
       }
 
       loadUser();
+
+      // ===== フォロー =====
+      // users/{uid}.followingIds に「自分がフォローしているユーザーのuid」の配列として保存する。
+      // 「誰が自分をフォローしているか」は、この配列に自分のuidが
+      // array-containsで含まれるユーザーを検索することで求める
+      // （フォロワー一覧そのものは今回は表示しないため、双方向の配列は持たせない）。
+      let followingIds = [];
+
+      async function loadFollowState(myUid) {
+        try {
+          const snap = await db.collection("users").doc(myUid).get();
+          followingIds = (snap.exists && snap.data().followingIds) || [];
+        } catch (e) {
+          console.error("フォロー状態の取得に失敗しました", e);
+          followingIds = [];
+        }
+        updateFollowButton();
+      }
+
+      function updateFollowButton() {
+        const btn = document.getElementById("followBtn");
+        if (!btn) return;
+        btn.style.display = "inline-block";
+        const isFollowing = followingIds.includes(uid);
+        btn.classList.toggle("following", isFollowing);
+        btn.textContent = isFollowing ? "フォロー中" : "フォロー";
+      }
+
+      window.toggleFollow = async function () {
+        if (!currentUser) {
+          location.href = `login.html?redirect=${encodeURIComponent(`user.html?id=${uid}`)}`;
+          return;
+        }
+
+        const isFollowing = followingIds.includes(uid);
+
+        try {
+          await db.collection("users").doc(currentUser.uid).set({
+            followingIds: isFollowing
+              ? firebase.firestore.FieldValue.arrayRemove(uid)
+              : firebase.firestore.FieldValue.arrayUnion(uid)
+          }, { merge: true });
+
+          followingIds = isFollowing
+            ? followingIds.filter(x => x !== uid)
+            : followingIds.concat([uid]);
+
+          updateFollowButton();
+        } catch (e) {
+          console.error(e);
+          alert("フォロー状態の更新に失敗しました");
+        }
+      };
 
       window.openReportModal = function () {
         if (!currentUser) {

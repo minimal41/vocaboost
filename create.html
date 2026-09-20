@@ -568,6 +568,7 @@
         <a href="index.html">ホーム</a>
         <a href="list.html">検索</a>
         <a href="create.html">作成</a>
+        <a href="favorites.html">お気に入り</a>
         <a href="settings.html">設定</a>
         <a href="update.html">更新履歴</a>
         <a href="contact.html">お問い合わせ</a>
@@ -813,6 +814,14 @@
           });
         });
         await batch.commit();
+
+        // 公開単語帳のときだけ、フォロワーに新規作成を通知する
+        // （非公開の単語帳はフォロワーが開けないため通知しない）
+        if (isPublic && window.VOCABOOST_NOTIFY_FOLLOWERS_NEW_BOOK) {
+          window.VOCABOOST_NOTIFY_FOLLOWERS_NEW_BOOK(
+            db, currentUser.uid, currentUser.displayName, bookId, title
+          );
+        }
 
         location.href = "view.html?id=" + bookId;
       } catch (e) {
