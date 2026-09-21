@@ -165,6 +165,56 @@
     }
   };
 
+  // ===== フォローされたときの通知 =====
+  // user.html(toggleFollow)から、フォロー状態がオフ→オンに切り替わった直後にだけ呼び出す
+  // （フォロー解除時は通知しない）。
+  window.VOCABOOST_NOTIFY_FOLLOWED = async function (db, followerUid, followerName, targetUid) {
+    if (followerUid === targetUid) return;
+    try {
+      await db.collection("notifications").add({
+        title: "新しいフォロワーがいます",
+        body: `${followerName || "名無し"}さんにフォローされました`,
+        target: "follow",
+        targetUserIds: [targetUid],
+        link: `user.html?id=${followerUid}`,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdBy: followerUid
+      });
+    } catch (e) {
+      console.error("account-widgets: failed to notify followed user", e);
+    }
+  };
+
+  // ===== 単語帳がお気に入りに登録されたときの通知 =====
+  // view.html(toggleFavorite)から、お気に入り状態がオフ→オンに切り替わった直後にだけ呼び出す
+  // （お気に入り解除時や、自分自身の単語帳をお気に入りにした場合は通知しない）。
+  window.VOCABOOST_NOTIFY_FAVORITED = async function (db, favoriterUid, favoriterName, bookOwnerUid, bookId, bookTitle) {
+    if (favoriterUid === bookOwnerUid) return;
+    try {
+      await db.collection("notifications").add({
+        title: "単語帳がお気に入りに登録されました",
+        body: `${favoriterName || "名無し"}さんが「${bookTitle || "(無題)"}」をお気に入りに登録しました`,
+        target: "favorite_book",
+        targetUserIds: [bookOwnerUid],
+        link: `view.html?id=${bookId}`,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdBy: favoriterUid
+      });
+    } catch (e) {
+      console.error("account-widgets: failed to notify book owner of favorite", e);
+    }
+  };
+
+  // ===== フォロワー一覧の取得 =====
+  // 指定uidをフォローしている（=フォロワーである）ユーザーの一覧を返す。
+  // user.html（フォロワー数表示・フォロワー一覧モーダル）から利用する。
+  window.VOCABOOST_FETCH_FOLLOWERS = async function (db, targetUid) {
+    const snap = await db.collection("users")
+      .where("followingIds", "array-contains", targetUid)
+      .get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  };
+
   let notifications = [];
   let readIds = [];
   let dropdownOpen = false;

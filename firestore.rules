@@ -116,6 +116,10 @@ service cloud.firestore {
     //     ルール側では検証できない。バックエンドを持たない静的サイトのため、クライアントが
     //     計算したフォロワー一覧をそのまま信頼する設計であり、悪意のあるユーザーが任意の
     //     ユーザーへ通知を送りつけられる余地が残る点に注意。件数の上限だけルールで制限する）
+    //   - target=="follow"（誰かにフォローされた通知。targetUserIdsはフォローされた
+    //     本人1名のみ）
+    //   - target=="favorite_book"（単語帳がお気に入りに登録された通知。targetUserIdsは
+    //     単語帳の所有者1名のみ）
     match /notifications/{notifId} {
       allow read: if isSignedIn();
       allow create: if isAdmin() || (
@@ -129,6 +133,18 @@ service cloud.firestore {
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.targetUserIds is list &&
         request.resource.data.targetUserIds.size() <= 2000
+      ) || (
+        isSignedIn() &&
+        request.resource.data.target == "follow" &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.targetUserIds is list &&
+        request.resource.data.targetUserIds.size() == 1
+      ) || (
+        isSignedIn() &&
+        request.resource.data.target == "favorite_book" &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.targetUserIds is list &&
+        request.resource.data.targetUserIds.size() == 1
       );
       allow update, delete: if isAdmin();
     }

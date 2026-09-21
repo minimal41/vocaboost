@@ -1175,17 +1175,33 @@
       await loadNotifHistory();
     }
 
+    // follow(フォロー)・favorite_book(お気に入り)・follow_new_book等、ユーザー操作から
+    // 自動生成される通知が増えたため、この履歴は運営がこのページから送信した
+    // (target=="all"または"users")ものだけに絞り込む。
     async function loadNotifHistory() {
       let snap;
       try {
-        snap = await db.collection("notifications").orderBy("createdAt", "desc").limit(50).get();
+        snap = await db.collection("notifications")
+          .where("target", "in", ["all", "users"])
+          .orderBy("createdAt", "desc")
+          .limit(50)
+          .get();
       } catch (e) {
-        console.error("failed to load notification history", e);
-        document.getElementById("notifHistoryBody").innerHTML =
-          `<tr><td colspan="3" style="text-align:center;color:var(--color-text-sub);">送信履歴の読み込みに失敗しました</td></tr>`;
-        return;
+        console.warn("orderBy付きクエリに失敗。インデックス無しクエリにフォールバックします。", e);
+        try {
+          snap = await db.collection("notifications")
+            .where("target", "in", ["all", "users"])
+            .get();
+        } catch (e2) {
+          console.error("failed to load notification history", e2);
+          document.getElementById("notifHistoryBody").innerHTML =
+            `<tr><td colspan="3" style="text-align:center;color:var(--color-text-sub);">送信履歴の読み込みに失敗しました</td></tr>`;
+          return;
+        }
       }
-      notifHistory = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      notifHistory = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
+        .slice(0, 50);
       renderNotifHistory();
     }
 

@@ -170,6 +170,55 @@
       background: var(--color-surface);
       color: var(--color-accent);
     }
+
+    /* X(旧Twitter)のプロフィールにあるような「◯人のフォロワー」のリンク風表示 */
+    .followerCountBtn {
+      display: block;
+      margin: 0 auto 4px;
+      background: none;
+      border: none;
+      padding: 2px 6px;
+      font-size: 14px;
+      color: var(--color-text-sub);
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .followerCountBtn:hover {
+      text-decoration: underline;
+    }
+
+    .followerCountBtn strong {
+      color: var(--color-text);
+    }
+
+    .userRow {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+    }
+
+    .userRow a.userLink {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--color-text);
+      text-decoration: none;
+      flex: 1;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .emptyMsg {
+      color: var(--color-text-sub);
+      font-size: 14px;
+      text-align: center;
+      padding: 10px 0;
+    }
   </style>
 </head>
 
@@ -193,6 +242,7 @@
       <h2>ユーザー情報</h2>
       <div id="avatarContainer" class="profile-avatar"></div>
       <p id="userNameText">読み込み中...</p>
+      <button type="button" id="followerCountBtn" class="followerCountBtn" style="display:none" onclick="openFollowersModal()"></button>
       <button type="button" id="followBtn" class="followBtn" onclick="toggleFollow()">フォロー</button>
       <button type="button" id="reportLink" onclick="openReportModal()">このユーザーを報告する</button>
     </div>
@@ -212,6 +262,16 @@
       <div class="modalActions">
         <button type="button" onclick="closeReportModal()">キャンセル</button>
         <button type="button" onclick="submitReport()">通報する</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="followersModal" class="modalOverlay" style="display:none;">
+    <div class="modalBox">
+      <h3>フォロワー</h3>
+      <div id="followersList"><p class="emptyMsg">読み込み中...</p></div>
+      <div class="modalActions">
+        <button type="button" onclick="closeFollowersModal()">閉じる</button>
       </div>
     </div>
   </div>
@@ -506,6 +566,47 @@
 
       loadUser();
 
+      // ===== フォロワー =====
+      // 「◯人をフォロー中」ボタンとは逆に、自分をフォローしているユーザー一覧。
+      // users/{uid}.followingIds に自分のuidをarray-containsで含むユーザーを検索して求める
+      // （account-widgets.jsのVOCABOOST_FETCH_FOLLOWERSを共通で利用する）。
+      let followers = [];
+
+      async function loadFollowerCount() {
+        const btn = document.getElementById("followerCountBtn");
+        if (!btn) return;
+        try {
+          followers = await window.VOCABOOST_FETCH_FOLLOWERS(db, uid);
+          btn.innerHTML = `<strong>${followers.length}</strong>人のフォロワー`;
+          btn.style.display = "inline-block";
+        } catch (e) {
+          console.error("フォロワー数の取得に失敗しました", e);
+        }
+      }
+
+      loadFollowerCount();
+
+      window.openFollowersModal = function () {
+        const listEl = document.getElementById("followersList");
+        if (followers.length === 0) {
+          listEl.innerHTML = `<p class="emptyMsg">フォロワーはいません</p>`;
+        } else {
+          listEl.innerHTML = followers.map(u => `
+            <div class="userRow">
+              <a class="userLink" href="user.html?id=${encodeURIComponent(u.id)}">
+                ${window.VOCABOOST_AVATAR_HTML(u.photoURL, 36)}
+                <span>${escapeHtml(u.username || "名無し")}</span>
+              </a>
+            </div>
+          `).join("");
+        }
+        document.getElementById("followersModal").style.display = "flex";
+      };
+
+      window.closeFollowersModal = function () {
+        document.getElementById("followersModal").style.display = "none";
+      };
+
       // ===== フォロー =====
       // users/{uid}.followingIds に「自分がフォローしているユーザーのuid」の配列として保存する。
       // 「誰が自分をフォローしているか」は、この配列に自分のuidが
@@ -553,6 +654,19 @@
             : followingIds.concat([uid]);
 
           updateFollowButton();
+
+          // フォローした（解除ではない）ときだけ、相手に通知する
+          if (!isFollowing && window.VOCABOOST_NOTIFY_FOLLOWED) {
+            try {
+              const mySnap = await db.collection("users").doc(currentUser.uid).get();
+              const myName = (mySnap.exists && mySnap.data().username) || "名無し";
+              window.VOCABOOST_NOTIFY_FOLLOWED(db, currentUser.uid, myName, uid);
+            } catch (e) {
+              console.error("フォロー通知の送信に失敗しました", e);
+            }
+          }
+
+          loadFollowerCount();
         } catch (e) {
           console.error(e);
           alert("フォロー状態の更新に失敗しました");

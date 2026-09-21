@@ -698,6 +698,18 @@
           : favoriteBookIds.concat([id]);
 
         updateFavoriteButton();
+
+        // お気に入りに追加した（解除ではない）ときだけ、単語帳の作成者に通知する
+        if (!isFav && owner && window.VOCABOOST_NOTIFY_FAVORITED) {
+          try {
+            const mySnap = await db.collection("users").doc(currentUser.uid).get();
+            const myName = (mySnap.exists && mySnap.data().username) || "名無し";
+            const title = document.getElementById("title").textContent;
+            window.VOCABOOST_NOTIFY_FAVORITED(db, currentUser.uid, myName, owner, id, title);
+          } catch (e) {
+            console.error("お気に入り通知の送信に失敗しました", e);
+          }
+        }
       } catch (e) {
         console.error(e);
         alert("お気に入りの更新に失敗しました");
