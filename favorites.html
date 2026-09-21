@@ -108,6 +108,40 @@
       cursor: pointer;
       flex-shrink: 0;
     }
+
+    .tabBar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .tabBtn {
+      flex: 1;
+      background: var(--color-surface);
+      color: var(--color-text-sub);
+      border: 1.5px solid var(--color-border);
+      border-radius: 10px;
+      padding: 12px 10px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 0;
+      transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+    }
+
+    .tabBtn.active {
+      background: var(--color-accent);
+      color: var(--color-accent-text);
+      border-color: var(--color-accent);
+    }
+
+    .tabPanel {
+      display: none;
+    }
+
+    .tabPanel.active {
+      display: block;
+    }
   </style>
 </head>
 
@@ -125,14 +159,23 @@
   </header>
 
   <main>
-    <div class="card">
-      <h2>お気に入りの単語帳</h2>
-      <div id="favBookList"><p class="emptyMsg">読み込み中...</p></div>
+    <div class="tabBar">
+      <button type="button" id="tabBtn_books" class="tabBtn active" onclick="switchTab('books')">お気に入りの単語帳</button>
+      <button type="button" id="tabBtn_users" class="tabBtn" onclick="switchTab('users')">フォロー中のユーザー</button>
     </div>
 
-    <div class="card">
-      <h2>フォロー中のユーザー</h2>
-      <div id="followingList"><p class="emptyMsg">読み込み中...</p></div>
+    <div id="tabPanel_books" class="tabPanel active">
+      <div class="card">
+        <h2>お気に入りの単語帳</h2>
+        <div id="favBookList"><p class="emptyMsg">読み込み中...</p></div>
+      </div>
+    </div>
+
+    <div id="tabPanel_users" class="tabPanel">
+      <div class="card">
+        <h2>フォロー中のユーザー</h2>
+        <div id="followingList"><p class="emptyMsg">読み込み中...</p></div>
+      </div>
     </div>
   </main>
 
@@ -258,6 +301,14 @@
     function logout() {
       localStorage.removeItem("cachedUser");
       auth.signOut();
+    }
+
+    function switchTab(tab) {
+      const tabs = ["books", "users"];
+      tabs.forEach(t => {
+        document.getElementById("tabBtn_" + t).classList.toggle("active", t === tab);
+        document.getElementById("tabPanel_" + t).classList.toggle("active", t === tab);
+      });
     }
 
     // ===== お気に入りの単語帳 =====
