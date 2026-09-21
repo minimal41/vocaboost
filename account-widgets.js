@@ -193,7 +193,7 @@
     try {
       await db.collection("notifications").add({
         title: "単語帳がお気に入りに登録されました",
-        body: `${favoriterName || "名無し"}さんが「${bookTitle || "(無題)"}」をお気に入りに登録しました`,
+        body: `${favoriterName || "名無し"}さんに「${bookTitle || "(無題)"}」がお気に入りに登録されました`,
         target: "favorite_book",
         targetUserIds: [bookOwnerUid],
         link: `view.html?id=${bookId}`,
