@@ -17,9 +17,13 @@
     }
 
     .offlineBadge {
-      font-size: 12px;
+      font-size: 16px;
+      font-weight: bold;
       color: var(--color-header-text);
-      opacity: 0.85;
+      background: rgba(255, 255, 255, 0.15);
+      padding: 6px 16px;
+      border-radius: 999px;
+      white-space: nowrap;
     }
 
     .card {
@@ -79,17 +83,23 @@
 
     .bookActions {
       display: flex;
+      align-items: center;
       gap: 6px;
       flex-shrink: 0;
     }
 
     .bookActions a,
     .bookActions button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      margin: 0;
       background: var(--color-surface);
       color: var(--color-accent);
       border: 1px solid var(--color-accent);
       border-radius: 8px;
-      padding: 6px 12px;
+      padding: 8px 12px;
       font-size: 14px;
       font-weight: bold;
       text-decoration: none;
