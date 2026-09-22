@@ -90,24 +90,53 @@
       cursor: pointer;
     }
 
+    /* 小さめのピル型ボタン。誰でも押せるので目立たせすぎず、
+       favoritersBtn(作成者のみ)と同じ並びに置く */
     #offlineSaveBtn {
-      display: block;
+      display: flex;
+      width: fit-content;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      margin: 0 auto 10px;
       background: var(--color-surface);
       color: var(--color-accent);
-      padding: 6px 12px;
-      border-radius: 8px;
+      padding: 5px 14px;
+      border-radius: 999px;
       font-weight: bold;
-      font-size: 16px;
+      font-size: 12px;
       font-family: inherit;
       border: 1px solid var(--color-accent);
-      width: calc(100% - 10px);
-      margin: 0 5px 15px;
       cursor: pointer;
+      transition: transform 0.15s, background-color 0.2s, color 0.2s;
     }
 
     #offlineSaveBtn.saved {
       background: var(--color-accent);
       color: var(--color-accent-text);
+    }
+
+    #offlineSaveBtn:disabled {
+      opacity: 0.7;
+      cursor: default;
+    }
+
+    #offlineSaveBtn.pulse {
+      transform: scale(1.1);
+    }
+
+    .offlineSpinner {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: offlineSpin 0.6s linear infinite;
+    }
+
+    @keyframes offlineSpin {
+      to { transform: rotate(360deg); }
     }
 
     .word {
@@ -358,6 +387,7 @@
       <h2 id="title"></h2>
       <div id="detailInfo" class="detail-info"></div>
       <button type="button" id="favoritersBtn" onclick="openFavoritersModal()"></button>
+      <button type="button" id="offlineSaveBtn" onclick="toggleOfflineSave()"></button>
       <button type="button" id="reportLink" onclick="openReportModal()">この単語帳を報告する</button>
       <div id="description" style="display:none"></div>
       <div id="btn3">
@@ -365,7 +395,6 @@
         <a class="btn" id="flashBtn" onclick="goStudy('flash.html')">暗記</a>
         <a class="btn" id="testBtn" onclick="goStudy('test.html')">テスト</a>
       </div>
-      <button type="button" id="offlineSaveBtn" onclick="toggleOfflineSave()">オフラインに保存</button>
       <div id="words"></div>
     </div>
   </div>
@@ -789,23 +818,36 @@
       const btn = document.getElementById("offlineSaveBtn");
       if (!btn || !window.VOCABOOST_IS_OFFLINE_SAVED) return;
       const saved = window.VOCABOOST_IS_OFFLINE_SAVED(id);
-      btn.textContent = saved ? "オフライン保存済み（タップで解除）" : "オフラインに保存";
+      btn.innerHTML = saved ? "✓ オフライン保存済み" : "オフラインに保存";
       btn.classList.toggle("saved", saved);
     }
 
+    // 保存/解除自体は瞬時に終わる処理だが、押した操作がちゃんと反映されたと
+    // 分かるよう、ボタンを一瞬disabledにしてスピナー→完了時にパルスさせる
+    // 簡単な「保存中」エフェクトを付ける。
     window.toggleOfflineSave = function () {
       if (!window.VOCABOOST_IS_OFFLINE_SAVED) return;
+      const btn = document.getElementById("offlineSaveBtn");
       const saved = window.VOCABOOST_IS_OFFLINE_SAVED(id);
-      if (saved) {
-        window.VOCABOOST_REMOVE_OFFLINE_BOOK(id);
-      } else {
-        window.VOCABOOST_SAVE_OFFLINE_BOOK({
-          id,
-          title: document.getElementById("title").textContent,
-          words: offlineWords
-        });
-      }
-      updateOfflineSaveButton();
+
+      btn.disabled = true;
+      btn.innerHTML = `<span class="offlineSpinner"></span>${saved ? "解除中..." : "保存中..."}`;
+
+      setTimeout(() => {
+        if (saved) {
+          window.VOCABOOST_REMOVE_OFFLINE_BOOK(id);
+        } else {
+          window.VOCABOOST_SAVE_OFFLINE_BOOK({
+            id,
+            title: document.getElementById("title").textContent,
+            words: offlineWords
+          });
+        }
+        btn.disabled = false;
+        updateOfflineSaveButton();
+        btn.classList.add("pulse");
+        setTimeout(() => btn.classList.remove("pulse"), 250);
+      }, 350);
     };
 
     // ===== お気に入りした人一覧（作成者のみ） =====
