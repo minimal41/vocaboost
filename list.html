@@ -379,7 +379,12 @@
         render();
 
         try {
-          // view.html用キャッシュ（作成者ボタンの見た目をview.html側の描画と合わせておく）
+          // view.html用キャッシュ（作成者ボタンの見た目をview.html側の描画と合わせておく）。
+          // 一覧に出ている単語帳の数だけ書き込まれるため、作成者の写真(base64画像)を
+          // そのまま含めると件数が多い一覧ではすぐにlocalStorageの容量超過
+          // (QuotaExceededError)を起こしていた。この事前キャッシュはview.htmlが
+          // Firestoreから最新データを取得するまでの一瞬だけ表示されるものなので、
+          // 写真は含めず（アイコン表示のみ）にしてサイズを抑える。
           books.forEach(b => {
             localStorage.setItem(
               `book_${b.id}`,
@@ -388,7 +393,7 @@
                 title: b.title,
                 detailHtml: `
                   <a href="user.html?id=${b.ownerId}" class="creator-btn">
-                    ${window.VOCABOOST_AVATAR_HTML(b.ownerPhotoURL, 24)}
+                    ${window.VOCABOOST_AVATAR_HTML(null, 24)}
                     <span>${escapeHtml(b.ownerName)}</span>
                   </a>
                   <div class="meta-row">計 ${b.count} 単語</div>
