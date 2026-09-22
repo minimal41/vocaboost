@@ -215,6 +215,16 @@
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   };
 
+  // ===== 単語帳をお気に入りにしているユーザー一覧の取得 =====
+  // 指定した単語帳IDをfavoriteBookIdsに含むユーザーの一覧を返す。
+  // view.html（単語帳の作成者だけに表示する「お気に入りした人」一覧）から利用する。
+  window.VOCABOOST_FETCH_FAVORITERS = async function (db, bookId) {
+    const snap = await db.collection("users")
+      .where("favoriteBookIds", "array-contains", bookId)
+      .get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  };
+
   let notifications = [];
   let readIds = [];
   let dropdownOpen = false;

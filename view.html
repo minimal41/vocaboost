@@ -159,6 +159,56 @@
       padding: 0;
     }
 
+    /* 作成者にだけ表示する「◯人がお気に入り登録」リンク（user.htmlのフォロワー数表示と同じ見た目） */
+    #favoritersBtn {
+      display: none;
+      width: 100%;
+      text-align: center;
+      margin: 4px 0 10px;
+      font-size: 13px;
+      color: var(--color-text-sub);
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+
+    #favoritersBtn:hover {
+      text-decoration: underline;
+    }
+
+    #favoritersBtn strong {
+      color: var(--color-text);
+    }
+
+    .userRow {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+    }
+
+    .userRow a.userLink {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--color-text);
+      text-decoration: none;
+      flex: 1;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .emptyMsg {
+      color: var(--color-text-sub);
+      font-size: 14px;
+      text-align: center;
+      padding: 10px 0;
+    }
+
     .modalOverlay {
       position: fixed;
       top: 0;
@@ -287,6 +337,7 @@
       <button type="button" id="favoriteBtn" title="お気に入り" onclick="toggleFavorite()">♡</button>
       <h2 id="title"></h2>
       <div id="detailInfo" class="detail-info"></div>
+      <button type="button" id="favoritersBtn" onclick="openFavoritersModal()"></button>
       <button type="button" id="reportLink" onclick="openReportModal()">この単語帳を報告する</button>
       <div id="description" style="display:none"></div>
       <div id="btn3">
@@ -307,6 +358,16 @@
       <div class="modalActions">
         <button type="button" onclick="closeReportModal()">キャンセル</button>
         <button type="button" onclick="submitReport()">通報する</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="favoritersModal" class="modalOverlay" style="display:none;">
+    <div class="modalBox">
+      <h3>お気に入りした人</h3>
+      <div id="favoritersList"><p class="emptyMsg">読み込み中...</p></div>
+      <div class="modalActions">
+        <button type="button" onclick="closeFavoritersModal()">閉じる</button>
       </div>
     </div>
   </div>
@@ -623,6 +684,7 @@
           const editBtn = document.getElementById("editBtn");
           editBtn.style.display = "inline";
           editBtn.href = `edit.html?id=${id}`;
+          loadFavoriters();
         } else {
           document.getElementById("reportLink").style.display = "block";
         }
@@ -676,6 +738,53 @@
       btn.textContent = isFav ? "♥" : "♡";
       btn.title = isFav ? "お気に入り済み（クリックで解除）" : "お気に入りに追加";
     }
+
+    // ===== お気に入りした人一覧（作成者のみ） =====
+    // favoriteBookIdsにこの単語帳IDを含むユーザーを検索して求める
+    // （account-widgets.jsのVOCABOOST_FETCH_FAVORITERSを共通で利用する）。
+    let favoriters = [];
+
+    function escapeHtmlForFavoriters(str) {
+      return String(str == null ? "" : str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    async function loadFavoriters() {
+      const btn = document.getElementById("favoritersBtn");
+      if (!btn) return;
+      try {
+        favoriters = await window.VOCABOOST_FETCH_FAVORITERS(db, id);
+        btn.innerHTML = `<strong>${favoriters.length}</strong>人がお気に入り登録`;
+        btn.style.display = "block";
+      } catch (e) {
+        console.error("お気に入りした人一覧の取得に失敗しました", e);
+      }
+    }
+
+    window.openFavoritersModal = function () {
+      const listEl = document.getElementById("favoritersList");
+      if (favoriters.length === 0) {
+        listEl.innerHTML = `<p class="emptyMsg">お気に入りした人はいません</p>`;
+      } else {
+        listEl.innerHTML = favoriters.map(u => `
+          <div class="userRow">
+            <a class="userLink" href="user.html?id=${encodeURIComponent(u.id)}">
+              ${window.VOCABOOST_AVATAR_HTML(u.photoURL, 36)}
+              <span>${escapeHtmlForFavoriters(u.username || "名無し")}</span>
+            </a>
+          </div>
+        `).join("");
+      }
+      document.getElementById("favoritersModal").style.display = "flex";
+    };
+
+    window.closeFavoritersModal = function () {
+      document.getElementById("favoritersModal").style.display = "none";
+    };
 
     window.toggleFavorite = async () => {
       if (!currentUser) {
