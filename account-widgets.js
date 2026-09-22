@@ -196,7 +196,7 @@
         body: `${favoriterName || "名無し"}さんに「${bookTitle || "(無題)"}」がお気に入りに登録されました`,
         target: "favorite_book",
         targetUserIds: [bookOwnerUid],
-        link: `view.html?id=${bookId}`,
+        link: `user.html?id=${favoriterUid}`,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         createdBy: favoriterUid
       });
