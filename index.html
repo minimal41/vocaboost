@@ -756,12 +756,19 @@
         }
       };
 
+      // 表示・並び替えに使うのはid/title/createdAtだけだが、以前は
+      // ...doc.data()で単語帳ドキュメント全体（作成者の写真ownerPhotoURL等の
+      // base64画像を含む）をそのままキャッシュに保存していたため、単語帳を
+      // 多く持つユーザーほどlocalStorageの容量超過(QuotaExceededError)を
+      // 起こしやすくなっていた。表示に必要な項目だけを抜き出して保存する。
       const toBooks = (snapshot) => {
         const books = [];
         snapshot.forEach(doc => {
+          const data = doc.data();
           books.push({
             id: doc.id,
-            ...doc.data()
+            title: data.title,
+            createdAt: data.createdAt
           });
         });
         return books;
