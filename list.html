@@ -403,10 +403,16 @@
             );
           });
 
-          // キャッシュ更新
+          // キャッシュ更新。
+          // 表示中の画面(このrender()呼び出し)は写真付きのbooksをそのまま使うが、
+          // 保存するキャッシュの方は作成者の写真(base64画像)を除いておく。
+          // 一覧の件数が多いとbooks全体をそのまま保存するだけで
+          // localStorageの容量超過(QuotaExceededError)になっていたため。
+          // 次回訪問時の一瞬の先行表示でだけアイコンになるが、直後にFirestoreから
+          // 取得した最新データで再描画されるため実害は無い。
           localStorage.setItem(
             "publicBooks",
-            JSON.stringify(books)
+            JSON.stringify(books.map(b => ({ ...b, ownerPhotoURL: null })))
           );
         } catch (e) {
           console.warn("単語帳一覧のキャッシュ保存に失敗しました(表示には影響しません)", e);
