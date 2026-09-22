@@ -1,6 +1,6 @@
 // Cache name
 // キャッシュ内容を変更したら必ずバージョンを上げる（古いキャッシュが残り続けるのを防ぐため）
-const CACHE_NAME = 'pwa-sample-caches-v15';
+const CACHE_NAME = 'pwa-sample-caches-v16';
 // キャッシュした日時などの管理用メタデータだけを保存する専用キャッシュ
 const META_CACHE_NAME = 'pwa-sample-cache-meta';
 // 単語帳・ユーザーページ等(view.html?id=...のようにURLごとに異なる動的ページ)は
@@ -13,6 +13,23 @@ const MAX_CACHE_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30日
 const CLEANUP_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 1日
 const CACHED_AT_HEADER = 'x-vocaboost-cached-at';
 const LAST_CLEANUP_REQUEST = new Request('./__sw_meta__/last_cleanup');
+
+// offline/index.html・flash.html・test.htmlは、内容が?id=...のようなクエリ文字列に
+// 依存しない（どの単語帳を開くかはページ内のJSがlocalStorageを見て判断する）。
+// それにも関わらず通常のfetch処理ではリクエストの完全なURL(クエリ文字列込み)を
+// キャッシュのキーにしていたため、「以前オンラインで開いたことがある?idの
+// 組み合わせ」でしか caches.match() が一致せず、オフライン時に一度も同じ?idで
+// 開いたことのないページだけ「開けない」という不具合になっていた
+// （例: 単語帳Aのテストは以前開いたので表示できたが、単語帳Bの暗記は
+// 開いたことが無かったため表示できない）。
+// このページ群だけはクエリ文字列を無視し、常に同じ1つのキーで読み書きする。
+function isOfflineAppPage(pathname) {
+  return /\/offline\/(index|flash|test)\.html$/.test(pathname);
+}
+
+function cacheRequestFor(request, url) {
+  return isOfflineAppPage(url.pathname) ? new Request(url.origin + url.pathname) : request;
+}
 
 // レスポンスに「キャッシュした時刻」ヘッダーを付けてから保存する
 async function putWithTimestamp(cache, request, response) {
@@ -43,6 +60,10 @@ async function cleanupOldEntries() {
 
   await Promise.all(requests.map(async (request) => {
     try {
+      // オフラインモードのページ群は、電波の無い状態で確実に開けることを
+      // 優先し、期限切れによる自動削除の対象からは除外する
+      if (isOfflineAppPage(new URL(request.url).pathname)) return;
+
       const response = await cache.match(request);
       if (!response) return;
       const cachedAtHeader = response.headers.get(CACHED_AT_HEADER);
@@ -163,19 +184,20 @@ self.addEventListener('fetch', (event) => {
   const isHtmlOrAsset = /\.(html|css|js)$/.test(url.pathname) || url.pathname === '/' || url.pathname.endsWith('/');
 
   if (isHtmlOrAsset) {
+    const cacheRequest = cacheRequestFor(event.request, url);
     event.respondWith(
       fetch(event.request)
         .then((response) => {
           // レスポンスが正常なときだけキャッシュを更新する
           if (response && response.status === 200) {
             const cloned = response.clone();
-            caches.open(CACHE_NAME).then((cache) => putWithTimestamp(cache, event.request, cloned));
+            caches.open(CACHE_NAME).then((cache) => putWithTimestamp(cache, cacheRequest, cloned));
           }
           return response;
         })
         .catch(() => {
           // ネットワーク失敗時はキャッシュから返す（オフライン対応）
-          return caches.match(event.request);
+          return caches.match(cacheRequest);
         })
     );
     return;
