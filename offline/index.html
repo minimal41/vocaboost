@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
+  <title>オフラインモード - Vocaboost</title>
+  <link rel="apple-touch-icon" sizes="1024x1024" href="../images/icon.png">
+  <link rel="icon" type="image/x-icon" href="../images/favicon.ico">
+  <link rel="stylesheet" type="text/css" href="../style.css">
+  <script src="../theme.js"></script>
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .offlineBadge {
+      font-size: 12px;
+      color: var(--color-header-text);
+      opacity: 0.85;
+    }
+
+    .card {
+      background: var(--color-surface);
+      color: var(--color-text);
+      padding: 25px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    .card h2 {
+      text-align: center;
+      margin-top: 0;
+    }
+
+    .noteBox {
+      font-size: 13px;
+      color: var(--color-text-sub);
+      text-align: center;
+      margin: -8px 0 18px;
+    }
+
+    .emptyMsg {
+      color: var(--color-text-sub);
+      font-size: 14px;
+      text-align: center;
+      padding: 10px 0;
+    }
+
+    .bookRow {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .bookInfo {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .bookTitle {
+      font-weight: bold;
+    }
+
+    .bookMeta {
+      font-size: 12px;
+      color: var(--color-text-sub);
+      margin-top: 2px;
+    }
+
+    .bookActions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .bookActions a,
+    .bookActions button {
+      background: var(--color-surface);
+      color: var(--color-accent);
+      border: 1px solid var(--color-accent);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 14px;
+      font-weight: bold;
+      text-decoration: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .removeBtn {
+      background: none !important;
+      border: 1px solid var(--color-danger) !important;
+      color: var(--color-danger) !important;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <p class="headertitle"><a href="../index.html"><img src="../images/rogo.png" height="70vh"></a></p>
+    <div class="offlineBadge">オフラインモード</div>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>オフラインに保存した単語帳</h2>
+      <p class="noteBox">電波が無い状態でも暗記・テストができます。単語帳の閲覧画面の「オフラインに保存」から追加できます。</p>
+      <div id="bookList"><p class="emptyMsg">読み込み中...</p></div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footertitle"><img src="../images/rogo.png" height="70vh"></div>
+      <div class="footer-links">
+        <a href="../index.html">ホーム（オンライン）</a>
+      </div>
+      <div class="copy">© 2026 TEAM-Minimal, Shiratae</div>
+    </div>
+  </footer>
+
+  <script src="../offline-storage.js"></script>
+  <script>
+    function escapeHtml(str) {
+      return String(str == null ? "" : str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function formatDate(ms) {
+      try {
+        return new Date(ms).toLocaleString("ja-JP");
+      } catch (e) {
+        return "";
+      }
+    }
+
+    function renderList() {
+      const listEl = document.getElementById("bookList");
+      const all = window.VOCABOOST_GET_OFFLINE_BOOKS();
+      const books = Object.values(all).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+
+      if (books.length === 0) {
+        listEl.innerHTML = `<p class="emptyMsg">オフラインに保存された単語帳はまだありません。</p>`;
+        return;
+      }
+
+      listEl.innerHTML = books.map(b => `
+        <div class="bookRow" id="offlineRow_${escapeHtml(b.id)}">
+          <div class="bookInfo">
+            <div class="bookTitle">${escapeHtml(b.title)}</div>
+            <div class="bookMeta">単語数: ${(b.words || []).length} | 保存日時: ${escapeHtml(formatDate(b.savedAt))}</div>
+          </div>
+          <div class="bookActions">
+            <a href="flash.html?id=${encodeURIComponent(b.id)}">暗記</a>
+            <a href="test.html?id=${encodeURIComponent(b.id)}">テスト</a>
+            <button type="button" class="removeBtn" onclick="removeBook('${b.id}')">削除</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    window.removeBook = function (id) {
+      if (!confirm("オフライン保存を解除しますか？")) return;
+      window.VOCABOOST_REMOVE_OFFLINE_BOOK(id);
+      renderList();
+    };
+
+    renderList();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
+  <title>Test（オフライン） - Vocaboost</title>
+  <link rel="apple-touch-icon" sizes="1024x1024" href="../images/icon.png">
+  <link rel="icon" type="image/x-icon" href="../images/favicon.ico">
+  <link rel="stylesheet" type="text/css" href="../style.css">
+  <script src="../theme.js"></script>
+  <style>
+    .offlineBadge {
+      font-size: 12px;
+      color: var(--color-header-text);
+      opacity: 0.85;
+    }
+
+    .main {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      flex: 1;
+    }
+
+    .card {
+      background: var(--color-surface);
+      color: var(--color-text);
+      max-width: 50%;
+      margin: 30px auto;
+      padding: 30px;
+      border-radius: 12px;
+      text-align: center;
+    }
+
+    input {
+      padding: 10px;
+      font-size: 16px;
+      max-width: 550px;
+      box-sizing: border-box;
+      border-radius: 8px;
+      border: 1px solid var(--color-border);
+    }
+
+    #ans {
+      margin-bottom: 10px;
+      width: 100%;
+    }
+
+    button {
+      background: var(--color-accent);
+      color: var(--color-accent-text);
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      margin: 6px;
+      font-size: 16px;
+    }
+
+    #quiz {
+      min-height: 340px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+
+    #end {
+      height: 280px;
+    }
+
+    #score {
+      font-size: 20px;
+    }
+
+    #resultfont {
+      font-size: 30px;
+      font-weight: bold;
+    }
+
+    #q {
+      font-size: 30px;
+      min-height: 100px;
+    }
+
+    #hintBtn {
+      font-size: 13px;
+      padding: 6px 12px;
+    }
+
+    #hintText,
+    #noteText {
+      font-size: 14px;
+      color: var(--color-text-sub);
+      margin-top: 8px;
+    }
+
+    #result {
+      font-size: 20px;
+      min-height: 60px;
+    }
+
+    #result .correct,
+    #result .wrong {
+      font-weight: bold;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #result .correct {
+      color: var(--color-accent);
+    }
+
+    #result .wrong {
+      color: var(--color-danger);
+    }
+
+    #result .correct::before {
+      content: "";
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      border: 3px solid var(--color-accent);
+      border-radius: 50%;
+      box-sizing: border-box;
+      transform: translateY(2px);
+    }
+
+    #result .wrong::before {
+      content: "";
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      background:
+        linear-gradient(45deg, transparent calc(50% - 2px), var(--color-danger) calc(50% - 2px), var(--color-danger) calc(50% + 2px), transparent calc(50% + 2px)),
+        linear-gradient(-45deg, transparent calc(50% - 2px), var(--color-danger) calc(50% - 2px), var(--color-danger) calc(50% + 2px), transparent calc(50% + 2px));
+      transform: translateY(2px);
+    }
+
+    #start {
+      height: auto;
+      padding-bottom: 30px;
+    }
+
+    #progress {
+      margin-top: auto;
+    }
+
+    #progressWrap {
+      width: 100%;
+      height: 12px;
+      background: var(--color-border);
+      border-radius: 10px;
+      margin-top: 15px;
+      overflow: hidden;
+    }
+
+    #progressBar {
+      height: 100%;
+      width: 0%;
+      background: var(--color-accent);
+      transition: 0.3s;
+    }
+
+    #progressText {
+      font-size: 14px;
+      margin-top: 5px;
+    }
+
+    #quizContent {
+      flex-grow: 1;
+      min-height: 200px;
+    }
+
+    @media (max-width: 768px) {
+      .card {
+        max-width: 70%;
+      }
+
+      #q {
+        font-size: 20px;
+      }
+
+      #result {
+        font-size: 16px;
+        min-height: 80px;
+      }
+
+      #ans {
+        font-size: 14px;
+      }
+
+      #resultfont {
+        font-size: 25px;
+      }
+    }
+
+    .option {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: min(360px, 90%);
+      margin: 10px auto;
+      padding: 10px 16px;
+      background: var(--color-surface);
+      border: 2px solid var(--color-border);
+      border-radius: 14px;
+      cursor: pointer;
+      transition: .2s;
+      user-select: none;
+      box-sizing: border-box;
+    }
+
+    .option:hover {
+      border-color: var(--color-accent);
+      background: var(--color-bg);
+      transform: translateY(-1px);
+    }
+
+    .option input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 28px;
+      height: 28px;
+      border: 2px solid var(--color-accent);
+      border-radius: 8px;
+      background: var(--color-surface);
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: .2s;
+    }
+
+    .option input[type="checkbox"]:checked {
+      background: var(--color-accent);
+    }
+
+    .option input[type="checkbox"]::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 7px;
+      height: 12px;
+      border-right: 3px solid white;
+      border-bottom: 3px solid white;
+      transform: translate(-50%, -58%) rotate(45deg);
+      opacity: 0;
+      transition: opacity .15s;
+    }
+
+    .option span {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .option input[type="checkbox"]:checked::before {
+      opacity: 1;
+    }
+
+    @media (max-width:768px) {
+      .option {
+        width: 95%;
+        padding: 12px 14px;
+      }
+
+      .option input[type="checkbox"] {
+        width: 30px;
+        height: 30px;
+      }
+
+      .option span {
+        font-size: 17px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <p class="headertitle"><a href="../index.html"><img src="../images/rogo.png" height="70vh"></a></p>
+    <div class="offlineBadge">オフラインモード</div>
+  </header>
+
+  <div class="main" class="start">
+    <div class="card" id="start">
+      <h2 id="bookTitle">テスト設定</h2>
+
+      <label class="option">
+        <input type="checkbox" id="skipCheck" checked>
+        <span>正解済みをスキップ</span>
+      </label>
+
+      <label class="option">
+        <input type="checkbox" id="randomCheck">
+        <span>ランダム出題する</span>
+      </label>
+
+      <label class="option">
+        <input type="checkbox" id="selfCheck">
+        <span>自分で採点する</span>
+      </label>
+
+      <label class="option">
+        <input type="checkbox" id="swapCheck">
+        <span>表と裏を入れ替える</span>
+      </label>
+
+      <button onclick="resetLearned()">学習データをリセット</button><br><br>
+
+      <button onclick="startTest()">▶ スタート</button><br><br>
+      <button onclick="goBack()">戻る</button>
+      <p id="startMsg" style="color:var(--color-danger)"></p>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="card" id="quiz" style="display:none">
+      <div id="quizContent">
+        <h2 id="q"></h2>
+        <button id="hintBtn" type="button" onclick="showHint()" style="display:none">ヒントを表示</button>
+        <p id="hintText" style="display:none"></p>
+        <input id="ans" placeholder="答えを入力" autocomplete="off"><br>
+        <p id="result"></p>
+        <p id="noteText" style="display:none"></p>
+        <button id="answerBtn" onclick="check()">回答 (Enter)</button>
+        <div id="selfButtons" style="display:none;">
+          <button onclick="markCorrect()">正解</button>
+          <button onclick="markWrong()">不正解</button>
+        </div>
+      </div>
+
+      <div id="progress">
+        <div id="progressWrap">
+          <div id="progressBar"></div>
+        </div>
+        <p id="progressText"></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="card" id="end" style="display:none">
+      <p id="resultfont">結果</p>
+      <p id="score"></p>
+      <button onclick="restart()">もう一回</button>
+      <button onclick="goBack()">戻る</button>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-inner">
+      <div><img src="../images/rogo.png" height="70vh"></div>
+      <div class="footer-links">
+        <a href="index.html">オフライン一覧</a>
+        <a href="../index.html">ホーム（オンライン）</a>
+      </div>
+      <div class="copy">© 2026 TEAM-Minimal, Shiratae</div>
+    </div>
+  </footer>
+
+  <script src="../offline-storage.js"></script>
+  <script>
+    const id = new URLSearchParams(location.search).get("id");
+    const savedBook = window.VOCABOOST_GET_OFFLINE_BOOK(id);
+
+    let words = [],
+      filteredWords = [],
+      i = 0,
+      correct = 0,
+      phase = 0,
+      selfMode = false,
+      swapMode = false;
+
+    let learned = JSON.parse(localStorage.getItem("learnedWords")) || {};
+    if (!learned[id]) learned[id] = [];
+
+    if (!savedBook) {
+      document.getElementById("start").innerHTML =
+        `<h2>単語帳が見つかりません</h2><p>オフラインに保存されていない単語帳です。</p><button onclick="location.href='index.html'">オフライン一覧に戻る</button>`;
+    } else {
+      words = savedBook.words || [];
+      document.getElementById("bookTitle").textContent = savedBook.title || "テスト設定";
+    }
+
+    window.startTest = () => {
+      selfMode = document.getElementById("selfCheck").checked;
+      swapMode = document.getElementById("swapCheck").checked;
+
+      makeList();
+
+      if (filteredWords.length === 0) {
+        startMsg.textContent = "すべて正解済みです。リセットしてください。";
+        return;
+      }
+
+      start.style.display = "none";
+      quiz.style.display = "block";
+      render();
+    };
+
+    function makeList() {
+      const skip = document.getElementById("skipCheck").checked;
+      const random = document.getElementById("randomCheck").checked;
+
+      if (skip) {
+        filteredWords = words.filter(w => !learned[id].includes(w.front));
+      } else {
+        filteredWords = [...words];
+      }
+
+      if (random) {
+        filteredWords.sort(() => Math.random() - 0.5);
+      }
+    }
+
+    // swapModeがtrueのとき出題文と正解を入れ替える（表裏を逆にする）
+    function getQuestion(word) {
+      return swapMode ? word.back : word.front;
+    }
+    function getAnswerText(word) {
+      return swapMode ? word.front : word.back;
+    }
+    // ヒントは出題側の単語に、解説は答え側の単語に紐づく。
+    // 「表と裏を入れ替える」がONのときは出題・答えが入れ替わるため、
+    // それに合わせてヒント/解説がどちらの語に付くかも入れ替える。
+    function getQuestionHint(word) {
+      return (swapMode ? word.note : word.hint) || "";
+    }
+    function getAnswerExtra(word) {
+      return (swapMode ? word.hint : word.note) || "";
+    }
+
+    const hintBtn = document.getElementById("hintBtn");
+    const hintText = document.getElementById("hintText");
+    const noteText = document.getElementById("noteText");
+
+    window.showHint = () => {
+      hintText.style.display = "block";
+    };
+
+    function revealNote() {
+      const note = getAnswerExtra(filteredWords[i]);
+      noteText.textContent = note ? `解説: ${note}` : "";
+      noteText.style.display = note ? "block" : "none";
+    }
+
+    function render() {
+      if (i >= filteredWords.length) {
+        quiz.style.display = "none";
+        end.style.display = "block";
+        score.textContent = `${correct}/${filteredWords.length} (${Math.round(correct / filteredWords.length * 100)}%)`;
+        return;
+      }
+      q.textContent = getQuestion(filteredWords[i]);
+      ans.value = "";
+      ans.readOnly = false;
+      result.textContent = "";
+      phase = 0;
+
+      const hint = getQuestionHint(filteredWords[i]);
+      hintBtn.style.display = hint ? "inline-block" : "none";
+      hintText.textContent = hint ? `ヒント: ${hint}` : "";
+      hintText.style.display = "none";
+
+      noteText.textContent = "";
+      noteText.style.display = "none";
+
+      ans.style.display = "";
+      const answerBtn = document.getElementById("answerBtn");
+      answerBtn.style.display = "";
+      answerBtn.textContent = "回答 (Enter)";
+      document.getElementById("selfButtons").style.display = "none";
+      const progress = Math.round(i / filteredWords.length * 100);
+      document.getElementById("progressBar").style.width = progress + "%";
+      document.getElementById("progressText").textContent =
+        `${i + 1}/${filteredWords.length} 問`;
+    }
+
+    window.check = () => {
+      if (phase === 0) {
+
+        if (selfMode) {
+          if (ans.value.trim() === getAnswerText(filteredWords[i])) {
+            result.innerHTML = '<span class="correct">正解</span>';
+            correct++;
+            if (!learned[id].includes(filteredWords[i].front)) {
+              learned[id].push(filteredWords[i].front);
+              localStorage.setItem("learnedWords", JSON.stringify(learned));
+            }
+            revealNote();
+            phase = 1;
+            document.getElementById("answerBtn").textContent = "次へ (Enter)";
+            return;
+          }
+
+          ans.readOnly = true;
+          result.innerHTML = `
+          <div style="text-align:left;border:1px solid var(--color-border);border-radius:8px;padding:12px;margin-top:10px;">
+              <div><b>あなたの回答</b></div>
+              <div style="margin-bottom:12px;">${ans.value || "（未入力）"}</div>
+              <div><b>正解</b></div>
+              <div>${getAnswerText(filteredWords[i])}</div>
+          </div>
+          `;
+          document.getElementById("answerBtn").style.display = "none";
+          document.getElementById("selfButtons").style.display = "block";
+          revealNote();
+          phase = 2;
+          return;
+        }
+
+        if (ans.value.trim() === getAnswerText(filteredWords[i])) {
+          result.innerHTML = '<span class="correct">正解</span>';
+          correct++;
+          if (!learned[id].includes(filteredWords[i].front)) {
+            learned[id].push(filteredWords[i].front);
+            localStorage.setItem("learnedWords", JSON.stringify(learned));
+          }
+        } else {
+          result.innerHTML = '<span class="wrong">不正解</span>　正解: ' + getAnswerText(filteredWords[i]);
+        }
+        revealNote();
+        phase = 1;
+        document.getElementById("answerBtn").textContent = "次へ (Enter)";
+      } else {
+        i++;
+        render();
+      }
+    };
+
+    window.markCorrect = () => {
+      correct++;
+      if (!learned[id].includes(filteredWords[i].front)) {
+        learned[id].push(filteredWords[i].front);
+        localStorage.setItem("learnedWords", JSON.stringify(learned));
+      }
+      result.innerHTML += '<br><br><span class="correct">正解</span>';
+      document.getElementById("selfButtons").style.display = "none";
+      const answerBtn = document.getElementById("answerBtn");
+      answerBtn.style.display = "";
+      answerBtn.textContent = "次へ (Enter)";
+      phase = 1;
+    };
+
+    window.markWrong = () => {
+      result.innerHTML += '<br><br><span class="wrong">不正解</span>';
+      document.getElementById("selfButtons").style.display = "none";
+      const answerBtn = document.getElementById("answerBtn");
+      answerBtn.style.display = "";
+      answerBtn.textContent = "次へ (Enter)";
+      phase = 1;
+    };
+
+    window.restart = () => {
+      i = 0; correct = 0;
+      end.style.display = "none";
+      quiz.style.display = "block";
+      makeList();
+      render();
+    };
+
+    window.resetLearned = () => {
+      if (!confirm("学習データを削除しますか？")) return;
+      learned[id] = [];
+      localStorage.setItem("learnedWords", JSON.stringify(learned));
+      startMsg.textContent = "リセットしました。";
+    };
+
+    document.addEventListener("keydown", e => {
+      if (e.key !== "Enter") return;
+      if (quiz.style.display !== "block") return;
+      e.preventDefault();
+      if (phase === 2) return;
+      check();
+    });
+
+    window.goBack = () => {
+      location.href = "index.html";
+    };
+  </script>
+</body>
+
+</html>

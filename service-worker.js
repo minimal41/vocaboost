@@ -1,6 +1,6 @@
 // Cache name
 // キャッシュ内容を変更したら必ずバージョンを上げる（古いキャッシュが残り続けるのを防ぐため）
-const CACHE_NAME = 'pwa-sample-caches-v13';
+const CACHE_NAME = 'pwa-sample-caches-v14';
 // Cache targets
 const urlsToCache = [
   './',
@@ -23,10 +23,16 @@ const urlsToCache = [
   './login.css',
   './theme.js',
   './analytics-tracker.js',
+  './offline-storage.js',
   './manifest.json',
   './images/icon.png',
   './images/rogo.png',
   './images/favicon.ico',
+  // オフラインモード（電波が無い状態でも保存済みの単語帳の暗記・テストができるページ群）。
+  // これらはネットワーク接続が無い前提のページのため、確実に事前キャッシュしておく必要がある。
+  './offline/index.html',
+  './offline/flash.html',
+  './offline/test.html',
 ];
 
 self.addEventListener('install', (event) => {

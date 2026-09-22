@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
+  <title>Flash（オフライン） - Vocaboost</title>
+  <link rel="apple-touch-icon" sizes="1024x1024" href="../images/icon.png">
+  <link rel="icon" type="image/x-icon" href="../images/favicon.ico">
+  <link rel="stylesheet" type="text/css" href="../style.css">
+  <script src="../theme.js"></script>
+  <style>
+    .offlineBadge {
+      font-size: 12px;
+      color: var(--color-header-text);
+      opacity: 0.85;
+    }
+
+    .card {
+      background: var(--color-surface);
+      color: var(--color-text);
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 30px;
+      border-radius: 12px;
+      text-align: center;
+      min-height: 200px;
+    }
+
+    #front {
+      font-size: 30px;
+      min-height: 100px;
+    }
+
+    #back {
+      font-size: 25px;
+      min-height: 60px;
+    }
+
+    #hintBtn {
+      font-size: 13px;
+      padding: 6px 12px;
+    }
+
+    #hintText,
+    #noteText {
+      font-size: 14px;
+      color: var(--color-text-sub);
+      margin-top: 8px;
+    }
+
+    #quizCard {
+      display: flex;
+      flex-direction: column;
+      min-height: 340px;
+    }
+
+    #quizContent {
+      flex-grow: 1;
+      min-height: 120px;
+    }
+
+    #progress {
+      margin-top: auto;
+    }
+
+    #progressWrap {
+      width: 100%;
+      height: 12px;
+      background: var(--color-border);
+      border-radius: 10px;
+      margin-top: 15px;
+      overflow: hidden;
+    }
+
+    #progressBar {
+      height: 100%;
+      width: 0%;
+      background: var(--color-accent);
+      transition: 0.3s;
+    }
+
+    #progressText {
+      font-size: 14px;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <p class="headertitle"><a href="../index.html"><img src="../images/rogo.png" height="70vh"></a></p>
+    <div class="offlineBadge">オフラインモード</div>
+  </header>
+  <main>
+    <div class="card" id="start">
+      <h2 id="bookTitle">フラッシュカード設定</h2>
+
+      <label>
+        <input type="checkbox" id="randomCheck">ランダム出題
+      </label><br><br>
+
+      <button onclick="startFlash()">▶ スタート</button>
+      <br><br>
+      <button onclick="goBack()">戻る</button>
+    </div>
+    <div class="card" id="quizCard" style="display:none">
+
+      <div id="quizContent">
+        <h2 id="front"></h2>
+        <button id="hintBtn" type="button" onclick="showHint()" style="display:none">ヒントを表示</button>
+        <p id="hintText" style="display:none"></p>
+        <p id="back" style="display:none"></p>
+        <p id="noteText" style="display:none"></p>
+        <button onclick="showBack()">答えを見る (Enter)</button>
+      </div>
+
+      <div id="progress">
+        <div id="progressWrap">
+          <div id="progressBar"></div>
+        </div>
+        <p id="progressText"></p>
+      </div>
+
+    </div>
+
+    <div class="card" id="end" style="display:none">
+      <h2>終了！</h2>
+      <button onclick="restart()">もう一回</button>
+      <button onclick="goBack()">戻る</button>
+    </div>
+  </main>
+  <footer>
+    <div class="footer-inner">
+      <div><img src="../images/rogo.png" height="70vh"></div>
+      <div class="footer-links">
+        <a href="index.html">オフライン一覧</a>
+        <a href="../index.html">ホーム（オンライン）</a>
+      </div>
+      <div class="copy">© 2026 TEAM-Minimal, Shiratae</div>
+    </div>
+  </footer>
+
+  <script src="../offline-storage.js"></script>
+  <script>
+    const id = new URLSearchParams(location.search).get("id");
+    const savedBook = window.VOCABOOST_GET_OFFLINE_BOOK(id);
+    let words = [], i = 0, show = false;
+    const quizCard = document.getElementById("quizCard");
+    const endCard = document.getElementById("end");
+
+    if (!savedBook) {
+      document.getElementById("start").innerHTML =
+        `<h2>単語帳が見つかりません</h2><p>オフラインに保存されていない単語帳です。</p><button onclick="location.href='index.html'">オフライン一覧に戻る</button>`;
+    } else {
+      words = savedBook.words || [];
+      document.getElementById("bookTitle").textContent = savedBook.title || "フラッシュカード設定";
+    }
+
+    const hintBtn = document.getElementById("hintBtn");
+    const hintText = document.getElementById("hintText");
+    const noteText = document.getElementById("noteText");
+
+    function render() {
+      if (i >= words.length) {
+        quizCard.style.display = "none";
+        endCard.style.display = "block";
+        return;
+      }
+      front.textContent = words[i].front;
+      back.textContent = words[i].back;
+      back.style.display = "none";
+      show = false;
+
+      // ヒントは普段は非表示にしておき、「ヒントを表示」ボタンを押したときだけ見せる
+      const hint = words[i].hint || "";
+      hintBtn.style.display = hint ? "inline-block" : "none";
+      hintText.textContent = hint ? `ヒント: ${hint}` : "";
+      hintText.style.display = "none";
+
+      // 解説は答えと一緒に常に表示する
+      const note = words[i].note || "";
+      noteText.textContent = note ? `解説: ${note}` : "";
+      noteText.style.display = "none";
+
+      const progress = Math.round(i / words.length * 100);
+      document.getElementById("progressBar").style.width = progress + "%";
+      document.getElementById("progressText").textContent =
+        `${i + 1}/${words.length} 問`;
+    }
+
+    window.showHint = () => {
+      hintText.style.display = "block";
+      hintBtn.blur();
+    };
+
+    window.showBack = () => {
+      if (!show) {
+        back.style.display = "block";
+        noteText.style.display = noteText.textContent ? "block" : "none";
+        show = true;
+      } else {
+        i++;
+        render();
+      }
+    };
+
+    window.restart = () => {
+      i = 0;
+      applyOrder();
+      endCard.style.display = "none";
+      quizCard.style.display = "flex";
+      render();
+    };
+
+    document.addEventListener("keydown", e => {
+      if (e.key !== "Enter") return;
+      if (quizCard.style.display !== "flex") return;
+      e.preventDefault();
+      showBack();
+    });
+
+    window.goBack = () => {
+      location.href = "index.html";
+    };
+
+    function applyOrder() {
+      const random = document.getElementById("randomCheck").checked;
+      if (random) {
+        words.sort(() => Math.random() - 0.5);
+      }
+    }
+
+    window.startFlash = () => {
+      if (words.length === 0) return;
+      applyOrder();
+      document.getElementById("start").style.display = "none";
+      quizCard.style.display = "flex";
+      render();
+    };
+  </script>
+</body>
+
+</html>

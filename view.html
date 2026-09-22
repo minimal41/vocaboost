@@ -90,6 +90,26 @@
       cursor: pointer;
     }
 
+    #offlineSaveBtn {
+      display: block;
+      background: var(--color-surface);
+      color: var(--color-accent);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 16px;
+      font-family: inherit;
+      border: 1px solid var(--color-accent);
+      width: calc(100% - 10px);
+      margin: 0 5px 15px;
+      cursor: pointer;
+    }
+
+    #offlineSaveBtn.saved {
+      background: var(--color-accent);
+      color: var(--color-accent-text);
+    }
+
     .word {
       border-bottom: 1px solid var(--color-border);
       padding: 6px 0;
@@ -345,6 +365,7 @@
         <a class="btn" id="flashBtn" onclick="goStudy('flash.html')">暗記</a>
         <a class="btn" id="testBtn" onclick="goStudy('test.html')">テスト</a>
       </div>
+      <button type="button" id="offlineSaveBtn" onclick="toggleOfflineSave()">オフラインに保存</button>
       <div id="words"></div>
     </div>
   </div>
@@ -382,6 +403,7 @@
         <a href="favorites.html">お気に入り</a>
         <a href="settings.html">設定</a>
         <a href="update.html">更新履歴</a>
+        <a href="offline/index.html">オフライン</a>
         <a href="contact.html">お問い合わせ</a>
       </div>
       <div class="copy">© 2026 TEAM-Minimal, Shiratae</div>
@@ -407,6 +429,7 @@
     const id = new URLSearchParams(location.search).get("id");
     const cacheKey = `book_${id}`;
     let owner;
+    let offlineWords = [];
     let currentUser = null;
 
     // edit.htmlで保存した後history.back()でこのページに戻ってくると、ブラウザの
@@ -615,9 +638,29 @@
           ${hintHtml}
         </div>
       `;
+
+      offlineWords.push({
+        front: data.front || "",
+        hint: data.hint || "",
+        back: data.back || "",
+        note: data.note || ""
+      });
     });
 
     wordsDiv.innerHTML = wordsHtml;
+
+    // オフラインに保存済みの単語帳は、内容が更新されていれば裏で保存し直しておく
+    // （id/タイトル/単語が変わっても、次にオフラインページを開いたときに古い内容のままにならないように）
+    if (window.VOCABOOST_IS_OFFLINE_SAVED && window.VOCABOOST_IS_OFFLINE_SAVED(id)) {
+      window.VOCABOOST_SAVE_OFFLINE_BOOK({
+        id,
+        title: book.title,
+        description: book.description || "",
+        ownerName: book.ownerName || "",
+        words: offlineWords
+      });
+    }
+    updateOfflineSaveButton();
 
     // 最新データをキャッシュ保存。容量超過(QuotaExceededError)などで失敗しても、
     // この後に続く編集ボタン表示(onAuthStateChanged)やgoStudyの定義が
@@ -738,6 +781,32 @@
       btn.textContent = isFav ? "♥" : "♡";
       btn.title = isFav ? "お気に入り済み（クリックで解除）" : "お気に入りに追加";
     }
+
+    // ===== オフライン保存 =====
+    // 電波の無い環境でも暗記・テストができるよう、単語帳の内容をlocalStorageに保存する
+    // （offline-storage.jsを共通で利用。ログイン状態に関わらず誰でも使える）。
+    function updateOfflineSaveButton() {
+      const btn = document.getElementById("offlineSaveBtn");
+      if (!btn || !window.VOCABOOST_IS_OFFLINE_SAVED) return;
+      const saved = window.VOCABOOST_IS_OFFLINE_SAVED(id);
+      btn.textContent = saved ? "オフライン保存済み（タップで解除）" : "オフラインに保存";
+      btn.classList.toggle("saved", saved);
+    }
+
+    window.toggleOfflineSave = function () {
+      if (!window.VOCABOOST_IS_OFFLINE_SAVED) return;
+      const saved = window.VOCABOOST_IS_OFFLINE_SAVED(id);
+      if (saved) {
+        window.VOCABOOST_REMOVE_OFFLINE_BOOK(id);
+      } else {
+        window.VOCABOOST_SAVE_OFFLINE_BOOK({
+          id,
+          title: document.getElementById("title").textContent,
+          words: offlineWords
+        });
+      }
+      updateOfflineSaveButton();
+    };
 
     // ===== お気に入りした人一覧（作成者のみ） =====
     // favoriteBookIdsにこの単語帳IDを含むユーザーを検索して求める
@@ -894,6 +963,7 @@
     };
     })();
   </script>
+  <script src="offline-storage.js"></script>
   <script src="account-widgets.js"></script>
   <script src="analytics-tracker.js"></script>
 </body>
