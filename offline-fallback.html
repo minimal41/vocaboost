@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
+  <title>オフライン - Vocaboost</title>
+  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
+  <link rel="stylesheet" type="text/css" href="./style.css">
+  <script src="./theme.js"></script>
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .offlineCard {
+      background: var(--color-surface);
+      color: var(--color-text);
+      padding: 40px 30px;
+      border-radius: 16px;
+      max-width: 380px;
+      width: 100%;
+      text-align: center;
+      box-sizing: border-box;
+    }
+
+    .offlineIcon {
+      font-size: 44px;
+      margin-bottom: 6px;
+    }
+
+    .offlineCard h2 {
+      margin: 8px 0;
+    }
+
+    .offlineCard p {
+      color: var(--color-text-sub);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 26px;
+    }
+
+    .offlineActions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .offlineActions button {
+      width: 100%;
+      box-sizing: border-box;
+      margin: 0;
+    }
+
+    .offlineActions .secondaryBtn {
+      background: var(--color-surface);
+      color: var(--color-accent);
+      border: 1px solid var(--color-accent);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="offlineCard">
+    <div class="offlineIcon">📡</div>
+    <h2>オフラインです</h2>
+    <p>インターネットに接続されていないため、このページを表示できませんでした。接続を確認して再読み込みするか、保存済みの単語帳で学習できるオフラインモードをご利用ください。</p>
+    <div class="offlineActions">
+      <button type="button" onclick="location.reload()">再読み込み</button>
+      <button type="button" class="secondaryBtn" onclick="location.href='./offline/index.html'">オフラインモードへ</button>
+    </div>
+  </div>
+
+</body>
+
+</html>

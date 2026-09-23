@@ -1,6 +1,9 @@
 // Cache name
 // キャッシュ内容を変更したら必ずバージョンを上げる（古いキャッシュが残り続けるのを防ぐため）
-const CACHE_NAME = 'pwa-sample-caches-v16';
+const CACHE_NAME = 'pwa-sample-caches-v17';
+// オフライン時に「開いたことの無いページ」でキャッシュも無く表示できない場合に
+// 代わりに出す案内ページ（再読み込み／オフラインモードへのボタン付き）
+const OFFLINE_FALLBACK_URL = './offline-fallback.html';
 // キャッシュした日時などの管理用メタデータだけを保存する専用キャッシュ
 const META_CACHE_NAME = 'pwa-sample-cache-meta';
 // 単語帳・ユーザーページ等(view.html?id=...のようにURLごとに異なる動的ページ)は
@@ -78,6 +81,27 @@ async function cleanupOldEntries() {
   }));
 }
 
+// ナビゲーション(ページ遷移)がオフラインで失敗し、キャッシュにも無かった場合の案内ページ。
+// このファイル自体もurlsToCacheで事前キャッシュしているため、
+// キャッシュから取得できないのは想定外の異常時のみ（その場合は最低限のHTMLを直接返す）。
+async function buildOfflineFallbackResponse() {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const fallback = await cache.match(OFFLINE_FALLBACK_URL);
+    if (fallback) return fallback;
+  } catch (e) {
+    console.warn('Service Worker: オフライン案内ページの取得に失敗しました', e);
+  }
+  return new Response(
+    '<!DOCTYPE html><meta charset="utf-8"><body style="font-family:sans-serif;text-align:center;padding:40px 20px;">' +
+    '<p>オフラインです。</p>' +
+    '<button onclick="location.reload()">再読み込み</button> ' +
+    '<button onclick="location.href=\'./offline/index.html\'">オフラインモードへ</button>' +
+    '</body>',
+    { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+  );
+}
+
 // 前回チェックから1日以上経っていれば true を返し、チェック時刻を更新する
 async function shouldRunCleanup() {
   try {
@@ -126,6 +150,7 @@ const urlsToCache = [
   './offline/index.html',
   './offline/flash.html',
   './offline/test.html',
+  './offline-fallback.html',
 ];
 
 self.addEventListener('install', (event) => {
@@ -195,9 +220,19 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => {
+        .catch(async () => {
           // ネットワーク失敗時はキャッシュから返す（オフライン対応）
-          return caches.match(cacheRequest);
+          const cached = await caches.match(cacheRequest);
+          if (cached) return cached;
+
+          // 一度も開いたことが無いページ等でキャッシュにも無い場合、
+          // ページ遷移(ナビゲーション)であれば「再読み込み／オフラインモードへ」の
+          // 案内ページを代わりに表示する（CSS/JS等の付随リソースはそのまま失敗させる）。
+          const isNavigation = event.request.mode === 'navigate' || event.request.destination === 'document';
+          if (isNavigation) {
+            return buildOfflineFallbackResponse();
+          }
+          return Response.error();
         })
     );
     return;
