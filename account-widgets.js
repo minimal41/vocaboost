@@ -16,6 +16,42 @@
     }
   }
 
+  // ===== オフライン中であることを知らせる常設バナー =====
+  // キャッシュから表示できているページ(index.htmlなど)でも、実際には
+  // 電波が無く内容が最新でない可能性があることに気付けるよう、
+  // オフラインである間は全ページ共通でバナーを表示する
+  // （Firebase初期化を待たず、DOM構築後すぐに判定できる）。
+  function showOfflineBanner() {
+    if (document.getElementById("vb-offline-banner")) return;
+    const bar = document.createElement("div");
+    bar.id = "vb-offline-banner";
+    bar.setAttribute("role", "status");
+    bar.style.cssText =
+      "position:fixed;left:0;right:0;top:0;z-index:9999;" +
+      "background:var(--color-accent,#191970);color:#fff;" +
+      "font-size:13px;line-height:1.5;padding:8px 14px;" +
+      "text-align:center;box-sizing:border-box;box-shadow:0 2px 6px rgba(0,0,0,0.2);";
+    bar.textContent = "オフラインです。表示内容が最新でない場合があります。";
+    document.body.appendChild(bar);
+  }
+
+  function hideOfflineBanner() {
+    const bar = document.getElementById("vb-offline-banner");
+    if (bar) bar.remove();
+  }
+
+  function initOfflineBanner() {
+    if (!navigator.onLine) showOfflineBanner();
+    window.addEventListener("offline", showOfflineBanner);
+    window.addEventListener("online", hideOfflineBanner);
+  }
+
+  if (document.body) {
+    initOfflineBanner();
+  } else {
+    document.addEventListener("DOMContentLoaded", initOfflineBanner);
+  }
+
   // ===== 単語帳キャッシュ(book_*)の上限管理 =====
   // list.html/view.htmlは、開いた単語帳ごとに作成者の写真(base64のdata URL)を
   // 含んだキャッシュを book_{id} というキーでlocalStorageに保存し続けており、

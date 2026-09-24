@@ -778,11 +778,29 @@
       // 未作成の環境や、作成直後でcreatedAtがまだ無い/反映されていない単語帳が
       // 単語帳一覧から消えてしまわないよう、失敗時はorderByなしで取得して
       // クライアント側で並び替える。
+      // Firestoreのオフライン永続化(enablePersistence)により、電波が無い状態でも
+      // get()自体は「成功」で返ってくることがあるが、その内容はローカルの
+      // Firestoreキャッシュにたまたま無かっただけの不完全な結果(0件)の場合がある
+      // (snapshot.metadata.fromCache === true で判別できる)。
+      // すでに自前のキャッシュ(cachedBooks)で単語帳を表示できている状態でこれが
+      // 起きると、本当は単語帳があるのに「まだ単語帳がありません」に上書きされて
+      // しまうため、fromCacheかつ0件で、かつ表示中のキャッシュがある場合は
+      // 上書きしない（オンライン復帰後の取得で正しく反映される）。
+      function shouldSkipEmptyFromCacheResult(snapshot) {
+        return !!(snapshot.metadata && snapshot.metadata.fromCache && snapshot.empty && cachedBooks);
+      }
+
       db.collection("wordbooks")
         .where("owner", "==", uid)
         .orderBy("createdAt", "desc")
         .get()
-        .then(snapshot => finish(toBooks(snapshot)))
+        .then(snapshot => {
+          if (shouldSkipEmptyFromCacheResult(snapshot)) {
+            hideLoading();
+            return;
+          }
+          finish(toBooks(snapshot));
+        })
         .catch(err => {
           console.warn("createdAt順の取得に失敗。フォールバックします。", err);
 
@@ -790,6 +808,11 @@
             .where("owner", "==", uid)
             .get()
             .then(snapshot => {
+              if (shouldSkipEmptyFromCacheResult(snapshot)) {
+                hideLoading();
+                return;
+              }
+
               const books = toBooks(snapshot);
 
               books.sort((a, b) => {
