@@ -1,6 +1,6 @@
 // Cache name
 // キャッシュ内容を変更したら必ずバージョンを上げる（古いキャッシュが残り続けるのを防ぐため）
-const CACHE_NAME = 'pwa-sample-caches-v17';
+const CACHE_NAME = 'pwa-sample-caches-v18';
 // オフライン時に「開いたことの無いページ」でキャッシュも無く表示できない場合に
 // 代わりに出す案内ページ（再読み込み／オフラインモードへのボタン付き）
 const OFFLINE_FALLBACK_URL = './offline-fallback.html';
@@ -169,6 +169,13 @@ self.addEventListener('install', (event) => {
         );
       })
   );
+
+  // 通常、更新されたService Workerは開いている全タブが閉じられるまで
+  // 待機(waiting)状態のままで、古いバージョンが動き続けてしまう。
+  // オフライン対応の不具合修正などをできるだけ早く既存の利用者にも
+  // 反映させたいため、インストールが終わったら即座にこのバージョンへ
+  // 切り替える（現在表示中のページの動作が不安定にならない程度の変更のみを想定）。
+  self.skipWaiting();
 });
 
 // 古いバージョンのキャッシュを削除しつつ、現行キャッシュ内の期限切れエントリも掃除する
@@ -183,6 +190,9 @@ self.addEventListener('activate', (event) => {
         )
       )
       .then(() => cleanupOldEntries())
+      // skipWaiting()と対になる処理。activate後、既に開いている全タブに対しても
+      // すぐにこのService Workerが制御を持つようにする（次回のリロードを待たない）。
+      .then(() => self.clients.claim())
   );
 });
 
