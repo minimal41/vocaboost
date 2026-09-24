@@ -1,6 +1,6 @@
 // Cache name
 // キャッシュ内容を変更したら必ずバージョンを上げる（古いキャッシュが残り続けるのを防ぐため）
-const CACHE_NAME = 'pwa-sample-caches-v19';
+const CACHE_NAME = 'pwa-sample-caches-v20';
 // オフライン時に「開いたことの無いページ」でキャッシュも無く表示できない場合に
 // 代わりに出す案内ページ（再読み込み／オフラインモードへのボタン付き）
 const OFFLINE_FALLBACK_URL = './offline-fallback.html';
@@ -92,12 +92,28 @@ async function buildOfflineFallbackResponse() {
   } catch (e) {
     console.warn('Service Worker: オフライン案内ページの取得に失敗しました', e);
   }
+  // offline-fallback.html自体がキャッシュから取得できない想定外の場合の、
+  // 最低限styleを外部CSSに依存させず自前で持つフォールバック
   return new Response(
-    '<!DOCTYPE html><meta charset="utf-8"><body style="font-family:sans-serif;text-align:center;padding:40px 20px;">' +
-    '<p>オフラインです。</p>' +
-    '<button onclick="location.reload()">再読み込み</button> ' +
-    '<button onclick="location.href=\'./offline/index.html\'">オフラインモードへ</button>' +
-    '</body>',
+    '<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1"><title>オフライン - Vocaboost</title></head>' +
+    '<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;' +
+    'background:#eef2ff;font-family:-apple-system,BlinkMacSystemFont,\'Hiragino Sans\',\'Yu Gothic UI\',sans-serif;' +
+    'padding:20px;box-sizing:border-box;">' +
+    '<div style="background:#ffffff;color:#222222;padding:40px 30px;border-radius:16px;max-width:380px;' +
+    'width:100%;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,0.12);box-sizing:border-box;">' +
+    '<div style="font-size:44px;margin-bottom:6px;">📡</div>' +
+    '<h2 style="margin:8px 0;">オフラインです</h2>' +
+    '<p style="color:#666666;font-size:14px;line-height:1.6;margin-bottom:26px;">' +
+    'インターネットに接続されていないため、このページを表示できませんでした。' +
+    '接続を確認して再読み込みするか、保存済みの単語帳で学習できるオフラインモードをご利用ください。</p>' +
+    '<div style="display:flex;flex-direction:column;gap:10px;">' +
+    '<button onclick="location.reload()" style="width:100%;box-sizing:border-box;background:#191970;color:#fff;' +
+    'border:none;border-radius:10px;padding:10px 18px;font-size:16px;cursor:pointer;">再読み込み</button>' +
+    '<button onclick="location.href=\'./offline/index.html\'" style="width:100%;box-sizing:border-box;' +
+    'background:#ffffff;color:#191970;border:1px solid #191970;border-radius:10px;padding:10px 18px;' +
+    'font-size:16px;cursor:pointer;">オフラインモードへ</button>' +
+    '</div></div></body></html>',
     { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
   );
 }
@@ -153,6 +169,24 @@ const urlsToCache = [
   './offline-fallback.html',
 ];
 
+// デプロイ直後などGitHub Pages側の配信が一瞬追いついていないタイミングと
+// インストールが重なると、その1件だけ404等で一時的に取得に失敗することがある。
+// 1回失敗しただけで諦めず、少し待って数回リトライする。
+async function cacheAddWithRetry(cache, url, attempts = 3) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await cache.add(url);
+      return;
+    } catch (err) {
+      if (i === attempts - 1) {
+        console.warn('Service Worker: キャッシュ追加に失敗しました:', url, err);
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500 * (i + 1)));
+    }
+  }
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
@@ -161,11 +195,7 @@ self.addEventListener('install', (event) => {
         // addAllは1件でも失敗すると全体が失敗するため、
         // 1件ずつ追加してエラーをログに残しつつ続行できるようにする
         return Promise.all(
-          urlsToCache.map((url) =>
-            cache.add(url).catch((err) => {
-              console.warn('Service Worker: キャッシュ追加に失敗しました:', url, err);
-            })
-          )
+          urlsToCache.map((url) => cacheAddWithRetry(cache, url))
         );
       })
   );
