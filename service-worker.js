@@ -1,6 +1,6 @@
 // Cache name
 // キャッシュ内容を変更したら必ずバージョンを上げる（古いキャッシュが残り続けるのを防ぐため）
-const CACHE_NAME = 'pwa-sample-caches-v18';
+const CACHE_NAME = 'pwa-sample-caches-v19';
 // オフライン時に「開いたことの無いページ」でキャッシュも無く表示できない場合に
 // 代わりに出す案内ページ（再読み込み／オフラインモードへのボタン付き）
 const OFFLINE_FALLBACK_URL = './offline-fallback.html';
@@ -231,18 +231,27 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(async () => {
-          // ネットワーク失敗時はキャッシュから返す（オフライン対応）
-          const cached = await caches.match(cacheRequest);
-          if (cached) return cached;
-
-          // 一度も開いたことが無いページ等でキャッシュにも無い場合、
-          // ページ遷移(ナビゲーション)であれば「再読み込み／オフラインモードへ」の
-          // 案内ページを代わりに表示する（CSS/JS等の付随リソースはそのまま失敗させる）。
           const isNavigation = event.request.mode === 'navigate' || event.request.destination === 'document';
+
           if (isNavigation) {
+            // offline/index.html・flash.html・test.htmlは、キャッシュされていない
+            // ?idでも常に自分自身のキャッシュから返し、そのまま使わせる
+            // （内容がクエリ文字列に依存せず、単体で完結して動作するため）。
+            if (isOfflineAppPage(url.pathname)) {
+              return (await caches.match(cacheRequest)) || buildOfflineFallbackResponse();
+            }
+
+            // それ以外の通常ページ(index.html・view.html等)は、たとえ
+            // キャッシュされていて表示自体は可能でも、オフライン中は内容が
+            // 古い・不完全なまま見えてしまう（Firestoreに依存するため）ことを
+            // 避け、常にオフライン案内ページ（再読み込み／オフラインモードへ）
+            // を優先して表示する。
             return buildOfflineFallbackResponse();
           }
-          return Response.error();
+
+          // ナビゲーション以外(CSS/JS等の付随リソース)は通常通りキャッシュへ
+          // フォールバックする
+          return (await caches.match(cacheRequest)) || Response.error();
         })
     );
     return;
