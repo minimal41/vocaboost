@@ -934,7 +934,13 @@
 
       if (willShow) {
         const input = row.querySelector(`[data-type="${field}"]`);
-        if (input) input.focus();
+        if (input) {
+          input.focus();
+          // 非表示(display:none)の間はscrollHeightが常に0になるため、
+          // 表示した直後に高さを再計算し直す（そうしないと表示された途端
+          // テキストボックスの高さがおかしく(潰れて)見えてしまう）
+          autoResizeTextarea(input);
+        }
       }
     }
 
