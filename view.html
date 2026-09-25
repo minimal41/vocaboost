@@ -157,11 +157,16 @@
       min-width: 1.5em;
       text-align: right;
     }
+    /* 単語(表・裏)やヒントに改行が含まれる場合、そのまま表示に反映する */
+    .wordMain span {
+      white-space: pre-wrap;
+    }
     .wordHint {
       margin: 2px 0 0 calc(1.5em + 8px);
       font-size: 12px;
       color: var(--color-text-sub);
       text-align: left;
+      white-space: pre-wrap;
     }
     .detail-info {
       font-size: 15px;

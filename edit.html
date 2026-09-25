@@ -98,7 +98,7 @@
       flex-shrink: 0;
     }
 
-    .extraFieldRow input {
+    .extraFieldRow textarea {
       flex: 1;
       min-width: 0;
     }
@@ -183,7 +183,7 @@
       flex-wrap: wrap;
     }
 
-    .wordRow input {
+    .wordRow textarea {
       padding: 10px;
       border-radius: 10px;
       border: 1px solid var(--color-border);
@@ -194,9 +194,23 @@
     }
 
     @media (max-width: 768px) {
-      .wordRow input {
+      .wordRow textarea {
         width: 100%;
       }
+    }
+
+    /* 単語欄・トップの表裏入力欄はShift+Enterで改行できるtextarea。
+       ページ内の汎用textarea{}ルール(説明文欄向け)の高さ・リサイズ設定を
+       打ち消し、複数行になった分だけJSで自動的に高さが伸びるようにする */
+    .wordRow textarea,
+    .editInput {
+      height: auto;
+      margin-top: 0;
+      font-family: inherit;
+      line-height: 1.4;
+      resize: none;
+      overflow: hidden;
+      display: block;
     }
 
     textarea {
@@ -532,8 +546,8 @@
     <div class="card">
       <h3>単語を追加</h3>
       <div class="wordRow">
-        <input id="front" placeholder="例：犬">
-        <input id="back" placeholder="例：dog">
+        <textarea id="front" rows="1" placeholder="例：犬"></textarea>
+        <textarea id="back" rows="1" placeholder="例：dog"></textarea>
       </div>
       <div style="text-align:center;margin-top:10px">
         <button onclick="addWord()">追加</button>
@@ -892,6 +906,10 @@
 
           });
 
+          // Firestoreから読み込んだ内容に複数行のもの(表・裏・ヒント・解説)が
+          // あった場合に高さが正しく合うよう、DOM構築直後にリサイズしておく
+          area.querySelectorAll("textarea").forEach(autoResizeTextarea);
+
           renumberWords();
           updateCache();
           applyPendingWordFocus();
@@ -1163,11 +1181,20 @@
         setupDragReorder("wordList");
 
 
+    // Shift+Enterで改行できるtextarea(表・裏・ヒント・解説の各入力欄)の高さを、
+    // 入力内容の行数に合わせて自動調整する
+    function autoResizeTextarea(el) {
+      el.style.height = "auto";
+      el.style.height = el.scrollHeight + "px";
+    }
+
     async function addWord() {
       if (blockIfRestricted()) return;
 
-      const f = document.getElementById("front").value.trim();
-      const b = document.getElementById("back").value.trim();
+      const frontEl = document.getElementById("front");
+      const backEl = document.getElementById("back");
+      const f = frontEl.value.trim();
+      const b = backEl.value.trim();
 
       if (!f || !b) return;
 
@@ -1181,8 +1208,10 @@
           order: Date.now()
         });
 
-      document.getElementById("front").value = "";
-      document.getElementById("back").value = "";
+      frontEl.value = "";
+      backEl.value = "";
+      autoResizeTextarea(frontEl);
+      autoResizeTextarea(backEl);
 
       await db.collection("wordbooks").doc(bookId).update({
         wordCount: firebase.firestore.FieldValue.increment(1)
@@ -1382,6 +1411,80 @@
     }
 
     /* CSV読み込み */
+    // ダブルクオートで囲まれたフィールド内の改行・カンマ・""（エスケープされた
+    // 引用符）を正しく扱うCSVパーサー(RFC4180ライク)。単純に改行で行分割すると、
+    // セル内に改行を含む単語(表・裏・ヒント・解説)が別の行として分かれてしまうため。
+    function parseCSVText(text) {
+      const rows = [];
+      let row = [];
+      let field = "";
+      let inQuotes = false;
+      let i = 0;
+      const len = text.length;
+
+      while (i < len) {
+        const ch = text[i];
+
+        if (inQuotes) {
+          if (ch === '"') {
+            if (text[i + 1] === '"') {
+              field += '"';
+              i += 2;
+              continue;
+            }
+            inQuotes = false;
+            i++;
+            continue;
+          }
+          field += ch;
+          i++;
+          continue;
+        }
+
+        if (ch === '"') {
+          inQuotes = true;
+          i++;
+          continue;
+        }
+        if (ch === ",") {
+          row.push(field);
+          field = "";
+          i++;
+          continue;
+        }
+        if (ch === "\r") {
+          i++;
+          continue;
+        }
+        if (ch === "\n") {
+          row.push(field);
+          rows.push(row);
+          row = [];
+          field = "";
+          i++;
+          continue;
+        }
+        field += ch;
+        i++;
+      }
+
+      if (field !== "" || row.length > 0) {
+        row.push(field);
+        rows.push(row);
+      }
+
+      return rows;
+    }
+
+    // セルの内容がカンマ・改行・ダブルクオートを含む場合だけダブルクオートで囲む
+    function csvField(value) {
+      const str = String(value == null ? "" : value);
+      if (/[",\n\r]/.test(str)) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    }
+
     async function importCSV() {
       if (blockIfRestricted()) return;
 
@@ -1389,16 +1492,15 @@
       if (!file) return alert("CSVファイルを選択してください");
 
       const text = await file.text();
-      const lines = text.trim().split("\n");
+      const rows = parseCSVText(text);
 
       let addedCount = 0;
       const baseTime = Date.now();
-      const area = document.getElementById("wordList");
       // 1行のカラム数で判定する。2列なら従来通り「表,裏」、
       // 4列なら「表,ヒント,裏,解説」として読み込む。
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const cols = line.split(",").map(c => c.trim());
+      // セルの前後の空白・改行のみtrimし、セル内部の改行は保持する。
+      for (let i = 0; i < rows.length; i++) {
+        const cols = rows[i].map(c => c.trim());
 
         let f = "", b = "", hint = "", note = "";
         if (cols.length >= 4) {
@@ -1446,7 +1548,7 @@
 
       snap.forEach(doc => {
         const w = doc.data();
-        csv += `${w.front},${w.back}\n`;
+        csv += `${csvField(w.front)},${csvField(w.back)}\n`;
       });
 
       const blob = new Blob([csv], { type: "text/plain;charset=utf-8" });
@@ -1461,14 +1563,16 @@
     const front = document.getElementById("front");
     const back = document.getElementById("back");
 
+    // Shift+Enterは改行(textarea標準の動作のまま)、Enter単独の時だけ
+    // フォーカス移動・単語追加を行う
     front.addEventListener("keydown", function (event) {
-      if (event.key === "Enter") {
+      if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault(); // フォーム送信を防ぐ（必要に応じて）
         back.focus();
       }
     });
     back.addEventListener("keydown", async function (event) {
-      if (event.key === "Enter") {
+      if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
 
         // 単語追加
@@ -1478,6 +1582,9 @@
         front.focus();
       }
     });
+
+    front.addEventListener("input", () => autoResizeTextarea(front));
+    back.addEventListener("input", () => autoResizeTextarea(back));
 
     // 単語一覧の各行でEnterを押すと、左→右→次の行の左→次の行の右…の順にフォーカスが移動する
     // (変更を保存するとFirestoreのonSnapshotで行DOMが丸ごと再構築されるため、
@@ -1495,7 +1602,7 @@
     }
 
     document.getElementById("wordList").addEventListener("keydown", function (event) {
-      if (event.key !== "Enter") return;
+      if (event.key !== "Enter" || event.shiftKey) return;
       const target = event.target;
       if (!target.classList || !target.classList.contains("editInput")) return;
 
@@ -1515,6 +1622,13 @@
 
       pendingWordFocus = { id: targetRow.id.replace(/^word_/, ""), type: targetType };
       applyPendingWordFocus();
+    });
+
+    // 単語一覧内のtextarea(表・裏・ヒント・解説)は、入力に合わせて自動で高さを調整する
+    document.getElementById("wordList").addEventListener("input", function (event) {
+      if (event.target.tagName === "TEXTAREA") {
+        autoResizeTextarea(event.target);
+      }
     });
 
     function escapeHtml(str) {
@@ -1542,10 +1656,10 @@
             </label>
 
             <div class="fieldWrap">
-              <input class="editInput frontInput"
-                    value="${escapeHtml(w.front)}"
+              <textarea class="editInput frontInput"
+                    rows="1"
                     onchange="updateWord('${id}')"
-                    data-type="front">
+                    data-type="front">${escapeHtml(w.front)}</textarea>
               <button type="button" class="fieldToggleBtn${hint ? " hasValue" : ""}" onclick="toggleWordField('${id}','hint')">+ヒント</button>
             </div>
 
@@ -1556,10 +1670,10 @@
             </button>
 
             <div class="fieldWrap">
-              <input class="editInput backInput"
-                    value="${escapeHtml(w.back)}"
+              <textarea class="editInput backInput"
+                    rows="1"
                     onchange="updateWord('${id}')"
-                    data-type="back">
+                    data-type="back">${escapeHtml(w.back)}</textarea>
               <button type="button" class="fieldToggleBtn${note ? " hasValue" : ""}" onclick="toggleWordField('${id}','note')">+解説</button>
             </div>
 
@@ -1576,17 +1690,19 @@
           <div class="wordExtraFields">
             <div class="extraFieldRow hintFieldRow" id="hintRow_${id}" style="display:${hint ? "flex" : "none"};">
               <span class="extraFieldLabel">ヒント</span>
-              <input class="editInput" value="${escapeHtml(hint)}"
+              <textarea class="editInput"
+                    rows="1"
                     onchange="updateWord('${id}')"
                     data-type="hint"
-                    placeholder="表を暗記・出題する時に一緒に表示されます">
+                    placeholder="表を暗記・出題する時に一緒に表示されます">${escapeHtml(hint)}</textarea>
             </div>
             <div class="extraFieldRow noteFieldRow" id="noteRow_${id}" style="display:${note ? "flex" : "none"};">
               <span class="extraFieldLabel">解説</span>
-              <input class="editInput" value="${escapeHtml(note)}"
+              <textarea class="editInput"
+                    rows="1"
                     onchange="updateWord('${id}')"
                     data-type="note"
-                    placeholder="裏の答え合わせの時に一緒に表示されます">
+                    placeholder="裏の答え合わせの時に一緒に表示されます">${escapeHtml(note)}</textarea>
             </div>
           </div>
         </div>
@@ -1681,7 +1797,7 @@ async function exportReverseCSV() {
   snap.forEach(doc => {
     const w = doc.data();
 
-    csv += `${w.back},${w.front}\n`;
+    csv += `${csvField(w.back)},${csvField(w.front)}\n`;
   });
 
   const blob = new Blob([csv], {
@@ -1958,6 +2074,10 @@ async function swapWord(id) {
   backInput.value = f;
   if (hintInput) hintInput.value = n;
   if (noteInput) noteInput.value = h;
+  autoResizeTextarea(frontInput);
+  autoResizeTextarea(backInput);
+  if (hintInput) autoResizeTextarea(hintInput);
+  if (noteInput) autoResizeTextarea(noteInput);
 
   await db.collection("wordbooks")
     .doc(bookId)

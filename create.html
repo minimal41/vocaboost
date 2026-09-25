@@ -93,7 +93,7 @@
       margin-top: 10px;
     }
 
-    .wordRow input {
+    .wordRow textarea {
       width: 200px;
     }
 
@@ -180,7 +180,7 @@
       flex-shrink: 0;
     }
 
-    .extraFieldRow input {
+    .extraFieldRow textarea {
       flex: 1;
       min-width: 0;
     }
@@ -260,6 +260,18 @@
       border-radius: 8px;
       border: 1px solid var(--color-border);
       font-size: 14px;
+    }
+
+    /* 単語欄・トップの表裏入力欄はShift+Enterで改行できるtextarea。
+       複数行になった分だけ自動で高さが伸びるようJSで制御するため、
+       ここではリサイズハンドルを消し、はみ出し分を隠すだけにしておく */
+    .wordRow textarea,
+    .editInput {
+      font-family: inherit;
+      line-height: 1.4;
+      resize: none;
+      overflow: hidden;
+      display: block;
     }
 
     .frontInput,
@@ -496,8 +508,8 @@
       <h2>単語を追加</h2>
 
       <div class="wordRow">
-        <input id="front" placeholder="例：犬">
-        <input id="back" placeholder="例：dog">
+        <textarea id="front" rows="1" placeholder="例：犬"></textarea>
+        <textarea id="back" rows="1" placeholder="例：dog"></textarea>
       </div>
 
       <button onclick="addWord()">追加</button>
@@ -832,15 +844,26 @@
       }
     }
 
+    // Shift+Enterで改行できるtextarea(表・裏・ヒント・解説の各入力欄)の高さを、
+    // 入力内容の行数に合わせて自動調整する
+    function autoResizeTextarea(el) {
+      el.style.height = "auto";
+      el.style.height = el.scrollHeight + "px";
+    }
+
     function addWord() {
-      const f = document.getElementById("front").value.trim();
-      const b = document.getElementById("back").value.trim();
+      const frontEl = document.getElementById("front");
+      const backEl = document.getElementById("back");
+      const f = frontEl.value.trim();
+      const b = backEl.value.trim();
       if (!f || !b) return;
 
       addWordToList(nextLocalId(), f, b);
 
-      document.getElementById("front").value = "";
-      document.getElementById("back").value = "";
+      frontEl.value = "";
+      backEl.value = "";
+      autoResizeTextarea(frontEl);
+      autoResizeTextarea(backEl);
       renumberWords();
     }
 
@@ -865,11 +888,11 @@
           </label>
 
           <div class="fieldWrap">
-            <input
+            <textarea
               class="editInput frontInput"
-              value="${escapeHtml(f)}"
+              rows="1"
               data-type="front"
-            >
+            >${escapeHtml(f)}</textarea>
             <button type="button" class="fieldToggleBtn${hint ? " hasValue" : ""}" onclick="toggleWordField('${id}','hint')">+ヒント</button>
           </div>
 
@@ -880,11 +903,11 @@
           </button>
 
           <div class="fieldWrap">
-            <input
+            <textarea
               class="editInput backInput"
-              value="${escapeHtml(b)}"
+              rows="1"
               data-type="back"
-            >
+            >${escapeHtml(b)}</textarea>
             <button type="button" class="fieldToggleBtn${note ? " hasValue" : ""}" onclick="toggleWordField('${id}','note')">+解説</button>
           </div>
 
@@ -900,16 +923,20 @@
         <div class="wordExtraFields">
           <div class="extraFieldRow hintFieldRow" id="hintRow_${id}" style="display:${hint ? "flex" : "none"};">
             <span class="extraFieldLabel">ヒント</span>
-            <input class="editInput" value="${escapeHtml(hint)}" data-type="hint" placeholder="表を暗記・出題する時に一緒に表示されます">
+            <textarea class="editInput" rows="1" data-type="hint" placeholder="表を暗記・出題する時に一緒に表示されます">${escapeHtml(hint)}</textarea>
           </div>
           <div class="extraFieldRow noteFieldRow" id="noteRow_${id}" style="display:${note ? "flex" : "none"};">
             <span class="extraFieldLabel">解説</span>
-            <input class="editInput" value="${escapeHtml(note)}" data-type="note" placeholder="裏の答え合わせの時に一緒に表示されます">
+            <textarea class="editInput" rows="1" data-type="note" placeholder="裏の答え合わせの時に一緒に表示されます">${escapeHtml(note)}</textarea>
           </div>
         </div>
       `;
 
       document.getElementById("wordList").appendChild(div);
+
+      // 既に複数行の内容(CSV取り込み・他の単語帳からの取り込み等)を持つ場合に
+      // 高さが正しく合うよう、DOMへの追加後にリサイズしておく
+      div.querySelectorAll("textarea").forEach(autoResizeTextarea);
     }
 
     function toggleWordField(id, field) {
@@ -954,12 +981,16 @@
 
       frontInput.value = b;
       backInput.value = f;
+      autoResizeTextarea(frontInput);
+      autoResizeTextarea(backInput);
 
       if (hintInput && noteInput) {
         const h = hintInput.value;
         const n = noteInput.value;
         hintInput.value = n;
         noteInput.value = h;
+        autoResizeTextarea(hintInput);
+        autoResizeTextarea(noteInput);
       }
     }
 
@@ -1000,12 +1031,16 @@
 
         frontInput.value = b;
         backInput.value = f;
+        autoResizeTextarea(frontInput);
+        autoResizeTextarea(backInput);
 
         if (hintInput && noteInput) {
           const h = hintInput.value;
           const n = noteInput.value;
           hintInput.value = n;
           noteInput.value = h;
+          autoResizeTextarea(hintInput);
+          autoResizeTextarea(noteInput);
         }
       });
 
@@ -1157,6 +1192,80 @@
     setupDragReorder("wordList");
     onIsPublicChange();
 
+    // ダブルクオートで囲まれたフィールド内の改行・カンマ・""（エスケープされた
+    // 引用符）を正しく扱うCSVパーサー(RFC4180ライク)。単純に改行で行分割すると、
+    // セル内に改行を含む単語(表・裏・ヒント・解説)が別の行として分かれてしまうため。
+    function parseCSVText(text) {
+      const rows = [];
+      let row = [];
+      let field = "";
+      let inQuotes = false;
+      let i = 0;
+      const len = text.length;
+
+      while (i < len) {
+        const ch = text[i];
+
+        if (inQuotes) {
+          if (ch === '"') {
+            if (text[i + 1] === '"') {
+              field += '"';
+              i += 2;
+              continue;
+            }
+            inQuotes = false;
+            i++;
+            continue;
+          }
+          field += ch;
+          i++;
+          continue;
+        }
+
+        if (ch === '"') {
+          inQuotes = true;
+          i++;
+          continue;
+        }
+        if (ch === ",") {
+          row.push(field);
+          field = "";
+          i++;
+          continue;
+        }
+        if (ch === "\r") {
+          i++;
+          continue;
+        }
+        if (ch === "\n") {
+          row.push(field);
+          rows.push(row);
+          row = [];
+          field = "";
+          i++;
+          continue;
+        }
+        field += ch;
+        i++;
+      }
+
+      if (field !== "" || row.length > 0) {
+        row.push(field);
+        rows.push(row);
+      }
+
+      return rows;
+    }
+
+    // セルの内容がカンマ・改行・ダブルクオートを含む場合だけダブルクオートで囲む
+    function csvField(value) {
+      const str = String(value == null ? "" : value);
+      if (/[",\n\r]/.test(str)) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    }
+
     async function importCSV() {
       const file = document.getElementById("csvFile").files[0];
       if (!file) {
@@ -1165,20 +1274,21 @@
       }
 
       const text = await file.text();
-      const lines = text.split("\n");
+      const rows = parseCSVText(text);
 
       // 1行のカラム数で判定する。2列なら従来通り「表,裏」、
       // 4列なら「表,ヒント,裏,解説」として読み込む。
-      for (const line of lines) {
-        const cols = line.split(",").map(c => c.trim());
+      // セルの前後の空白・改行のみtrimし、セル内部の改行は保持する。
+      for (const cols of rows) {
+        const trimmedCols = cols.map(c => c.trim());
 
-        if (cols.length >= 4) {
-          const [f, hint, b, note] = cols;
+        if (trimmedCols.length >= 4) {
+          const [f, hint, b, note] = trimmedCols;
           if (f && b) {
             addWordToList(nextLocalId(), f, b, hint, note);
           }
         } else {
-          const [f, b] = cols;
+          const [f, b] = trimmedCols;
           if (f && b) {
             addWordToList(nextLocalId(), f, b);
           }
@@ -1196,7 +1306,7 @@
       rows.forEach(row => {
         const f = row.querySelector('[data-type="front"]').value;
         const b = row.querySelector('[data-type="back"]').value;
-        csv += `${f},${b}\n`;
+        csv += `${csvField(f)},${csvField(b)}\n`;
       });
 
       const blob = new Blob([csv], { type: "text/plain;charset=utf-8" });
@@ -1354,14 +1464,16 @@
     const front = document.getElementById("front");
     const back = document.getElementById("back");
 
+    // Shift+Enterは改行(textarea標準の動作のまま)、Enter単独の時だけ
+    // フォーカス移動・単語追加を行う
     front.addEventListener("keydown", function (event) {
-      if (event.key === "Enter") {
+      if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault(); // フォーム送信を防ぐ（必要に応じて）
         back.focus();
       }
     });
     back.addEventListener("keydown", async function (event) {
-      if (event.key === "Enter") {
+      if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
 
         // 単語追加
@@ -1372,9 +1484,13 @@
       }
     });
 
+    front.addEventListener("input", () => autoResizeTextarea(front));
+    back.addEventListener("input", () => autoResizeTextarea(back));
+
     // 単語一覧の各行でEnterを押すと、左→右→次の行の左→次の行の右…の順にフォーカスが移動する
+    // (Shift+Enterは改行のため対象外)
     document.getElementById("wordList").addEventListener("keydown", function (event) {
-      if (event.key !== "Enter") return;
+      if (event.key !== "Enter" || event.shiftKey) return;
       const target = event.target;
       if (!target.classList || !target.classList.contains("editInput")) return;
 
@@ -1393,6 +1509,13 @@
       if (nextRow) {
         const nextFrontInput = nextRow.querySelector('[data-type="front"]');
         if (nextFrontInput) nextFrontInput.focus();
+      }
+    });
+
+    // 単語一覧内のtextarea(表・裏・ヒント・解説)は、入力に合わせて自動で高さを調整する
+    document.getElementById("wordList").addEventListener("input", function (event) {
+      if (event.target.tagName === "TEXTAREA") {
+        autoResizeTextarea(event.target);
       }
     });
 
