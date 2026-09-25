@@ -399,7 +399,7 @@
     const dd = document.getElementById("notifDropdown");
     if (!dd) return;
     dropdownOpen = !dropdownOpen;
-    dd.style.display = dropdownOpen ? "block" : "none";
+    dd.style.display = dropdownOpen ? "flex" : "none";
     if (dropdownOpen && markAllReadImpl) {
       markAllReadImpl();
     }
