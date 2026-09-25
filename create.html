@@ -1224,6 +1224,7 @@
       try {
         const snap = await db.collection("wordbooks")
           .where("owner", "==", currentUser.uid)
+          .orderBy("createdAt", "desc")
           .get();
 
         const books = snap.docs
