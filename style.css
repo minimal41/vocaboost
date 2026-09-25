@@ -385,7 +385,8 @@ footer {
   width: 320px;
   max-width: 90vw;
   max-height: 420px;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   background: var(--color-surface);
   color: var(--color-text);
   border: 1px solid var(--color-border);
@@ -399,10 +400,37 @@ footer {
   padding: 12px 14px;
   font-weight: bold;
   border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
 .notif-list {
   padding: 4px 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.notif-dropdown-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-border);
+  padding: 8px;
+}
+
+.notif-view-all-btn {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font-size: 13px;
+  font-weight: bold;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.notif-view-all-btn:hover {
+  background: var(--color-bg);
 }
 
 .notif-empty {

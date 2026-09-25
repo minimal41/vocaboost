@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
+  <title>通知一覧</title>
+  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script src="theme.js"></script>
+
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card {
+      background: var(--color-surface);
+      color: var(--color-text);
+      padding: 25px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    .card h2 {
+      text-align: center;
+      margin-top: 0;
+    }
+
+    .emptyMsg {
+      color: var(--color-text-sub);
+      font-size: 14px;
+      text-align: center;
+      padding: 10px 0;
+    }
+
+    .notifRow {
+      display: block;
+      padding: 14px 16px;
+      border: 1px solid var(--color-border);
+      border-left: 3px solid transparent;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      color: inherit;
+      text-decoration: none;
+    }
+
+    a.notifRow {
+      cursor: pointer;
+    }
+
+    a.notifRow:hover {
+      background: var(--color-bg);
+    }
+
+    .notifRow.notifUnread {
+      border-left: 3px solid var(--color-accent);
+    }
+
+    .notifRowTitle {
+      font-weight: bold;
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+
+    .notifRowBody {
+      font-size: 14px;
+      color: var(--color-text-sub);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .notifRowTime {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--color-text-sub);
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <p class="headertitle"><a href="index.html"><img src="./images/rogo.png" height="70vh"></a></p>
+    <div id="status" style="display:none">ログイン確認中...</div>
+    <div>
+      <span id="notifBellContainer"></span>
+      <button id="settingsBtn" class="header-btn" style="display:none" onclick="goPage('settings.html')">設定</button>
+      <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
+      <button id="logoutBtn" class="header-btn" style="display:none" onclick="logout()">ログアウト</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>通知一覧</h2>
+      <div id="notifAllList"><p class="emptyMsg">読み込み中...</p></div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footertitle"><img src="./images/rogo.png" height="70vh"></div>
+      <div class="footer-links">
+        <a href="index.html">ホーム</a>
+        <a href="list.html">検索</a>
+        <a href="create.html">作成</a>
+        <a href="favorites.html">お気に入り</a>
+        <a href="settings.html">設定</a>
+        <a href="update.html">更新履歴</a>
+        <a href="contact.html">お問い合わせ</a>
+      </div>
+      <div class="copy">© 2026 TEAM-Minimal, Shiratae</div>
+    </div>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    const ADMIN_EMAILS = [
+      "202301745@edu.nishiyamato.ed.jp",
+      "202305145@edu.nishiyamato.ed.jp"
+    ];
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E",
+      authDomain: "quiz1-4ffdc.firebaseapp.com",
+      projectId: "quiz1-4ffdc",
+      storageBucket: "quiz1-4ffdc.firebasestorage.app",
+      messagingSenderId: "152062126332",
+      appId: "1:152062126332:web:845af237a1a76207214f79"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    let currentUser = null;
+
+    const statusDiv = document.getElementById("status");
+    const loginBtn = document.getElementById("loginBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const settingsBtn = document.getElementById("settingsBtn");
+
+    const savedUser = JSON.parse(localStorage.getItem("cachedUser"));
+
+    if (savedUser) {
+      settingsBtn.style.display = "inline-block";
+      logoutBtn.style.display = "inline-block";
+      loginBtn.style.display = "none";
+    } else {
+      // 通知一覧は自分宛ての通知を表示する専用ページのため、キャッシュされた
+      // ログイン情報が無い時点で未ログインと判断してログイン画面に送る
+      // （ログイン後はこのページに戻ってくる）。
+      location.href = "login.html?redirect=" + encodeURIComponent("notifications.html");
+    }
+
+    function handleSignedOut() {
+      statusDiv.textContent = "ログアウト中";
+      loginBtn.style.display = "inline-block";
+      logoutBtn.style.display = "none";
+      settingsBtn.style.display = "none";
+    }
+
+    function escapeHtml(str) {
+      return String(str == null ? "" : str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // 日付と時刻の両方が分かるよう、絶対時刻(YYYY/MM/DD HH:mm)で表示する
+    // （ヘッダーの通知ベルの一覧は直近だけなので相対表示だが、こちらは全履歴なので絶対時刻にする）。
+    function formatDateTime(date) {
+      const pad = n => String(n).padStart(2, "0");
+      return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
+    // ヘッダーの通知ベル(account-widgets.js)と同じ安全性チェック。
+    // 単語帳ID等から組み立てた相対パスのみを許可し、外部URLやjavascript:等の
+    // 意図しない遷移先を書き込まれても実害が出ないようにする。
+    function isSafeLink(link) {
+      return typeof link === "string" && /^[a-zA-Z0-9_-]+\.html(\?[a-zA-Z0-9_=&%.-]*)?$/.test(link);
+    }
+
+    auth.onAuthStateChanged(user => {
+      currentUser = user;
+      if (user) {
+        localStorage.setItem("cachedUser", JSON.stringify({ uid: user.uid }));
+        statusDiv.textContent = "ログイン中: " + user.uid;
+        loginBtn.style.display = "none";
+        logoutBtn.style.display = "inline-block";
+        settingsBtn.style.display = "inline-block";
+
+        loadAllNotifications(user);
+      } else if (localStorage.getItem("cachedUser")) {
+        // 端末やネットワークが遅いと1回・1.5秒の再確認だけでは間に合わないことがあるため、
+        // 間隔を広げながら最大4回(合計15秒)まで再確認してから本当に未ログインと判断する。
+        (function () {
+          const delays = [1000, 2000, 4000, 8000];
+          const recheck = (i) => {
+            setTimeout(() => {
+              if (auth.currentUser) return;
+              if (i + 1 < delays.length) {
+                recheck(i + 1);
+              } else {
+                handleSignedOut();
+                location.href = "login.html?redirect=" + encodeURIComponent("notifications.html");
+              }
+            }, delays[i]);
+          };
+          recheck(0);
+        })();
+      } else {
+        handleSignedOut();
+        location.href = "login.html?redirect=" + encodeURIComponent("notifications.html");
+      }
+    });
+
+    function goPage(page) {
+      if (page === "index.html") {
+        location.href = "index.html";
+        return;
+      }
+      const hasCachedUser = !!localStorage.getItem("cachedUser");
+      if (currentUser || hasCachedUser) {
+        location.href = page;
+      } else {
+        alert("ログインしてください");
+        location.href = "login.html";
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("cachedUser");
+      auth.signOut();
+    }
+
+    // ヘッダーの通知ベルは直近20件までだが、このページでは過去に来た通知を
+    // すべて（運営からのお知らせ、フォロー、お気に入り登録など全種別）日付順に表示する。
+    async function loadAllNotifications(user) {
+      const listEl = document.getElementById("notifAllList");
+      const isAdmin = ADMIN_EMAILS.includes(user.email);
+
+      const queries = [
+        db.collection("notifications").where("target", "==", "all").orderBy("createdAt", "desc").limit(300).get(),
+        db.collection("notifications").where("targetUserIds", "array-contains", user.uid).orderBy("createdAt", "desc").limit(300).get()
+      ];
+      const labels = ["全員向け通知", "自分宛て通知"];
+      if (isAdmin) {
+        queries.push(db.collection("notifications").where("target", "==", "admin").orderBy("createdAt", "desc").limit(300).get());
+        labels.push("運営宛て通知");
+      }
+
+      // どれかのクエリが失敗（複合インデックス未作成等）しても、他の結果まで
+      // 巻き添えで消えないように allSettled で個別に扱う。
+      const results = await Promise.allSettled(queries);
+
+      const map = new Map();
+      let anyFailed = false;
+      results.forEach((result, idx) => {
+        if (result.status === "fulfilled") {
+          result.value.forEach(d => map.set(d.id, { id: d.id, ...d.data() }));
+        } else {
+          anyFailed = true;
+          console.error(`notifications.html: failed to load ${labels[idx]}`, result.reason);
+        }
+      });
+
+      const notifications = Array.from(map.values())
+        .filter(n => n.createdAt && typeof n.createdAt.toMillis === "function")
+        .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+
+      if (notifications.length === 0) {
+        listEl.innerHTML = `<p class="emptyMsg">${anyFailed ? "一部の通知の読み込みに失敗しました" : "通知はありません"}</p>`;
+        return;
+      }
+
+      let readIds = [];
+      try {
+        const userSnap = await db.collection("users").doc(user.uid).get();
+        readIds = (userSnap.exists && userSnap.data().readNotificationIds) || [];
+      } catch (e) {
+        console.error("notifications.html: failed to load read status", e);
+      }
+
+      listEl.innerHTML = notifications.map(n => {
+        const isUnread = !readIds.includes(n.id);
+        const date = n.createdAt.toDate();
+        const tag = isSafeLink(n.link) ? "a" : "div";
+        const hrefAttr = isSafeLink(n.link) ? ` href="${escapeHtml(n.link)}"` : "";
+        return `
+          <${tag} class="notifRow${isUnread ? " notifUnread" : ""}"${hrefAttr}>
+            <div class="notifRowTitle">${escapeHtml(n.title)}</div>
+            <div class="notifRowBody">${escapeHtml(n.body)}</div>
+            <div class="notifRowTime">${formatDateTime(date)}</div>
+          </${tag}>
+        `;
+      }).join("");
+
+      // このページを開いた時点で、表示された通知はすべて既読にする
+      // （ヘッダーの通知ベルを開いたときと同じ挙動）。
+      const unreadIds = notifications.filter(n => !readIds.includes(n.id)).map(n => n.id);
+      if (unreadIds.length > 0) {
+        try {
+          await db.collection("users").doc(user.uid).update({
+            readNotificationIds: firebase.firestore.FieldValue.arrayUnion(...unreadIds)
+          });
+        } catch (e) {
+          console.error("notifications.html: failed to mark notifications as read", e);
+        }
+      }
+    }
+  </script>
+
+  <script src="account-widgets.js"></script>
+  <script src="analytics-tracker.js"></script>
+</body>
+
+</html>

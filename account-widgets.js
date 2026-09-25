@@ -325,6 +325,9 @@
         <div id="notifDropdown" class="notif-dropdown" style="display:none">
           <div class="notif-dropdown-title">通知</div>
           <div id="notifList" class="notif-list"><div class="notif-empty">通知はありません</div></div>
+          <div class="notif-dropdown-footer">
+            <button type="button" class="notif-view-all-btn" onclick="location.href='notifications.html'">すべての通知</button>
+          </div>
         </div>
       </span>
     `;
