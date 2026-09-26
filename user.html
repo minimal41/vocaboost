@@ -477,7 +477,7 @@
       <div id="reportMsg" class="notice"></div>
       <div class="modalActions">
         <button type="button" onclick="closeReportModal()">キャンセル</button>
-        <button type="button" onclick="submitReport()">通報する</button>
+        <button type="button" id="reportSubmitBtn" onclick="submitReport()">通報する</button>
       </div>
     </div>
   </div>
@@ -1135,6 +1135,7 @@
         const msg = document.getElementById("reportMsg");
         msg.className = "notice";
         msg.textContent = "";
+        document.getElementById("reportSubmitBtn").disabled = false;
         document.getElementById("reportModal").style.display = "flex";
       };
 
@@ -1143,6 +1144,9 @@
       };
 
       window.submitReport = async function () {
+        // 送信中・送信済みは受け付けない（連打で同じ通報が何件も送られていたため）
+        const submitBtn = document.getElementById("reportSubmitBtn");
+        if (submitBtn.disabled) return;
         const reason = document.getElementById("reportReason").value.trim();
         const msg = document.getElementById("reportMsg");
 
@@ -1157,6 +1161,7 @@
           return;
         }
 
+        submitBtn.disabled = true;
         msg.className = "notice";
         msg.textContent = "送信しています...";
 
@@ -1192,6 +1197,7 @@
           console.error(e);
           msg.className = "notice";
           msg.textContent = "送信に失敗しました: " + e.message;
+          submitBtn.disabled = false;
         }
       };
 
