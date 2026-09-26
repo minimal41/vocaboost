@@ -625,7 +625,7 @@
         <span></span>
       </div>
       <p style="font-size:12px;color:var(--color-text-sub);text-align:left;margin:6px 2px;">
-        ☰ を掴んでドラッグすると単語の並び順を変更できます／各入力欄の右の「+ヒント」「+解説」ボタンから表・裏それぞれのヒントや解説を入力できます
+        ☰ を掴んでドラッグすると単語の並び順を変更できます／各入力欄の右の「+ヒント」「+解説」ボタンから表・裏それぞれのヒントや解説を入力できます／Enterで次の欄、Ctrl+Enterで前の欄に移動できます
       </p>
       <div id="wordList"></div>
     </div>
@@ -1721,12 +1721,23 @@
     // Shift+Enterは改行(textarea標準の動作のまま)、Enter単独の時だけ
     // フォーカス移動・単語追加を行う
     front.addEventListener("keydown", function (event) {
+      // Ctrl+Enter(MacはCmd+Enter)は1つ前に戻る操作。表の欄より前は無いので何もしない
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        return;
+      }
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault(); // フォーム送信を防ぐ（必要に応じて）
         focusAtEnd(back);
       }
     });
     back.addEventListener("keydown", async function (event) {
+      // Ctrl+Enter(MacはCmd+Enter)で表の欄に戻る
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        focusAtEnd(front);
+        return;
+      }
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
 
@@ -1756,8 +1767,29 @@
       }
     }
 
+    // Ctrl+Enter(MacはCmd+Enter)で1つ前の欄に戻る（Enterの逆順：裏→同じ行の表→前の行の裏…）
     document.getElementById("wordList").addEventListener("keydown", function (event) {
-      if (event.key !== "Enter" || event.shiftKey) return;
+      if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey)) return;
+      const target = event.target;
+      if (!target.classList || !target.classList.contains("editInput")) return;
+
+      const row = target.closest(".wordItem");
+      if (!row) return;
+
+      event.preventDefault();
+
+      let input = null;
+      if (target.dataset.type === "front") {
+        const prevRow = row.previousElementSibling;
+        input = prevRow && prevRow.querySelector('[data-type="back"]');
+      } else {
+        input = row.querySelector('[data-type="front"]');
+      }
+      if (input) focusAtEnd(input);
+    });
+
+    document.getElementById("wordList").addEventListener("keydown", function (event) {
+      if (event.key !== "Enter" || event.shiftKey || event.ctrlKey || event.metaKey) return;
       const target = event.target;
       if (!target.classList || !target.classList.contains("editInput")) return;
 
