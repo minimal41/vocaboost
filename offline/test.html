@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
   <title>Test（オフライン） - Vocaboost</title>
-  <link rel="apple-touch-icon" sizes="1024x1024" href="../images/icon.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="../images/icon.png">
   <link rel="icon" type="image/x-icon" href="../images/favicon.ico">
   <link rel="stylesheet" type="text/css" href="../style.css">
   <script src="../theme.js"></script>
@@ -409,6 +409,28 @@
       render();
     };
 
+
+    // 偏りのないシャッフル（Fisher-Yates）。
+    // 以前の sort(() => Math.random() - 0.5) は並びに偏りが出るうえ、
+    // 元の配列を並べ替えてしまうため、ランダムを外して再スタートしても元の順に戻らなかった
+    function shuffled(list) {
+      const a = list.slice();
+      for (let k = a.length - 1; k > 0; k--) {
+        const r = Math.floor(Math.random() * (k + 1));
+        [a[k], a[r]] = [a[r], a[k]];
+      }
+      return a;
+    }
+
+    function escapeTestHtml(str) {
+      return String(str == null ? "" : str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
     function makeList() {
       const skip = document.getElementById("skipCheck").checked;
       const random = document.getElementById("randomCheck").checked;
@@ -420,7 +442,7 @@
       }
 
       if (random) {
-        filteredWords.sort(() => Math.random() - 0.5);
+        filteredWords = shuffled(filteredWords);
       }
     }
 
@@ -459,7 +481,9 @@
       if (i >= filteredWords.length) {
         quiz.style.display = "none";
         end.style.display = "block";
-        score.textContent = `${correct}/${filteredWords.length} (${Math.round(correct / filteredWords.length * 100)}%)`;
+        score.textContent = filteredWords.length
+          ? `${correct}/${filteredWords.length} (${Math.round(correct / filteredWords.length * 100)}%)`
+          : "出題できる単語がありません";
         return;
       }
       q.textContent = getQuestion(filteredWords[i]);
@@ -508,9 +532,9 @@
           result.innerHTML = `
           <div style="text-align:left;border:1px solid var(--color-border);border-radius:8px;padding:12px;margin-top:10px;">
               <div><b>あなたの回答</b></div>
-              <div style="margin-bottom:12px;">${ans.value || "（未入力）"}</div>
+              <div style="margin-bottom:12px;">${ans.value ? escapeTestHtml(ans.value) : "（未入力）"}</div>
               <div><b>正解</b></div>
-              <div>${getAnswerText(filteredWords[i])}</div>
+              <div>${escapeTestHtml(getAnswerText(filteredWords[i]))}</div>
           </div>
           `;
           document.getElementById("answerBtn").style.display = "none";
@@ -528,7 +552,7 @@
             localStorage.setItem("learnedWords", JSON.stringify(learned));
           }
         } else {
-          result.innerHTML = '<span class="wrong">不正解</span>　正解: ' + getAnswerText(filteredWords[i]);
+          result.innerHTML = '<span class="wrong">不正解</span>　正解: ' + escapeTestHtml(getAnswerText(filteredWords[i]));
         }
         revealNote();
         phase = 1;

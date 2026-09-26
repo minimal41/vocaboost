@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
 <title>新規登録</title>
-<link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+<link rel="apple-touch-icon" sizes="512x512" href="./images/icon.png">
 <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
 <link rel="stylesheet" type="text/css" href="style.css">
 <link rel="stylesheet" type="text/css" href="login.css">
@@ -53,8 +53,34 @@ firebase.initializeApp(firebaseConfig);
 
 const auth = firebase.auth();
 const db = firebase.firestore();
+// ログイン後の移動先(?redirect=)は、このサイト内のページ(例: view.html?id=xxx)だけを許可する。
+// 以前は値をそのまま location.href に入れていたため、javascript:〜 のURLを仕込んだリンクで
+// ログインした人の画面でスクリプトを実行させたり、外部の偽サイトへ飛ばしたりできてしまっていた。
+function safeRedirect(value) {
+  return typeof value === "string" && /^[A-Za-z0-9_-]+\.html(\?[A-Za-z0-9_=&%.-]*)?$/.test(value)
+    ? value
+    : null;
+}
+
+// Firebaseのエラーを日本語のメッセージにする（英語の生のエラー文をそのまま出さない）
+function authErrorMessage(e) {
+  const map = {
+    "auth/invalid-credential": "メールアドレスまたはパスワードが違います",
+    "auth/invalid-login-credentials": "メールアドレスまたはパスワードが違います",
+    "auth/wrong-password": "メールアドレスまたはパスワードが違います",
+    "auth/user-not-found": "メールアドレスまたはパスワードが違います",
+    "auth/invalid-email": "メールアドレスの形式が正しくありません",
+    "auth/user-disabled": "このアカウントは利用できません",
+    "auth/too-many-requests": "試行回数が多すぎます。しばらく待ってからもう一度お試しください",
+    "auth/network-request-failed": "通信に失敗しました。電波の良い場所でもう一度お試しください",
+    "auth/email-already-in-use": "このメールアドレスはすでに登録されています",
+    "auth/weak-password": "パスワードは6文字以上にしてください"
+  };
+  return (e && map[e.code]) || ((e && e.message) || "不明なエラーが発生しました");
+}
+
 const params = new URLSearchParams(location.search);
-const redirect = params.get("redirect");
+const redirect = safeRedirect(params.get("redirect"));
 
 async function register(){
 
@@ -63,15 +89,15 @@ async function register(){
   const pass = document.getElementById("password").value;
   const msg = document.getElementById("msg");
 
-  if (!/^\d{9}$/.test(head)) {
-  msg.textContent = "このメールアドレスは使用できません";
-  return;
-  }
-
   msg.textContent = "";
 
   if(!username || !head || !pass){
     msg.textContent = "すべて入力してください";
+    return;
+  }
+
+  if (!/^\d{9}$/.test(head)) {
+    msg.textContent = "メールアドレスは@より前の数字9桁（学籍番号）を入力してください";
     return;
   }
 
@@ -102,7 +128,7 @@ async function register(){
     }
 
   }catch(e){
-    msg.textContent = "登録失敗：" + e.message;
+    msg.textContent = "登録失敗：" + authErrorMessage(e);
   }
 
 }

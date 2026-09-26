@@ -59,7 +59,11 @@
     const deviceId = getDeviceId();
 
     let ssDelta = 0;
-    if (deviceId) {
+    // 同じ30分バケット内で既に記録済みなら、失敗すると分かっている書き込みを送らない
+    // （ページを移動するたびに無駄な通信が1回発生していたため）
+    let recordedBucket = null;
+    try { recordedBucket = localStorage.getItem("vocaboost_ss_bucket"); } catch (e) { }
+    if (deviceId && recordedBucket !== bucket.id) {
       const markerId = bucket.id + "_" + deviceId;
       try {
         // 同じ(バケット, 端末)の組み合わせでは一度しか作成に成功しないため、
@@ -70,9 +74,11 @@
           createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         ssDelta = 1;
+        try { localStorage.setItem("vocaboost_ss_bucket", bucket.id); } catch (e2) { }
       } catch (e) {
         // 既にこのバケット・この端末からのアクセスを記録済み（2回目以降の表示）→ Ssは増やさない
         ssDelta = 0;
+        try { localStorage.setItem("vocaboost_ss_bucket", bucket.id); } catch (e2) { }
       }
     }
 

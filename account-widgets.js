@@ -350,7 +350,10 @@
 
   // 直近の通知一覧・既読状態・管理者判定をlocalStorageに保存しておき、
   // 次回訪問時にFirebase/Firestoreの応答を待たずに即座に描画できるようにする
-  function saveNotifCache(uid, isAdmin) {
+  const NOTIF_REFRESH_MS = 3 * 60 * 1000;
+  let notifFetchedAt = 0; // 通知一覧を実際にFirestoreから取得した時刻
+
+  function saveNotifCache(uid, isAdmin, savedAt) {
     try {
       const serializable = notifications.map(n => ({
         id: n.id,
@@ -361,7 +364,8 @@
       localStorage.setItem(notifCacheKey(uid), JSON.stringify({
         notifications: serializable,
         readIds: readIds,
-        isAdmin: isAdmin
+        isAdmin: isAdmin,
+        savedAt: savedAt || notifFetchedAt || Date.now()
       }));
     } catch (e) {
       console.warn("account-widgets: failed to save cache", e);
@@ -431,6 +435,19 @@
     btn.addEventListener("click", () => { location.href = "admin.html"; });
     container.appendChild(btn);
   }
+
+  // 通知一覧ページ(notifications.html)で既読にした内容を、ヘッダーのベルのバッジにも即座に反映する
+  window.VOCABOOST_MARK_NOTIFICATIONS_READ = function (ids) {
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    readIds = Array.from(new Set(readIds.concat(ids)));
+    updateBadge();
+    renderList();
+    try {
+      const savedUser = JSON.parse(localStorage.getItem("cachedUser") || "null");
+      const cache = savedUser && savedUser.uid ? loadNotifCache(savedUser.uid) : null;
+      if (cache) saveNotifCache(savedUser.uid, !!cache.isAdmin);
+    } catch (e) { }
+  };
 
   function updateBadge() {
     const unread = notifications.filter(n => !readIds.includes(n.id)).length;
@@ -756,7 +773,19 @@
       ensureCohort(user, userData);
       syncBookCount(user, userData);
 
+      // 通知一覧はページを移動するたびに最大60件を読み直していたため、
+      // 直近(NOTIF_REFRESH_MS以内)に取得したキャッシュがあればそれを使い、通信を省く
+      const cached = loadNotifCache(user.uid);
+      if (cached && cached.savedAt && Date.now() - cached.savedAt < NOTIF_REFRESH_MS && cached.isAdmin === isAdmin) {
+        notifications = cached.notifications || [];
+        notifFetchedAt = cached.savedAt;
+        updateBadge();
+        renderList();
+        saveNotifCache(user.uid, isAdmin);
+        return;
+      }
       await loadNotifications(user, isAdmin);
+      notifFetchedAt = Date.now();
       saveNotifCache(user.uid, isAdmin);
     });
 

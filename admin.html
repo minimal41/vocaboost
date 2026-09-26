@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
   <title>運営専用ページ</title>
-  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="./images/icon.png">
   <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
   <link rel="stylesheet" type="text/css" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -435,6 +435,7 @@
         <a href="index.html">ホーム</a>
         <a href="list.html">検索</a>
         <a href="create.html">作成</a>
+        <a href="favorites.html">お気に入り</a>
         <a href="settings.html">設定</a>
         <a href="update.html">更新履歴</a>
         <a href="contact.html">お問い合わせ</a>
@@ -891,8 +892,10 @@
       msg.textContent = "削除しています...";
 
       try {
-        for (const book of ownedBooks) {
-          await deleteBookCascade(book.id);
+        // 画面に読み込んだ一覧(最新1000件まで)ではなく、所有者で直接検索して漏れなく削除する
+        const ownedSnap = await db.collection("wordbooks").where("owner", "==", editingUserUid).get();
+        for (const doc of ownedSnap.docs) {
+          await deleteBookCascade(doc.id);
         }
 
         await db.collection("users").doc(editingUserUid).delete();
@@ -1302,7 +1305,7 @@
     }
   </script>
 
-  <script src="account-widgets.js?v=20260927"></script>
+  <script src="account-widgets.js?v=20260927b"></script>
 </body>
 
 </html>

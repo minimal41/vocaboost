@@ -86,8 +86,12 @@ service cloud.firestore {
     match /wordbooks/{bookId} {
       allow read: if resource.data.isPublic == true || isOwner(resource.data.owner) || isAdmin();
       allow create: if isSignedIn() && isOwner(request.resource.data.owner);
+      // forcedPrivate自体は管理者しか変更できない（以前は所有者がforcedPrivateをfalseに
+      // 書き換えてから公開し直すことで、強制非公開を解除できてしまっていた）。
+      // ownerも変更不可（他人の単語帳に見せかける書き換えを防ぐ）。
       allow update: if isAdmin() || (
         isOwner(resource.data.owner) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(["forcedPrivate", "owner"]) &&
         !(resource.data.forcedPrivate == true && request.resource.data.isPublic == true)
       );
       allow delete: if isOwner(resource.data.owner) || isAdmin();

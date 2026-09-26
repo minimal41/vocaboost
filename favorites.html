@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
   <title>お気に入り</title>
-  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="./images/icon.png">
   <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
   <link rel="stylesheet" type="text/css" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -403,7 +403,8 @@
             users.push({
               id: followingIds[idx],
               username: data.username || "名無し",
-              photoURL: data.photoURL || null
+              photoURL: data.photoURL || null,
+              cohort: data.cohort ?? (window.VOCABOOST_COHORT_FROM_EMAIL ? window.VOCABOOST_COHORT_FROM_EMAIL(data.email) : null)
             });
           }
         });
@@ -416,7 +417,7 @@
         listEl.innerHTML = users.map(u => `
           <div class="userRow" id="followRow_${escapeHtml(u.id)}">
             <a class="userLink" href="user.html?id=${encodeURIComponent(u.id)}">
-              ${window.VOCABOOST_AVATAR_HTML ? window.VOCABOOST_AVATAR_HTML(u.photoURL, 36) : ""}
+              ${window.VOCABOOST_AVATAR_HTML ? window.VOCABOOST_AVATAR_HTML(u.photoURL, 36, u.cohort) : ""}
               <span>${escapeHtml(u.username)}</span>
             </a>
             <button type="button" class="unfollowBtn" onclick="unfollowUser('${u.id}')">フォロー解除</button>
@@ -449,7 +450,7 @@
     };
   </script>
 
-  <script src="account-widgets.js?v=20260927"></script>
+  <script src="account-widgets.js?v=20260927b"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 

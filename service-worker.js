@@ -1,6 +1,6 @@
 // Cache name
 // キャッシュ内容を変更したら必ずバージョンを上げる（古いキャッシュが残り続けるのを防ぐため）
-const CACHE_NAME = 'pwa-sample-caches-v22';
+const CACHE_NAME = 'pwa-sample-caches-v23';
 // オフライン時に「開いたことの無いページ」でキャッシュも無く表示できない場合に
 // 代わりに出す案内ページ（再読み込み／オフラインモードへのボタン付き）
 const OFFLINE_FALLBACK_URL = './offline-fallback.html';

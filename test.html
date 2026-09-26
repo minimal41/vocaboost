@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
   <title>Test</title>
-  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="./images/icon.png">
   <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
   <link rel="stylesheet" type="text/css" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -325,7 +325,7 @@
 
       <button onclick="resetLearned()">学習データをリセット</button><br><br>
 
-      <button onclick="startTest()">▶ スタート</button><br><br>
+      <button id="startBtn" onclick="startTest()" disabled>読み込み中...</button><br><br>
       <button onclick="goBack()">戻る</button>
       <p id="startMsg" style="color:var(--color-danger)"></p>
     </div>
@@ -375,7 +375,7 @@
       <div><img src="./images/rogo.png" height="70vh"></div>
       <div class="footer-links">
         <a href="index.html">ホーム</a>
-        <a href="list.html">公開単語帳</a>
+        <a href="list.html">検索</a>
         <a href="create.html">作成</a>
         <a href="favorites.html">お気に入り</a>
         <a href="settings.html">設定</a>
@@ -501,12 +501,26 @@
 
     // 並び替え(order)フィールドで取得。未対応の単語帳（orderフィールド未付与）は
     // 結果が空になるため、その場合は作成日時順にフォールバックする
+    // 読み込みが終わるまでスタートボタンを押せないようにする
+    // （以前は読み込み前に押すと単語が0件扱いになり「すべて正解済みです」と誤表示されていた）
     (async function loadWords() {
-      let snap = await db.collection("wordbooks").doc(id).collection("words").orderBy("order").get();
-      if (snap.empty) {
-        snap = await db.collection("wordbooks").doc(id).collection("words").orderBy("createdAt").get();
+      const startBtn = document.getElementById("startBtn");
+      try {
+        let snap = await db.collection("wordbooks").doc(id).collection("words").orderBy("order").get();
+        if (snap.empty) {
+          snap = await db.collection("wordbooks").doc(id).collection("words").orderBy("createdAt").get();
+        }
+        snap.forEach(d => words.push(d.data()));
+        if (words.length === 0) {
+          startBtn.textContent = "単語がありません";
+          return;
+        }
+        startBtn.disabled = false;
+        startBtn.textContent = "▶ スタート";
+      } catch (e) {
+        console.error(e);
+        startBtn.textContent = "読み込みに失敗しました";
       }
-      snap.forEach(d => words.push(d.data()));
     })();
 
     window.startTest = () => {
@@ -525,6 +539,28 @@
       render();
     };
 
+
+    // 偏りのないシャッフル（Fisher-Yates）。
+    // 以前の sort(() => Math.random() - 0.5) は並びに偏りが出るうえ、
+    // 元の配列を並べ替えてしまうため、ランダムを外して再スタートしても元の順に戻らなかった
+    function shuffled(list) {
+      const a = list.slice();
+      for (let k = a.length - 1; k > 0; k--) {
+        const r = Math.floor(Math.random() * (k + 1));
+        [a[k], a[r]] = [a[r], a[k]];
+      }
+      return a;
+    }
+
+    function escapeTestHtml(str) {
+      return String(str == null ? "" : str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
     function makeList() {
       const skip = document.getElementById("skipCheck").checked;
       const random = document.getElementById("randomCheck").checked;
@@ -537,7 +573,7 @@
 
       // ★ ランダムONのときだけシャッフル
       if (random) {
-        filteredWords.sort(() => Math.random() - 0.5);
+        filteredWords = shuffled(filteredWords);
       }
     }
 
@@ -576,7 +612,9 @@
       if (i >= filteredWords.length) {
         quiz.style.display = "none";
         end.style.display = "block";
-        score.textContent = `${correct}/${filteredWords.length} (${Math.round(correct / filteredWords.length * 100)}%)`;
+        score.textContent = filteredWords.length
+          ? `${correct}/${filteredWords.length} (${Math.round(correct / filteredWords.length * 100)}%)`
+          : "出題できる単語がありません";
         return;
       }
       q.textContent = getQuestion(filteredWords[i]);
@@ -639,10 +677,10 @@
                 result.innerHTML = `
                 <div style="text-align:left;border:1px solid var(--color-border);border-radius:8px;padding:12px;margin-top:10px;">
                     <div><b>あなたの回答</b></div>
-                    <div style="margin-bottom:12px;">${ans.value || "（未入力）"}</div>
+                    <div style="margin-bottom:12px;">${ans.value ? escapeTestHtml(ans.value) : "（未入力）"}</div>
 
                     <div><b>正解</b></div>
-                    <div>${getAnswerText(filteredWords[i])}</div>
+                    <div>${escapeTestHtml(getAnswerText(filteredWords[i]))}</div>
                 </div>
                 `;
 
@@ -663,7 +701,7 @@
             localStorage.setItem("learnedWords", JSON.stringify(learned));
           }
         } else {
-          result.innerHTML = '<span class="wrong">不正解</span>　正解: ' + getAnswerText(filteredWords[i]);
+          result.innerHTML = '<span class="wrong">不正解</span>　正解: ' + escapeTestHtml(getAnswerText(filteredWords[i]));
         }
         revealNote();
         phase = 1;
@@ -736,7 +774,7 @@
       location.href = `view.html?id=${id}`;
     };
   </script>
-  <script src="account-widgets.js?v=20260927"></script>
+  <script src="account-widgets.js?v=20260927b"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 

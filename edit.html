@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
   <title>単語帳編集</title>
-  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="./images/icon.png">
   <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
   <link rel="stylesheet" type="text/css" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -498,6 +498,26 @@
       color: var(--color-text-sub);
       font-size: 14px;
     }
+
+    /* スマホ幅：一覧上部の操作ボタン(全選択・表裏反転・選択削除)は単語一覧の外にあり、
+       最小幅のせいでページ全体が横にはみ出していたため、折り返せる横並びにする */
+    @media (max-width: 768px) {
+      .wordListHeader.wordItemCols {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .wordListHeader.wordItemCols > span {
+        display: none;
+      }
+
+      .wordListHeader.wordItemCols button {
+        margin: 0;
+      }
+    }
   </style>
 </head>
 
@@ -627,7 +647,7 @@
       <div><img src="./images/rogo.png" height="70vh"></div>
       <div class="footer-links">
         <a href="index.html">ホーム</a>
-        <a href="list.html">公開単語帳</a>
+        <a href="list.html">検索</a>
         <a href="create.html">作成</a>
         <a href="favorites.html">お気に入り</a>
         <a href="settings.html">設定</a>
@@ -656,6 +676,25 @@
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const db = firebase.firestore();
+
+    // Firestoreのバッチは1回あたり最大500件の書き込みに制限されているため、
+    // 単語数の多い単語帳(CSV取り込み等で500語以上)でも失敗しないよう、
+    // db.batch()と同じ使い方(set/update/delete/commit)のまま450件ごとに分けて書き込む
+    function createChunkedBatch() {
+      const ops = [];
+      return {
+        set(ref, data, options) { ops.push(b => options ? b.set(ref, data, options) : b.set(ref, data)); return this; },
+        update(ref, data) { ops.push(b => b.update(ref, data)); return this; },
+        delete(ref) { ops.push(b => b.delete(ref)); return this; },
+        async commit() {
+          for (let k = 0; k < ops.length; k += 450) {
+            const batch = db.batch();
+            ops.slice(k, k + 450).forEach(op => op(batch));
+            await batch.commit();
+          }
+        }
+      };
+    }
 
     // Firestoreオフラインキャッシュ
     db.enablePersistence({
@@ -1034,7 +1073,7 @@
           const hasMissing = snap.docs.some(d => d.data().order === undefined);
           if (!hasMissing) return;
 
-          const batch = db.batch();
+          const batch = createChunkedBatch();
           snap.docs.forEach((d, idx) => {
             batch.update(d.ref, { order: (idx + 1) * 1000 });
           });
@@ -1167,7 +1206,7 @@
           const items = Array.from(list.querySelectorAll(".wordItem"));
 
           try {
-            const batch = db.batch();
+            const batch = createChunkedBatch();
             items.forEach((item, idx) => {
               const id = item.id.replace("word_", "");
               const ref = db.collection("wordbooks")
@@ -1254,7 +1293,7 @@
         .doc(bookId)
         .collection("words")
         .get();
-      const batch = db.batch();
+      const batch = createChunkedBatch();
 
       snap.forEach(doc => {
         batch.delete(doc.ref);
@@ -1407,12 +1446,23 @@
         return false;
       }
 
-      await db.collection("wordbooks").doc(bookId).update({
-        title: title,
-        description: desc,
-        isPublic: isPublic,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
+      if (!title) {
+        alert("タイトルを入力してください");
+        return false;
+      }
+
+      try {
+        await db.collection("wordbooks").doc(bookId).update({
+          title: title,
+          description: desc,
+          isPublic: isPublic,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (e) {
+        console.error(e);
+        alert("保存に失敗しました。通信状況を確認してもう一度お試しください。");
+        return false;
+      }
       updateCache();
       alert("保存しました");
       return true;
@@ -1500,7 +1550,7 @@
       if (!file) return alert("CSVファイルを選択してください");
 
       const text = await file.text();
-      const rows = parseCSVText(text);
+      const rows = parseCSVText(text.replace(/^\uFEFF/, ""));
 
       let addedCount = 0;
       const baseTime = Date.now();
@@ -1546,27 +1596,36 @@
     }
 
     /* CSV書き出し */
-    async function exportCSV() {
-      const snap = await db.collection("wordbooks")
-        .doc(bookId)
-        .collection("words")
-        .orderBy("createdAt")
-        .get();
-      let csv = "";
+    // 単語を画面と同じ並び順(orderフィールド)で取得する。並び替え機能導入前の単語帳
+    // (orderフィールド未付与)では結果が空になるため、その場合は作成日時順にする。
+    // 以前は作成日時順だけで取得していたため、まとめて保存した単語(作成日時が同じ)の順番が
+    // バラバラになったり、並び替えた順番がCSVに反映されなかったりしていた。
+    async function fetchWordsInOrder() {
+      const col = db.collection("wordbooks").doc(bookId).collection("words");
+      let snap = await col.orderBy("order").get();
+      if (snap.empty) snap = await col.orderBy("createdAt").get();
+      return snap.docs.map(d => d.data());
+    }
 
-      snap.forEach(doc => {
-        const w = doc.data();
-        csv += `${csvField(w.front)},${csvField(w.back)}\n`;
-      });
-
-      const blob = new Blob([csv], { type: "text/plain;charset=utf-8" });
+    // CSVファイルをダウンロードさせる。先頭にBOMを付けて、Excelで開いても文字化けしないようにする
+    function downloadCSV(csv, filename) {
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      const title = document.getElementById("title").value.trim() || "単語帳";
-      a.download = `${title}.csv`;
+      a.download = filename;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      // ダウンロード開始前にURLを破棄すると保存に失敗するブラウザがあるため少し待つ
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    async function exportCSV() {
+      const words = await fetchWordsInOrder();
+      const csv = words.map(w => `${csvField(w.front)},${csvField(w.back)}\n`).join("");
+      const title = document.getElementById("title").value.trim() || "単語帳";
+      downloadCSV(csv, `${title}.csv`);
     }
     const front = document.getElementById("front");
     const back = document.getElementById("back");
@@ -1768,7 +1827,7 @@
         return;
       }
 
-      const batch = db.batch();
+      const batch = createChunkedBatch();
 
       checks.forEach(check => {
         const ref = db.collection("wordbooks")
@@ -1794,33 +1853,10 @@
     }
 
 async function exportReverseCSV() {
-  const snap = await db.collection("wordbooks")
-    .doc(bookId)
-    .collection("words")
-    .orderBy("createdAt")
-    .get();
-
-  let csv = "";
-
-  snap.forEach(doc => {
-    const w = doc.data();
-
-    csv += `${csvField(w.back)},${csvField(w.front)}\n`;
-  });
-
-  const blob = new Blob([csv], {
-    type: "text/plain;charset=utf-8"
-  });
-
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
+  const words = await fetchWordsInOrder();
+  const csv = words.map(w => `${csvField(w.back)},${csvField(w.front)}\n`).join("");
   const title = document.getElementById("title").value.trim() || "単語帳";
-  a.download = `${title}_reverse.csv`;
-  a.click();
-
-  URL.revokeObjectURL(url);
+  downloadCSV(csv, `${title}_reverse.csv`);
 }
 
 /* ===== 他の単語帳から単語を取り込む ===== */
@@ -1858,7 +1894,7 @@ async function openImportModal() {
       item.className = "importBookItem";
       item.innerHTML = `
         <span class="bookTitle">${escapeHtml(b.title)}</span>
-        <span class="bookCount">${b.wordCount}語</span>
+        <span class="bookCount">${Number(b.wordCount) || 0}語</span>
       `;
       item.addEventListener("click", () => selectImportBook(b.id, b.title));
       listArea.appendChild(item);
@@ -2038,7 +2074,7 @@ async function reverseSelectedWords() {
     return;
   }
 
-  const batch = db.batch();
+  const batch = createChunkedBatch();
 
   for (const check of checks) {
     const ref = db.collection("wordbooks")
@@ -2113,7 +2149,7 @@ window.addEventListener("beforeunload", () => {
 });
   </script>
 
-  <script src="account-widgets.js?v=20260927"></script>
+  <script src="account-widgets.js?v=20260927b"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 

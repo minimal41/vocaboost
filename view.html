@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
   <title>View</title>
-  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="./images/icon.png">
   <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
   <link rel="stylesheet" type="text/css" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -432,7 +432,7 @@
       <div><img src="./images/rogo.png" height="70vh"></div>
       <div class="footer-links">
         <a href="index.html">ホーム</a>
-        <a href="list.html">公開単語帳</a>
+        <a href="list.html">検索</a>
         <a href="create.html">作成</a>
         <a href="favorites.html">お気に入り</a>
         <a href="settings.html">設定</a>
@@ -447,6 +447,10 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <!-- 単語帳の描画処理がVOCABOOST_AVATAR_HTML等を使うため、共通スクリプトはメインスクリプトより先に読み込む
+       （Firestoreのキャッシュから即座にデータが返ると、後から読み込んでいた場合に未定義エラーになっていた） -->
+  <script src="offline-storage.js"></script>
+  <script src="account-widgets.js?v=20260927b"></script>
 
   <script>
     // 他ページと同じFirebase SDK(compatビルド, 9.23.0)で統一する。
@@ -565,6 +569,7 @@
     if (!bookSnap.exists) {
       alert("単語帳が見つかりません");
       location.href = "index.html";
+      return;
     }
 
     const book = bookSnap.data();
@@ -614,7 +619,7 @@
     }
 
     if (book.wordCount !== undefined) {
-      metaParts.push(`計 ${book.wordCount} 単語`);
+      metaParts.push(`計 ${Number(book.wordCount) || 0} 単語`);
     }
 
     const metaHtml = metaParts.length
@@ -627,8 +632,10 @@
 
     if (book.description) {
 
-      const linkedText = book.description.replace(
-        /(https?:\/\/[^\s]+)/g,
+      // 説明文はユーザー入力のため、必ず先にエスケープしてからURL部分だけをリンクにする
+      // （以前はエスケープしておらず、説明文にHTMLを書くと閲覧者の画面でスクリプトが動いてしまっていた）
+      const linkedText = escapeHtml(book.description).replace(
+        /(https?:\/\/[^\s<]+)/g,
         (url) => {
 
           const internalPrefix =
@@ -1010,8 +1017,6 @@
     };
     })();
   </script>
-  <script src="offline-storage.js"></script>
-  <script src="account-widgets.js?v=20260927"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 

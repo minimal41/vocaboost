@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
   <title>通知一覧</title>
-  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="./images/icon.png">
   <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
   <link rel="stylesheet" type="text/css" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -311,6 +311,9 @@
       // このページを開いた時点で、表示された通知はすべて既読にする
       // （ヘッダーの通知ベルを開いたときと同じ挙動）。
       const unreadIds = notifications.filter(n => !readIds.includes(n.id)).map(n => n.id);
+      if (unreadIds.length > 0 && window.VOCABOOST_MARK_NOTIFICATIONS_READ) {
+        window.VOCABOOST_MARK_NOTIFICATIONS_READ(unreadIds);
+      }
       if (unreadIds.length > 0) {
         try {
           await db.collection("users").doc(user.uid).update({
@@ -323,7 +326,7 @@
     }
   </script>
 
-  <script src="account-widgets.js?v=20260927"></script>
+  <script src="account-widgets.js?v=20260927b"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 

@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
   <title>Flash</title>
-  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="./images/icon.png">
   <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
   <link rel="stylesheet" type="text/css" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -112,7 +112,7 @@
         <input type="checkbox" id="randomCheck">ランダム出題
       </label><br><br>
 
-      <button onclick="startFlash()">▶ スタート</button>
+      <button id="startBtn" onclick="startFlash()" disabled>読み込み中...</button>
       <br><br>
       <button onclick="goBack()">戻る</button>
     </div>
@@ -147,7 +147,7 @@
       <div><img src="./images/rogo.png" height="70vh"></div>
       <div class="footer-links">
         <a href="index.html">ホーム</a>
-        <a href="list.html">公開単語帳</a>
+        <a href="list.html">検索</a>
         <a href="create.html">作成</a>
         <a href="favorites.html">お気に入り</a>
         <a href="settings.html">設定</a>
@@ -259,18 +259,33 @@
     };
 
     const id = new URLSearchParams(location.search).get("id");
-    let words = [], i = 0, show = false;
+    let words = [], originalWords = [], i = 0, show = false;
     const quizCard = document.getElementById("quizCard");
     const endCard = document.getElementById("end");
 
     // 並び替え(order)フィールドで取得。未対応の単語帳（orderフィールド未付与）は
     // 結果が空になるため、その場合は作成日時順にフォールバックする
+    // 読み込みが終わるまでスタートボタンを押せないようにする
+    // （以前は読み込み前に押すと単語が0件のまま始まり、すぐ終了画面になっていた）
     (async function loadWords() {
-      let snap = await db.collection("wordbooks").doc(id).collection("words").orderBy("order").get();
-      if (snap.empty) {
-        snap = await db.collection("wordbooks").doc(id).collection("words").orderBy("createdAt").get();
+      const startBtn = document.getElementById("startBtn");
+      try {
+        let snap = await db.collection("wordbooks").doc(id).collection("words").orderBy("order").get();
+        if (snap.empty) {
+          snap = await db.collection("wordbooks").doc(id).collection("words").orderBy("createdAt").get();
+        }
+        snap.forEach(d => originalWords.push(d.data()));
+        words = originalWords.slice();
+        if (originalWords.length === 0) {
+          startBtn.textContent = "単語がありません";
+          return;
+        }
+        startBtn.disabled = false;
+        startBtn.textContent = "▶ スタート";
+      } catch (e) {
+        console.error(e);
+        startBtn.textContent = "読み込みに失敗しました";
       }
-      snap.forEach(d => words.push(d.data()));
     })();
 
     const hintBtn = document.getElementById("hintBtn");
@@ -346,6 +361,8 @@
       // 呼ばれてしまう(例: ヒントを一度表示すると次のカード以降も
       // 自動でヒントが表示され続ける不具合の原因になっていた)。
       // それを防ぐため、Enterのデフォルト動作は抑止して自前の処理だけを行う。
+      // カード表示中以外(スタート前・終了後)は何もしない
+      if (quizCard.style.display !== "flex") return;
       e.preventDefault();
 
       showBack();
@@ -356,11 +373,35 @@
       location.href = `view.html?id=${id}`;
     };
 
+
+    // 偏りのないシャッフル（Fisher-Yates）。
+    // 以前の sort(() => Math.random() - 0.5) は並びに偏りが出るうえ、
+    // 元の配列を並べ替えてしまうため、ランダムを外して再スタートしても元の順に戻らなかった
+    function shuffled(list) {
+      const a = list.slice();
+      for (let k = a.length - 1; k > 0; k--) {
+        const r = Math.floor(Math.random() * (k + 1));
+        [a[k], a[r]] = [a[r], a[k]];
+      }
+      return a;
+    }
+
+    function escapeTestHtml(str) {
+      return String(str == null ? "" : str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
     function applyOrder() {
       const random = document.getElementById("randomCheck").checked;
 
       if (random) {
-        words.sort(() => Math.random() - 0.5);
+        words = shuffled(originalWords);
+      } else {
+        words = originalWords.slice();
       }
     }
 
@@ -373,7 +414,7 @@
       render();
     };
   </script>
-  <script src="account-widgets.js?v=20260927"></script>
+  <script src="account-widgets.js?v=20260927b"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 

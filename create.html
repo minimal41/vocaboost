@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
   <title>単語帳作成</title>
-  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="./images/icon.png">
   <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
   <link rel="stylesheet" type="text/css" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -476,6 +476,26 @@
       color: var(--color-text-sub);
       font-size: 14px;
     }
+
+    /* スマホ幅：一覧上部の操作ボタン(全選択・表裏反転・選択削除)は単語一覧の外にあり、
+       最小幅のせいでページ全体が横にはみ出していたため、折り返せる横並びにする */
+    @media (max-width: 768px) {
+      .wordListHeader.wordItemCols {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .wordListHeader.wordItemCols > span {
+        display: none;
+      }
+
+      .wordListHeader.wordItemCols button {
+        margin: 0;
+      }
+    }
   </style>
 </head>
 
@@ -616,6 +636,25 @@
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const db = firebase.firestore();
+
+    // Firestoreのバッチは1回あたり最大500件の書き込みに制限されているため、
+    // 単語数の多い単語帳(CSV取り込み等で500語以上)でも失敗しないよう、
+    // db.batch()と同じ使い方(set/update/delete/commit)のまま450件ごとに分けて書き込む
+    function createChunkedBatch() {
+      const ops = [];
+      return {
+        set(ref, data, options) { ops.push(b => options ? b.set(ref, data, options) : b.set(ref, data)); return this; },
+        update(ref, data) { ops.push(b => b.update(ref, data)); return this; },
+        delete(ref) { ops.push(b => b.delete(ref)); return this; },
+        async commit() {
+          for (let k = 0; k < ops.length; k += 450) {
+            const batch = db.batch();
+            ops.slice(k, k + 450).forEach(op => op(batch));
+            await batch.commit();
+          }
+        }
+      };
+    }
 
     let currentUser = null;
     let bookId = null;
@@ -825,7 +864,7 @@
 
         bookId = doc.id;
 
-        const batch = db.batch();
+        const batch = createChunkedBatch();
         words.forEach((w, idx) => {
           const ref = db.collection("wordbooks").doc(bookId).collection("words").doc();
           batch.set(ref, {
@@ -1292,7 +1331,7 @@
       }
 
       const text = await file.text();
-      const rows = parseCSVText(text);
+      const rows = parseCSVText(text.replace(/^\uFEFF/, ""));
 
       // 1行のカラム数で判定する。2列なら従来通り「表,裏」、
       // 4列なら「表,ヒント,裏,解説」として読み込む。
@@ -1369,7 +1408,7 @@
           item.className = "importBookItem";
           item.innerHTML = `
             <span class="bookTitle">${escapeHtml(b.title)}</span>
-            <span class="bookCount">${b.wordCount}語</span>
+            <span class="bookCount">${Number(b.wordCount) || 0}語</span>
           `;
           item.addEventListener("click", () => selectImportBook(b.id, b.title));
           listArea.appendChild(item);
@@ -1546,7 +1585,7 @@
     }
   </script>
 
-  <script src="account-widgets.js?v=20260927"></script>
+  <script src="account-widgets.js?v=20260927b"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 

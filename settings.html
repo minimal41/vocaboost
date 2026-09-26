@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
   <title>設定</title>
-  <link rel="apple-touch-icon" sizes="1024x1024" href="./images/icon.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="./images/icon.png">
   <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
   <link rel="stylesheet" type="text/css" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -54,6 +54,11 @@
     }
 
     /* ===== 表示設定（フォント・ダークモード） ===== */
+    .font-item-preview-pending {
+      font-size: 12px !important;
+      color: var(--color-text-sub);
+    }
+
     .option-row {
       display: flex;
       justify-content: space-between;
@@ -298,7 +303,7 @@
       <div><img src="./images/rogo.png" height="70vh"></div>
       <div class="footer-links">
         <a href="index.html">ホーム</a>
-        <a href="list.html">公開単語帳</a>
+        <a href="list.html">検索</a>
         <a href="create.html">作成</a>
         <a href="favorites.html">お気に入り</a>
         <a href="settings.html">設定</a>
@@ -595,11 +600,45 @@
 
     const currentFont = localStorage.getItem(FONT_KEY) || DEFAULT_FONT;
 
-    // フォントのプレビュー表示用に、まだ読み込んでいないフォントのCSSを読み込む
-    // （Google Fonts / ローカル同梱フォントの読み込みは theme.js の共通関数に委譲する）
-    function ensurePreviewFontLoaded(entry) {
+    // フォントのプレビュー表示用の読み込み。
+    // 以前は設定ページを開いた瞬間に全フォント(約50種類の日本語フォント全体と、
+    // 約9.5MBの源界明朝)を読み込んでいて非常に重かったため、
+    //  - 画面に表示されたプレビューだけを読み込む（IntersectionObserver）
+    //  - Google Fontsはプレビューの文字(PREVIEW_TEXT)だけを含む小さなフォントを取得する
+    //  - 同梱の源界明朝(ファイルが大きい)はプレビューせず、選択されたときだけ読み込む
+    // ようにしている。
+    const PREVIEW_TEXT = "あア亜Aa";
+
+    function loadPreviewFont(entry) {
+      if (entry.family === "standard" || entry.local) return;
+      if (document.querySelector(`[data-vocaboost-font-preview="${entry.family}"]`)) return;
+      const weightParam = entry.weight ? `:wght@${entry.weight}` : "";
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(entry.family)}${weightParam}&text=${encodeURIComponent(PREVIEW_TEXT)}&display=swap`;
+      link.setAttribute("data-vocaboost-font-preview", entry.family);
+      document.head.appendChild(link);
+    }
+
+    const previewObserver = "IntersectionObserver" in window
+      ? new IntersectionObserver((entries) => {
+          entries.forEach(e => {
+            if (!e.isIntersecting) return;
+            const entry = ALL_FONTS.find(f => f.family === e.target.dataset.family);
+            if (entry) loadPreviewFont(entry);
+            previewObserver.unobserve(e.target);
+          });
+        }, { rootMargin: "200px" })
+      : null;
+
+    function ensurePreviewFontLoaded(entry, previewEl) {
       if (entry.family === "standard") return;
-      window.VOCABOOST_LOAD_FONT(entry);
+      if (previewObserver && previewEl) {
+        previewEl.dataset.family = entry.family;
+        previewObserver.observe(previewEl);
+      } else {
+        loadPreviewFont(entry);
+      }
     }
 
     function selectFont(font) {
@@ -612,7 +651,8 @@
         const entry = ALL_FONTS.find(f => f.family === font);
         document.documentElement.removeAttribute("data-font");
         if (entry) {
-          ensurePreviewFontLoaded(entry);
+          // 選択時はプレビュー用の一部の文字だけでなく、フォント全体を読み込む
+          window.VOCABOOST_LOAD_FONT(entry);
           document.documentElement.style.setProperty(
             "--font-family",
             `"${entry.family}", var(--font-standard)`
@@ -662,10 +702,14 @@
 
         const preview = document.createElement("div");
         preview.className = "font-item-preview";
-        preview.textContent = "あア亜Aa";
-        if (entry.family !== "standard") {
+        preview.textContent = PREVIEW_TEXT;
+        if (entry.local && entry.family !== currentSelectedFont()) {
+          // 同梱フォントはファイルが大きいため、選択されるまでプレビューしない
+          preview.textContent = "選択すると表示";
+          preview.classList.add("font-item-preview-pending");
+        } else if (entry.family !== "standard") {
           preview.style.fontFamily = `"${entry.family}", sans-serif`;
-          ensurePreviewFontLoaded(entry);
+          ensurePreviewFontLoaded(entry, preview);
         }
 
         item.appendChild(main);
@@ -699,7 +743,7 @@
     });
   </script>
 
-  <script src="account-widgets.js?v=20260927"></script>
+  <script src="account-widgets.js?v=20260927b"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 
