@@ -295,9 +295,9 @@
         <div id="notifMsg" class="notice"></div>
 
         <h3 class="collapsibleHeader" onclick="toggleSection('notifHistorySection')">
-          送信履歴 <span class="collapseIcon" id="notifHistorySection_icon">▾</span>
+          送信履歴 <span class="collapseIcon" id="notifHistorySection_icon">▸</span>
         </h3>
-        <div id="notifHistorySection_body">
+        <div id="notifHistorySection_body" style="display:none;">
           <div class="tableWrap">
             <table>
               <thead>
@@ -316,9 +316,9 @@
       <!-- 通報一覧 -->
       <section class="card">
         <h2 class="collapsibleHeader" onclick="toggleSection('reportSection')">
-          通報一覧 <span class="collapseIcon" id="reportSection_icon">▾</span>
+          通報一覧 <span class="collapseIcon" id="reportSection_icon">▸</span>
         </h2>
-        <div id="reportSection_body">
+        <div id="reportSection_body" style="display:none;">
           <input type="text" id="reportSearch" class="searchInput" placeholder="理由・対象名・通報者で検索" oninput="renderReportList()">
           <div class="tableWrap">
             <table class="reportTable">
