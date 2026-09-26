@@ -100,79 +100,6 @@
       height: 100%;
     }
 
-    /* ===== プロフィール写真：トリミングモーダル ===== */
-    .cropModalOverlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.6);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 200;
-      padding: 20px;
-      box-sizing: border-box;
-    }
-
-    .cropModalBox {
-      background: var(--color-surface);
-      color: var(--color-text);
-      border-radius: 12px;
-      padding: 20px;
-      width: 100%;
-      max-width: 340px;
-      box-sizing: border-box;
-      text-align: center;
-    }
-
-    .cropModalDesc {
-      font-size: 12px;
-      color: var(--color-text-sub);
-      margin: 4px 0 14px;
-    }
-
-    .cropViewport {
-      width: 260px;
-      height: 260px;
-      margin: 0 auto;
-      max-width: 100%;
-      border-radius: 50%;
-      overflow: hidden;
-      background: var(--color-bg);
-      position: relative;
-      cursor: grab;
-      touch-action: none;
-      user-select: none;
-    }
-
-    .cropViewport.dragging {
-      cursor: grabbing;
-    }
-
-    .cropViewport img {
-      position: absolute;
-      top: 0;
-      left: 0;
-      max-width: none;
-      pointer-events: none;
-    }
-
-    .cropZoomSlider {
-      width: 260px;
-      max-width: 100%;
-      margin: 14px auto 0;
-      display: block;
-    }
-
-    .cropModalActions {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      margin-top: 16px;
-    }
-
     /* ===== 表示設定（フォント・ダークモード） ===== */
     .option-row {
       display: flex;
@@ -377,8 +304,7 @@
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12Zm0 2.5c-3.3 0-9.8 1.6-9.8 4.9v2.4h19.6v-2.4c0-3.3-6.5-4.9-9.8-4.9Z"/></svg>
         </span>
       </div>
-      <input type="file" id="avatarInput" accept="image/*" style="display:none">
-      <button type="button" onclick="document.getElementById('avatarInput').click()">写真を選択</button>
+      <button type="button" onclick="changeAvatar()">写真を選択</button>
       <button type="button" id="avatarRemoveBtn" onclick="removeAvatar()" style="display:none;">削除する</button>
       <div id="avatarMsg" class="notice"></div>
     </div>
@@ -445,21 +371,6 @@
     </div>
 
   </main>
-
-  <div id="cropModal" class="cropModalOverlay" style="display:none;">
-    <div class="cropModalBox">
-      <h3>写真の位置を調整</h3>
-      <p class="cropModalDesc">ドラッグで位置を、スライダーで拡大・縮小を調整できます</p>
-      <div id="cropViewport" class="cropViewport">
-        <img id="cropImage" alt="" draggable="false">
-      </div>
-      <input type="range" id="cropZoom" class="cropZoomSlider" min="100" max="300" value="100">
-      <div class="cropModalActions">
-        <button type="button" onclick="cancelCrop()">キャンセル</button>
-        <button type="button" onclick="confirmCrop()">この写真にする</button>
-      </div>
-    </div>
-  </div>
 
   <footer>
     <div class="footer-inner">
@@ -535,11 +446,6 @@
        account-widgets.js の読み込みタイミングに依存しないよう、
        このページ内で完結する形で写真の表示・検証・アップロードを行う。 */
     const PROFILE_PHOTO_DATA_URL_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
-    // 表示箇所の最大サイズはuser.htmlの120pxのため、高DPI(2倍)分を見込んだ240pxで十分。
-    // 480pxは過剰な解像度で、この写真はlocalStorageにも(単語帳ごとに複製されて)
-    // 保存されるため、サイズを落として容量超過(QuotaExceededError)を起きにくくする。
-    const AVATAR_OUTPUT_SIZE = 240;
-
     function isValidPhotoDataUrl(url) {
       return typeof url === "string" && PROFILE_PHOTO_DATA_URL_RE.test(url);
     }
@@ -579,190 +485,22 @@
       }
     }
 
-    /* ===== トリミングモーダル =====
-       選択した画像を丸い枠(cropViewport)の中でドラッグ移動・スライダーでの拡大縮小により
-       自分で構図を決められるようにし、確定時に枠内に写っている範囲だけを
-       AVATAR_OUTPUT_SIZE 四方のJPEGとして書き出す。 */
-    const CROP_VIEWPORT_SIZE = 260;
-
-    const cropModal = document.getElementById("cropModal");
-    const cropViewport = document.getElementById("cropViewport");
-    const cropImage = document.getElementById("cropImage");
-    const cropZoom = document.getElementById("cropZoom");
-
-    let cropNaturalWidth = 0;
-    let cropNaturalHeight = 0;
-    let cropBaseScale = 1;
-    let cropOffsetX = 0;
-    let cropOffsetY = 0;
-    let cropZoomValue = 100;
-    let cropDragging = false;
-    let cropDragStartX = 0;
-    let cropDragStartY = 0;
-    let cropDragStartOffsetX = 0;
-    let cropDragStartOffsetY = 0;
-
-    function cropCurrentScale() {
-      return cropBaseScale * (cropZoomValue / 100);
-    }
-
-    // 画像が常に丸い枠を隙間なく覆うように、オフセットの取りうる範囲を制限する
-    function clampCropOffset() {
-      const scale = cropCurrentScale();
-      const scaledW = cropNaturalWidth * scale;
-      const scaledH = cropNaturalHeight * scale;
-      const minX = Math.min(0, CROP_VIEWPORT_SIZE - scaledW);
-      const minY = Math.min(0, CROP_VIEWPORT_SIZE - scaledH);
-      cropOffsetX = Math.min(0, Math.max(minX, cropOffsetX));
-      cropOffsetY = Math.min(0, Math.max(minY, cropOffsetY));
-    }
-
-    function applyCropTransform() {
-      const scale = cropCurrentScale();
-      cropImage.style.width = (cropNaturalWidth * scale) + "px";
-      cropImage.style.height = (cropNaturalHeight * scale) + "px";
-      cropImage.style.left = cropOffsetX + "px";
-      cropImage.style.top = cropOffsetY + "px";
-    }
-
-    function openCropModal(dataUrl) {
-      cropImage.onload = () => {
-        cropNaturalWidth = cropImage.naturalWidth;
-        cropNaturalHeight = cropImage.naturalHeight;
-        // 「cover」相当（枠より小さい辺のほうを基準に拡大し、隙間ができないようにする）
-        cropBaseScale = Math.max(
-          CROP_VIEWPORT_SIZE / cropNaturalWidth,
-          CROP_VIEWPORT_SIZE / cropNaturalHeight
-        );
-        cropZoomValue = 100;
-        cropZoom.value = 100;
-        cropOffsetX = (CROP_VIEWPORT_SIZE - cropNaturalWidth * cropBaseScale) / 2;
-        cropOffsetY = (CROP_VIEWPORT_SIZE - cropNaturalHeight * cropBaseScale) / 2;
-        applyCropTransform();
-        cropModal.style.display = "flex";
-      };
-      cropImage.src = dataUrl;
-    }
-
-    function closeCropModal() {
-      cropModal.style.display = "none";
-      cropImage.src = "";
-    }
-
-    function cropOffsetFromPointer(e) {
-      const dx = e.clientX - cropDragStartX;
-      const dy = e.clientY - cropDragStartY;
-      cropOffsetX = cropDragStartOffsetX + dx;
-      cropOffsetY = cropDragStartOffsetY + dy;
-      clampCropOffset();
-      applyCropTransform();
-    }
-
-    cropViewport.addEventListener("pointerdown", (e) => {
-      cropDragging = true;
-      cropViewport.classList.add("dragging");
-      cropDragStartX = e.clientX;
-      cropDragStartY = e.clientY;
-      cropDragStartOffsetX = cropOffsetX;
-      cropDragStartOffsetY = cropOffsetY;
-      cropViewport.setPointerCapture(e.pointerId);
-    });
-
-    cropViewport.addEventListener("pointermove", (e) => {
-      if (!cropDragging) return;
-      cropOffsetFromPointer(e);
-    });
-
-    function endCropDrag() {
-      cropDragging = false;
-      cropViewport.classList.remove("dragging");
-    }
-
-    cropViewport.addEventListener("pointerup", endCropDrag);
-    cropViewport.addEventListener("pointercancel", endCropDrag);
-
-    cropZoom.addEventListener("input", () => {
-      const oldScale = cropCurrentScale();
-      cropZoomValue = Number(cropZoom.value);
-      const newScale = cropCurrentScale();
-
-      // 枠の中心が指す画像上の位置を、ズーム後も変わらないようにする
-      const center = CROP_VIEWPORT_SIZE / 2;
-      const imgX = (center - cropOffsetX) / oldScale;
-      const imgY = (center - cropOffsetY) / oldScale;
-      cropOffsetX = center - imgX * newScale;
-      cropOffsetY = center - imgY * newScale;
-
-      clampCropOffset();
-      applyCropTransform();
-    });
-
-    function cancelCrop() {
-      closeCropModal();
-    }
-
-    // list.html/view.htmlは未ログインの閲覧者でも作成者の写真を表示できるよう、
-    // wordbookドキュメント側にownerPhotoURLとして写真を複製して持っている。
-    // 写真を変更・削除した際は、自分が既に作成済みの単語帳にもこの複製を反映する。
-    async function propagatePhotoToOwnedBooks(photoURL) {
-      try {
-        const snap = await db.collection("wordbooks")
-          .where("owner", "==", currentUser.uid)
-          .get();
-
-        if (snap.empty) return;
-
-        const BATCH_LIMIT = 450;
-        let batch = db.batch();
-        let opCount = 0;
-
-        for (const doc of snap.docs) {
-          batch.update(doc.ref, { ownerPhotoURL: photoURL });
-          opCount++;
-          if (opCount >= BATCH_LIMIT) {
-            await batch.commit();
-            batch = db.batch();
-            opCount = 0;
-          }
-        }
-
-        if (opCount > 0) {
-          await batch.commit();
-        }
-      } catch (e) {
-        console.error("所有する単語帳への写真の反映に失敗しました", e);
-      }
-    }
-
-    async function confirmCrop() {
+    /* ===== プロフィール写真の変更・削除 =====
+       写真の選択・トリミング・保存は profile-editor.js（user.htmlと共通）で行う。 */
+    async function changeAvatar() {
       const msg = document.getElementById("avatarMsg");
-      const scale = cropCurrentScale();
-      const sSize = CROP_VIEWPORT_SIZE / scale;
-      const sx = -cropOffsetX / scale;
-      const sy = -cropOffsetY / scale;
-
-      const canvas = document.createElement("canvas");
-      canvas.width = AVATAR_OUTPUT_SIZE;
-      canvas.height = AVATAR_OUTPUT_SIZE;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(cropImage, sx, sy, sSize, sSize, 0, 0, AVATAR_OUTPUT_SIZE, AVATAR_OUTPUT_SIZE);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
-
-      closeCropModal();
-
-      msg.textContent = "アップロード中...";
-      msg.className = "notice";
-
+      if (!currentUser) return;
       try {
-        await db.collection("users").doc(currentUser.uid).set({
-          photoURL: dataUrl
-        }, { merge: true });
+        const dataUrl = await window.VOCABOOST_PROFILE.pickAndCropAvatar();
+        if (!dataUrl) return;
+
+        msg.textContent = "アップロード中...";
+        msg.className = "notice";
+        await window.VOCABOOST_PROFILE.savePhoto(db, currentUser.uid, dataUrl);
 
         currentPhotoURL = dataUrl;
         renderAvatarPreview();
         saveProfileCache({ photoURL: dataUrl });
-        propagatePhotoToOwnedBooks(dataUrl);
-
         msg.textContent = "プロフィール写真を変更しました";
         msg.className = "success";
       } catch (err) {
@@ -772,42 +510,14 @@
       }
     }
 
-    document.getElementById("avatarInput").addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      e.target.value = "";
-      if (!file) return;
-
-      const msg = document.getElementById("avatarMsg");
-
-      if (!file.type.startsWith("image/")) {
-        msg.textContent = "画像ファイルを選択してください";
-        msg.className = "notice";
-        return;
-      }
-
-      msg.textContent = "";
-      msg.className = "notice";
-
-      const reader = new FileReader();
-      reader.onerror = () => {
-        msg.textContent = "ファイルの読み込みに失敗しました";
-        msg.className = "notice";
-      };
-      reader.onload = () => openCropModal(reader.result);
-      reader.readAsDataURL(file);
-    });
-
     async function removeAvatar() {
       const msg = document.getElementById("avatarMsg");
       try {
-        await db.collection("users").doc(currentUser.uid).set({
-          photoURL: firebase.firestore.FieldValue.delete()
-        }, { merge: true });
+        await window.VOCABOOST_PROFILE.savePhoto(db, currentUser.uid, null);
 
         currentPhotoURL = null;
         renderAvatarPreview();
         saveProfileCache({ photoURL: null });
-        propagatePhotoToOwnedBooks(null);
 
         msg.textContent = "プロフィール写真を削除しました";
         msg.className = "success";
@@ -991,23 +701,11 @@
 
     /* ===== ユーザー名変更 ===== */
     async function updateUsername() {
-      const newName = document.getElementById("usernameInput").value.trim();
       const msg = document.getElementById("nameMsg");
-
-      if (!newName) {
-        msg.textContent = "ユーザー名を入力してください";
-        msg.className = "notice";
-        return;
-      }
-
       try {
-        await currentUser.updateProfile({
-          displayName: newName
-        });
-
-        await db.collection("users").doc(currentUser.uid).set({
-          username: newName
-        }, { merge: true });
+        const newName = await window.VOCABOOST_PROFILE.saveUsername(
+          db, currentUser, document.getElementById("usernameInput").value
+        );
 
         usernameTextSpan.textContent = newName;
         saveProfileCache({ username: newName });
@@ -1015,14 +713,13 @@
         msg.className = "success";
         document.getElementById("usernameInput").value = "";
       } catch (e) {
-        msg.textContent = "エラー: " + e.message;
+        msg.textContent = (e.code ? "エラー: " : "") + e.message;
         msg.className = "notice";
       }
     }
 
     /* ===== 自己紹介 =====
        users/{uid}.bio に保存し、user.html（プロフィールページ）で他のユーザーにも表示する。 */
-    const BIO_MAX_LENGTH = 200;
     const bioInput = document.getElementById("bioInput");
     const bioCount = document.getElementById("bioCount");
 
@@ -1041,14 +738,6 @@
 
     async function updateBio() {
       const msg = document.getElementById("bioMsg");
-      // 前後の空白と、連続しすぎる空行を整理して保存する
-      const bio = bioInput.value.trim().replace(/\n{3,}/g, "\n\n");
-
-      if (bio.length > BIO_MAX_LENGTH) {
-        msg.textContent = `自己紹介は${BIO_MAX_LENGTH}文字以内で入力してください`;
-        msg.className = "notice";
-        return;
-      }
 
       if (!currentUser) {
         msg.textContent = "ログイン情報を確認中です。少し待ってからもう一度お試しください";
@@ -1057,16 +746,14 @@
       }
 
       try {
-        await db.collection("users").doc(currentUser.uid).set({
-          bio
-        }, { merge: true });
+        const bio = await window.VOCABOOST_PROFILE.saveBio(db, currentUser.uid, bioInput.value);
 
         setBioInput(bio);
         saveProfileCache({ bio });
         msg.textContent = bio ? "自己紹介を保存しました" : "自己紹介を削除しました";
         msg.className = "success";
       } catch (e) {
-        msg.textContent = "エラー: " + e.message;
+        msg.textContent = (e.code ? "エラー: " : "") + e.message;
         msg.className = "notice";
       }
     }
@@ -1249,7 +936,8 @@
     });
   </script>
 
-  <script src="account-widgets.js?v=20260926"></script>
+  <script src="account-widgets.js?v=20260926b"></script>
+  <script src="profile-editor.js?v=20260926b"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 

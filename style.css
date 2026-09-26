@@ -139,6 +139,20 @@ input[type="file"]::-webkit-file-upload-button:active {
   opacity: 0.7;
 }
 
+/* ヘッダーの自分のアイコン（account-widgets.jsがログアウトボタンの右に追加） */
+.vb-header-avatar {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin: 0 6px 0 2px;
+  border-radius: 50%;
+  text-decoration: none;
+}
+
+.vb-header-avatar:hover {
+  opacity: 0.85;
+}
+
 .header-btn {
   font-size: 18px !important;
   margin: 9px 12px !important;
@@ -219,6 +233,27 @@ footer {
   .headertitle {
     margin-top: 5px;
     font-size: 20px;
+  }
+
+  /* 右側のボタン群（通知・設定・ログアウト・自分のアイコン）が
+     折り返して自分のアイコンだけ次の行に落ちないよう、1行に収める */
+  header > div:last-child {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: nowrap;
+  }
+
+  header > div:last-child .header-btn {
+    margin: 9px 4px !important;
+    padding: 8px 10px !important;
+    font-size: 16px !important;
+  }
+
+  header #notifBellContainer {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
   }
 
   main {
@@ -515,4 +550,77 @@ html[data-theme="dark"] .vb-cohort-red   { --cohort-main: #f06b75; --cohort-soft
     left: 50%;
     transform: translateX(-50%);
   }
+}
+
+/* ===== プロフィール写真：トリミングモーダル（profile-editor.jsが表示） ===== */
+.cropModalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.cropModalBox {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-radius: 12px;
+  padding: 20px;
+  width: 100%;
+  max-width: 340px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.cropModalDesc {
+  font-size: 12px;
+  color: var(--color-text-sub);
+  margin: 4px 0 14px;
+}
+
+.cropViewport {
+  width: 260px;
+  height: 260px;
+  margin: 0 auto;
+  max-width: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--color-bg);
+  position: relative;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.cropViewport.dragging {
+  cursor: grabbing;
+}
+
+.cropViewport img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: none;
+  pointer-events: none;
+}
+
+.cropZoomSlider {
+  width: 260px;
+  max-width: 100%;
+  margin: 14px auto 0;
+  display: block;
+}
+
+.cropModalActions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
 }

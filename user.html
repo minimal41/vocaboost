@@ -167,6 +167,111 @@
       margin: -4px 0 8px;
     }
 
+    /* ===== 自分のプロフィールの編集（鉛筆ボタン＋その場で編集） ===== */
+    .profile-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+
+    .profile-row > p {
+      margin-top: 0;
+    }
+
+    .profile-row .profile-bio {
+      flex: 1;
+      margin: 6px 0 12px;
+    }
+
+    .edit-btn {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      margin: 0;
+      border: 1px solid var(--color-border);
+      border-radius: 50%;
+      background: var(--color-surface);
+      color: var(--color-text-sub);
+      cursor: pointer;
+    }
+
+    .edit-btn:hover {
+      color: var(--color-accent);
+      border-color: var(--color-accent);
+    }
+
+    .profile-avatar-wrap {
+      position: relative;
+      width: 120px;
+      margin: 0 auto 15px;
+    }
+
+    .profile-avatar-wrap .profile-avatar {
+      margin-bottom: 0;
+    }
+
+    .avatar-edit-btn {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .inline-editor {
+      margin: 0 0 14px;
+      padding: 12px;
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+    }
+
+    .inline-editor input,
+    .inline-editor textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--color-border);
+      font-size: 14px;
+    }
+
+    .inline-editor textarea {
+      min-height: 110px;
+      line-height: 1.6;
+      resize: vertical;
+    }
+
+    .inline-editor-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .inline-editor-actions button {
+      margin: 0;
+    }
+
+    .secondary-btn {
+      background: var(--color-border) !important;
+      color: var(--color-text) !important;
+    }
+
+    .bio-count {
+      text-align: right;
+      font-size: 12px;
+      color: var(--color-text-sub);
+      margin-top: 4px;
+    }
+
+    .profile-bio.is-empty {
+      color: var(--color-text-sub);
+      font-style: italic;
+    }
+
     .profile-avatar {
       display: flex;
       justify-content: center;
@@ -263,10 +368,49 @@
   <main>
     <div class="card">
       <h2>ユーザー情報</h2>
-      <div id="avatarContainer" class="profile-avatar"></div>
-      <p id="userNameText">読み込み中...</p>
+      <div class="profile-avatar-wrap">
+        <div id="avatarContainer" class="profile-avatar"></div>
+        <button type="button" id="editAvatarBtn" class="edit-btn avatar-edit-btn" style="display:none" onclick="toggleEditor('avatar')" aria-label="プロフィール写真を編集" title="プロフィール写真を編集"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+      </div>
+      <div id="avatarEditor" class="inline-editor" style="display:none">
+        <div class="inline-editor-actions">
+          <button type="button" onclick="changeAvatar()">写真を選択</button>
+          <button type="button" id="removeAvatarBtn" class="secondary-btn" onclick="removeAvatar()">写真を削除</button>
+          <button type="button" class="secondary-btn" onclick="toggleEditor('avatar', false)">閉じる</button>
+        </div>
+        <div id="avatarMsg" class="notice"></div>
+      </div>
+
+      <div class="profile-row">
+        <p id="userNameText">読み込み中...</p>
+        <button type="button" id="editNameBtn" class="edit-btn" style="display:none" onclick="toggleEditor('name')" aria-label="ユーザー名を編集" title="ユーザー名を編集"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+      </div>
+      <div id="nameEditor" class="inline-editor" style="display:none">
+        <form autocomplete="off" onsubmit="saveName(); return false;">
+          <input type="text" id="nameInput" maxlength="30" placeholder="新しいユーザー名" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <div class="inline-editor-actions">
+            <button type="submit">保存</button>
+            <button type="button" class="secondary-btn" onclick="toggleEditor('name', false)">キャンセル</button>
+          </div>
+        </form>
+        <div id="nameMsg" class="notice"></div>
+      </div>
+
       <div id="cohortBadge" class="profile-cohort"></div>
-      <p id="bioText" class="profile-bio" style="display:none"></p>
+
+      <div class="profile-row">
+        <p id="bioText" class="profile-bio" style="display:none"></p>
+        <button type="button" id="editBioBtn" class="edit-btn" style="display:none" onclick="toggleEditor('bio')" aria-label="自己紹介を編集" title="自己紹介を編集"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+      </div>
+      <div id="bioEditor" class="inline-editor" style="display:none">
+        <textarea id="bioInput" maxlength="200" placeholder="例：英検準1級に向けて勉強中です。よろしくお願いします！"></textarea>
+        <div class="bio-count"><span id="bioCount">0</span> / 200</div>
+        <div class="inline-editor-actions">
+          <button type="button" onclick="saveBioFromPage()">保存</button>
+          <button type="button" class="secondary-btn" onclick="toggleEditor('bio', false)">キャンセル</button>
+        </div>
+        <div id="bioMsg" class="notice"></div>
+      </div>
       <button type="button" id="followerCountBtn" class="followerCountBtn" style="display:none" onclick="openFollowersModal()"></button>
       <button type="button" id="followBtn" class="followBtn" onclick="toggleFollow()">フォロー</button>
       <button type="button" id="reportLink" onclick="openReportModal()">このユーザーを報告する</button>
@@ -339,6 +483,9 @@
       const auth = firebase.auth();
       let currentUser = null;
       let targetUsername = null;
+      // 自分のプロフィールページを開いているか（編集ボタンの表示判定）と、編集用の現在値
+      let isOwnPage = false;
+      const profileState = { username: "", bio: "", photoURL: null, cohort: null };
 
       const statusDiv = document.getElementById("status");
       const loginBtn = document.getElementById("loginBtn");
@@ -362,6 +509,7 @@
         loginBtn.style.display = "inline-block";
         logoutBtn.style.display = "none";
         settingsBtn.style.display = "none";
+        if (uid) setOwnPage(false);
       }
 
       // Firebaseが端末に保存された認証状態を復元し終える前に、onAuthStateChangedが
@@ -389,6 +537,8 @@
           if (uid && user.uid !== uid) {
             loadFollowState(user.uid);
           }
+
+          if (uid) setOwnPage(user.uid === uid);
         } else if (localStorage.getItem("cachedUser")) {
           (function () {
             // 端末やネットワークが遅いと1回・1.5秒の再確認だけでは間に合わないことがあるため、
@@ -517,14 +667,164 @@
         return books;
       }
 
-      // 自己紹介はユーザー入力のためtextContentで表示する（HTMLとして解釈させない）
+      // 自己紹介はユーザー入力のためtextContentで表示する（HTMLとして解釈させない）。
+      // 自分のページで未設定の場合は、編集できることが分かるよう案内文を出す。
       function renderBio(text) {
         const bioText = document.getElementById("bioText");
         if (!bioText) return;
         const bio = typeof text === "string" ? text.trim() : "";
-        bioText.textContent = bio;
-        bioText.style.display = bio ? "block" : "none";
+        profileState.bio = bio;
+        bioText.classList.toggle("is-empty", !bio);
+        bioText.textContent = bio || (isOwnPage ? "自己紹介はまだありません" : "");
+        bioText.style.display = (bio || isOwnPage) ? "block" : "none";
       }
+
+      /* ===== 自分のプロフィールの編集 =====
+         自分のページを開いている場合だけ、ユーザー名・自己紹介・写真の横に
+         鉛筆ボタンを出し、押した部分だけをその場で編集できるようにする。
+         保存処理は settings.html と共通の profile-editor.js を使う。 */
+
+      function setOwnPage(own) {
+        isOwnPage = own;
+        ["editAvatarBtn", "editNameBtn", "editBioBtn"].forEach(id => {
+          const btn = document.getElementById(id);
+          if (btn) btn.style.display = own ? "inline-flex" : "none";
+        });
+        if (!own) ["avatar", "name", "bio"].forEach(k => toggleEditor(k, false));
+        renderBio(profileState.bio);
+      }
+
+      window.toggleEditor = function (kind, open) {
+        const editor = document.getElementById(kind + "Editor");
+        if (!editor) return;
+        const show = open === undefined ? editor.style.display === "none" : open;
+        editor.style.display = show ? "block" : "none";
+        const msg = document.getElementById(kind + "Msg");
+        if (msg) msg.textContent = "";
+        if (!show) return;
+
+        if (kind === "name") {
+          const input = document.getElementById("nameInput");
+          input.value = profileState.username;
+          input.focus();
+        } else if (kind === "bio") {
+          const input = document.getElementById("bioInput");
+          input.value = profileState.bio;
+          document.getElementById("bioCount").textContent = input.value.length;
+          input.focus();
+        } else if (kind === "avatar") {
+          document.getElementById("removeAvatarBtn").style.display =
+            window.VOCABOOST_IS_VALID_PHOTO_URL(profileState.photoURL) ? "" : "none";
+        }
+      };
+
+      document.getElementById("bioInput").addEventListener("input", (e) => {
+        document.getElementById("bioCount").textContent = e.target.value.length;
+      });
+
+      function showEditorMsg(kind, text, ok) {
+        const msg = document.getElementById(kind + "Msg");
+        if (!msg) return;
+        msg.textContent = text;
+        msg.className = ok ? "success" : "notice";
+      }
+
+      function errorText(e) {
+        return (e && e.code ? "エラー: " : "") + (e && e.message ? e.message : String(e));
+      }
+
+      // 編集結果を、このページの先行表示用キャッシュにも反映する
+      function updateUserPageCache(partial) {
+        try {
+          const cached = JSON.parse(localStorage.getItem(cacheKey) || "null");
+          if (!cached) return;
+          localStorage.setItem(cacheKey, JSON.stringify({ ...cached, ...partial }));
+        } catch (e) {
+          console.warn("キャッシュの更新に失敗しました", e);
+        }
+      }
+
+      // settings.htmlの先行表示用キャッシュも合わせて更新する
+      function updateSettingsCache(partial) {
+        try {
+          const cached = JSON.parse(localStorage.getItem("settingsProfileCache") || "null");
+          if (!cached) return;
+          localStorage.setItem("settingsProfileCache", JSON.stringify({ ...cached, ...partial }));
+        } catch (e) { }
+      }
+
+      function renderAvatar() {
+        const html = window.VOCABOOST_AVATAR_HTML(profileState.photoURL, 120, profileState.cohort);
+        if (avatarContainer) avatarContainer.innerHTML = html;
+        return html;
+      }
+
+      window.saveName = async function () {
+        if (!currentUser || !isOwnPage) return;
+        try {
+          const name = await window.VOCABOOST_PROFILE.saveUsername(
+            db, currentUser, document.getElementById("nameInput").value
+          );
+          profileState.username = name;
+          targetUsername = name;
+          userNameText.textContent = "ユーザー名: " + name;
+          updateUserPageCache({ username: name });
+          updateSettingsCache({ username: name });
+          toggleEditor("name", false);
+        } catch (e) {
+          showEditorMsg("name", errorText(e), false);
+        }
+      };
+
+      window.saveBioFromPage = async function () {
+        if (!currentUser || !isOwnPage) return;
+        try {
+          const bio = await window.VOCABOOST_PROFILE.saveBio(
+            db, currentUser.uid, document.getElementById("bioInput").value
+          );
+          renderBio(bio);
+          updateUserPageCache({ bio });
+          updateSettingsCache({ bio });
+          toggleEditor("bio", false);
+        } catch (e) {
+          showEditorMsg("bio", errorText(e), false);
+        }
+      };
+
+      window.changeAvatar = async function () {
+        if (!currentUser || !isOwnPage) return;
+        try {
+          const dataUrl = await window.VOCABOOST_PROFILE.pickAndCropAvatar();
+          if (!dataUrl) return;
+          showEditorMsg("avatar", "アップロード中...", false);
+          await window.VOCABOOST_PROFILE.savePhoto(db, currentUser.uid, dataUrl);
+          profileState.photoURL = dataUrl;
+          updateUserPageCache({ avatarHtml: renderAvatar() });
+          updateSettingsCache({ photoURL: dataUrl });
+          toggleEditor("avatar", false);
+        } catch (e) {
+          showEditorMsg("avatar", errorText(e), false);
+        }
+      };
+
+      window.removeAvatar = async function () {
+        if (!currentUser || !isOwnPage) return;
+        try {
+          await window.VOCABOOST_PROFILE.savePhoto(db, currentUser.uid, null);
+          profileState.photoURL = null;
+          updateUserPageCache({ avatarHtml: renderAvatar() });
+          updateSettingsCache({ photoURL: null });
+          toggleEditor("avatar", false);
+        } catch (e) {
+          showEditorMsg("avatar", errorText(e), false);
+        }
+      };
+
+      // 認証確認を待たずに、ログイン中キャッシュから自分のページかどうかを仮判定しておく
+      try {
+        const saved = JSON.parse(localStorage.getItem("cachedUser") || "null");
+        if (saved && saved.uid && saved.uid === uid) setOwnPage(true);
+      } catch (e) { }
 
       // 期(学年タグ)をバッジ表示し、ページ背景をその期の色に近い色にする
       function renderCohort(cohort) {
@@ -546,6 +846,7 @@
           try {
             const data = JSON.parse(cachedData);
             userNameText.textContent = "ユーザー名: " + data.username;
+            profileState.username = data.username || "";
             if (avatarContainer) avatarContainer.innerHTML = data.avatarHtml || "";
             renderBio(data.bio);
             renderCohort(data.cohort);
@@ -576,10 +877,13 @@
           const userData = userDoc.data();
           username = userData.username || "名無し";
           targetUsername = username;
+          profileState.username = userData.username || "";
+          profileState.photoURL = userData.photoURL || null;
           cohort = (userData.cohort !== undefined && userData.cohort !== null)
             ? window.VOCABOOST_NORMALIZE_COHORT(userData.cohort)
             : window.VOCABOOST_COHORT_FROM_EMAIL(userData.email);
           renderCohort(cohort);
+          profileState.cohort = cohort;
           avatarHtml = window.VOCABOOST_AVATAR_HTML(userData.photoURL, 120, cohort);
           bio = typeof userData.bio === "string" ? userData.bio : "";
           renderBio(bio);
@@ -802,7 +1106,8 @@
     });
   </script>
 
-  <script src="account-widgets.js?v=20260926"></script>
+  <script src="account-widgets.js?v=20260926b"></script>
+  <script src="profile-editor.js?v=20260926b"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 

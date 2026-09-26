@@ -486,6 +486,79 @@
     dropdownOpen = false;
   }
 
+  // ===== ヘッダーの自分のアイコン =====
+  // ログアウトボタンの右に自分のプロフィール写真(未設定なら期の色の人物アイコン)を置き、
+  // 押すと自分のプロフィールページ(user.html)へ移動する。表示・非表示は各ページが
+  // 切り替えているログアウトボタンの表示状態にそのまま合わせる。
+  const HEADER_AVATAR_CACHE_KEY = "vocaboost_header_avatar";
+
+  function loadHeaderAvatarCache() {
+    try {
+      return JSON.parse(localStorage.getItem(HEADER_AVATAR_CACHE_KEY) || "null");
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveHeaderAvatarCache(data) {
+    try {
+      localStorage.setItem(HEADER_AVATAR_CACHE_KEY, JSON.stringify(data));
+    } catch (e) {
+      // 写真が大きく容量超過した場合は写真なしで保存する
+      try {
+        localStorage.setItem(HEADER_AVATAR_CACHE_KEY, JSON.stringify({ ...data, photoURL: null }));
+      } catch (e2) { }
+    }
+  }
+
+  function syncHeaderAvatarVisibility() {
+    const link = document.getElementById("vbHeaderAvatar");
+    const logoutBtn = document.getElementById("logoutBtn");
+    if (!link || !logoutBtn) return;
+    link.style.display = logoutBtn.style.display === "none" ? "none" : "inline-flex";
+  }
+
+  function renderHeaderAvatar(data) {
+    if (!data || !data.uid) return;
+    const logoutBtn = document.getElementById("logoutBtn");
+    if (!logoutBtn) return;
+
+    let link = document.getElementById("vbHeaderAvatar");
+    if (!link) {
+      link = document.createElement("a");
+      link.id = "vbHeaderAvatar";
+      link.className = "vb-header-avatar";
+      link.setAttribute("aria-label", "自分のプロフィール");
+      link.title = "自分のプロフィール";
+      logoutBtn.insertAdjacentElement("afterend", link);
+      new MutationObserver(syncHeaderAvatarVisibility)
+        .observe(logoutBtn, { attributes: true, attributeFilter: ["style"] });
+    }
+    link.href = "user.html?id=" + encodeURIComponent(data.uid);
+    link.innerHTML = avatarHtml(data.photoURL, 34, data.cohort);
+    syncHeaderAvatarVisibility();
+  }
+
+  // プロフィール写真などを変更したページから呼び出し、ヘッダーのアイコンを即座に更新する
+  window.VOCABOOST_UPDATE_HEADER_AVATAR = function (partial) {
+    const current = loadHeaderAvatarCache() || {};
+    const updated = { ...current, ...partial };
+    saveHeaderAvatarCache(updated);
+    renderHeaderAvatar(updated);
+  };
+
+  (function renderHeaderAvatarFromCache() {
+    let savedUser;
+    try {
+      savedUser = JSON.parse(localStorage.getItem("cachedUser"));
+    } catch (e) {
+      savedUser = null;
+    }
+    if (!savedUser || !savedUser.uid) return;
+    const cache = loadHeaderAvatarCache();
+    renderHeaderAvatar(cache && cache.uid === savedUser.uid ? cache : { uid: savedUser.uid });
+  })();
+
   // ページ表示直後、Firebaseの初期化やネットワーク応答を一切待たずに、
   // 前回訪問時のキャッシュがあればベル・バッジ・運営リンクを即座に表示する。
   // ここでの表示はあくまで暫定であり、この後 onAuthStateChanged 側で
@@ -548,6 +621,14 @@
         location.href = "login.html";
         return;
       }
+
+      const headerAvatarData = {
+        uid: user.uid,
+        photoURL: (userData && userData.photoURL) || null,
+        cohort: cohortFromEmail(user.email || (userData && userData.email))
+      };
+      saveHeaderAvatarCache(headerAvatarData);
+      renderHeaderAvatar(headerAvatarData);
 
       readIds = (userData && userData.readNotificationIds) || [];
       updateBadge();
