@@ -40,6 +40,27 @@
       margin-top: 8px;
     }
 
+    textarea.bio-input {
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--color-border);
+      width: 90%;
+      min-height: 110px;
+      margin-top: 8px;
+      resize: vertical;
+      box-sizing: border-box;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .bio-count {
+      width: 90%;
+      margin: 4px auto 8px;
+      text-align: right;
+      font-size: 12px;
+      color: var(--color-text-sub);
+    }
+
     .notice {
       color: var(--color-danger);
     }
@@ -372,6 +393,17 @@
     </div>
 
     <div class="card">
+      <h2>自己紹介</h2>
+      <p style="font-size:13px;color:var(--color-text-sub);margin:0 0 4px;">プロフィールページに表示され、他のユーザーも見ることができます</p>
+      <form autocomplete="off" onsubmit="return false;">
+        <textarea id="bioInput" class="bio-input" maxlength="200" placeholder="例：英検準1級に向けて勉強中です。よろしくお願いします！"></textarea>
+        <div class="bio-count"><span id="bioCount">0</span> / 200</div>
+        <button type="button" onclick="updateBio()">保存する</button>
+      </form>
+      <div id="bioMsg" class="notice"></div>
+    </div>
+
+    <div class="card">
       <h2>パスワード変更</h2>
       <form autocomplete="off" onsubmit="return false;">
         <input type="password" id="currentPass" name="vocaboost_current_pass" placeholder="現在のパスワード" autocomplete="off">
@@ -539,7 +571,9 @@
         const data = userDoc.exists ? userDoc.data() : {};
         currentPhotoURL = data.photoURL || null;
         renderAvatarPreview();
-        saveProfileCache({ photoURL: currentPhotoURL });
+        const bio = typeof data.bio === "string" ? data.bio : "";
+        setBioInput(bio);
+        saveProfileCache({ photoURL: currentPhotoURL, bio });
       } catch (e) {
         console.error(e);
       }
@@ -980,6 +1014,57 @@
         msg.textContent = "ユーザー名を変更しました";
         msg.className = "success";
         document.getElementById("usernameInput").value = "";
+      } catch (e) {
+        msg.textContent = "エラー: " + e.message;
+        msg.className = "notice";
+      }
+    }
+
+    /* ===== 自己紹介 =====
+       users/{uid}.bio に保存し、user.html（プロフィールページ）で他のユーザーにも表示する。 */
+    const BIO_MAX_LENGTH = 200;
+    const bioInput = document.getElementById("bioInput");
+    const bioCount = document.getElementById("bioCount");
+
+    function setBioInput(text) {
+      bioInput.value = text || "";
+      bioCount.textContent = bioInput.value.length;
+    }
+
+    bioInput.addEventListener("input", () => {
+      bioCount.textContent = bioInput.value.length;
+    });
+
+    if (cachedProfile && typeof cachedProfile.bio === "string") {
+      setBioInput(cachedProfile.bio);
+    }
+
+    async function updateBio() {
+      const msg = document.getElementById("bioMsg");
+      // 前後の空白と、連続しすぎる空行を整理して保存する
+      const bio = bioInput.value.trim().replace(/\n{3,}/g, "\n\n");
+
+      if (bio.length > BIO_MAX_LENGTH) {
+        msg.textContent = `自己紹介は${BIO_MAX_LENGTH}文字以内で入力してください`;
+        msg.className = "notice";
+        return;
+      }
+
+      if (!currentUser) {
+        msg.textContent = "ログイン情報を確認中です。少し待ってからもう一度お試しください";
+        msg.className = "notice";
+        return;
+      }
+
+      try {
+        await db.collection("users").doc(currentUser.uid).set({
+          bio
+        }, { merge: true });
+
+        setBioInput(bio);
+        saveProfileCache({ bio });
+        msg.textContent = bio ? "自己紹介を保存しました" : "自己紹介を削除しました";
+        msg.className = "success";
       } catch (e) {
         msg.textContent = "エラー: " + e.message;
         msg.className = "notice";

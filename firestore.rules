@@ -37,6 +37,11 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // 自己紹介(bio)は文字列かつ200文字以内のみ許可する
+    function isValidBio(data) {
+      return !('bio' in data) || (data.bio is string && data.bio.size() <= 200);
+    }
+
     // ユーザー情報。
     // 注意: username と email が同じドキュメントに入っているため、他ユーザーの
     // 作成者名(username)を表示する既存ページ(view.html/list.html/user.html等)を
@@ -57,14 +62,15 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn();
 
-      allow create: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidBio(request.resource.data);
 
       allow update: if isAdmin() ||
         (
           isOwner(userId) &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(
             ["frozen", "frozenReason", "restrictedUntil", "restrictedReason"]
-          )
+          ) &&
+          isValidBio(request.resource.data)
         );
 
       allow delete: if isAdmin();

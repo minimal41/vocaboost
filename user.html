@@ -144,6 +144,20 @@
       font-size: 13px;
     }
 
+    /* 自己紹介：改行をそのまま表示し、長いURL等でもはみ出さないようにする */
+    .profile-bio {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      text-align: left;
+      max-width: 480px;
+      margin: 6px auto 12px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: var(--color-bg);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
     .profile-avatar {
       display: flex;
       justify-content: center;
@@ -242,6 +256,7 @@
       <h2>ユーザー情報</h2>
       <div id="avatarContainer" class="profile-avatar"></div>
       <p id="userNameText">読み込み中...</p>
+      <p id="bioText" class="profile-bio" style="display:none"></p>
       <button type="button" id="followerCountBtn" class="followerCountBtn" style="display:none" onclick="openFollowersModal()"></button>
       <button type="button" id="followBtn" class="followBtn" onclick="toggleFollow()">フォロー</button>
       <button type="button" id="reportLink" onclick="openReportModal()">このユーザーを報告する</button>
@@ -492,6 +507,15 @@
         return books;
       }
 
+      // 自己紹介はユーザー入力のためtextContentで表示する（HTMLとして解釈させない）
+      function renderBio(text) {
+        const bioText = document.getElementById("bioText");
+        if (!bioText) return;
+        const bio = typeof text === "string" ? text.trim() : "";
+        bioText.textContent = bio;
+        bioText.style.display = bio ? "block" : "none";
+      }
+
       async function loadUser() {
         const cachedData = localStorage.getItem(cacheKey);
 
@@ -500,6 +524,7 @@
             const data = JSON.parse(cachedData);
             userNameText.textContent = "ユーザー名: " + data.username;
             if (avatarContainer) avatarContainer.innerHTML = data.avatarHtml || "";
+            renderBio(data.bio);
             bookList.innerHTML = data.booksHtml;
           } catch (e) {
             console.error(e);
@@ -512,6 +537,7 @@
         // ユーザー名側まで「読み込みエラー」表示になってしまっていた。
         let username = null;
         let avatarHtml = null;
+        let bio = "";
         try {
           const userDoc = await db.collection("users").doc(uid).get();
 
@@ -526,6 +552,8 @@
           username = userData.username || "名無し";
           targetUsername = username;
           avatarHtml = window.VOCABOOST_AVATAR_HTML(userData.photoURL, 120);
+          bio = typeof userData.bio === "string" ? userData.bio : "";
+          renderBio(bio);
 
           if (userNameText) {
             userNameText.textContent = "ユーザー名: " + username;
@@ -556,7 +584,7 @@
           try {
             localStorage.setItem(
               cacheKey,
-              JSON.stringify({ username, avatarHtml, booksHtml })
+              JSON.stringify({ username, avatarHtml, bio, booksHtml })
             );
           } catch (e) {
             console.warn("キャッシュの保存に失敗しました", e);
