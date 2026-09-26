@@ -754,6 +754,7 @@
       repairUserDoc(user, userData);
       updateLastSeen(user, userData);
       ensureCohort(user, userData);
+      syncBookCount(user, userData);
 
       await loadNotifications(user, isAdmin);
       saveNotifCache(user.uid, isAdmin);
@@ -799,6 +800,33 @@
         console.warn("account-widgets: repaired missing user fields for", user.uid, patch);
       } catch (e) {
         console.error("account-widgets: failed to repair user doc", e);
+      }
+    }
+
+    // 他人の非公開単語帳はFirestoreルール上読み取れないため、プロフィールページ(user.html)で
+    // 「作成した単語帳数」を表示できるよう、自分の単語帳数を users/{uid}.bookCount に保存しておく。
+    // 集計クエリ(count)が使える場合は毎回、使えない場合は全件取得になるため10分に1回だけ更新する。
+    const BOOK_COUNT_THROTTLE_MS = 10 * 60 * 1000;
+    async function syncBookCount(user, userData) {
+      if (!userData) return;
+      try {
+        const query = db.collection("wordbooks").where("owner", "==", user.uid);
+        let count;
+        if (typeof query.count === "function") {
+          const agg = await query.count().get();
+          count = agg.data().count;
+        } else {
+          const key = "vocaboost_bookcount_synced_" + user.uid;
+          const last = Number(localStorage.getItem(key) || 0);
+          if (typeof userData.bookCount === "number" && Date.now() - last < BOOK_COUNT_THROTTLE_MS) return;
+          count = (await query.get()).size;
+          try { localStorage.setItem(key, String(Date.now())); } catch (e) { }
+        }
+        if (userData.bookCount !== count) {
+          await db.collection("users").doc(user.uid).set({ bookCount: count }, { merge: true });
+        }
+      } catch (e) {
+        console.error("account-widgets: failed to sync book count", e);
       }
     }
 

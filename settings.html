@@ -40,24 +40,8 @@
       margin-top: 8px;
     }
 
-    textarea.bio-input {
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid var(--color-border);
-      width: 90%;
-      min-height: 110px;
-      margin-top: 8px;
-      resize: vertical;
-      box-sizing: border-box;
-      font-size: 14px;
-      line-height: 1.6;
-    }
-
-    .bio-count {
-      width: 90%;
-      margin: 4px auto 8px;
-      text-align: right;
-      font-size: 12px;
+    .profileEditNote {
+      font-size: 13px;
       color: var(--color-text-sub);
     }
 
@@ -67,37 +51,6 @@
 
     .success {
       color: var(--color-success);
-    }
-
-    /* ===== プロフィール写真設定 ===== */
-    .avatar-preview {
-      width: 96px;
-      height: 96px;
-      margin: 0 auto 15px;
-      border-radius: 50%;
-      overflow: hidden;
-      background: var(--color-bg);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .avatar-preview img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .avatar-icon {
-      width: 60%;
-      height: 60%;
-      color: var(--color-text-sub);
-      display: flex;
-    }
-
-    .avatar-icon svg {
-      width: 100%;
-      height: 100%;
     }
 
     /* ===== 表示設定（フォント・ダークモード） ===== */
@@ -294,39 +247,7 @@
       <p>Email: <span id="email"></span></p>
       <p>ユーザー名: <span id="usernameText">未設定</span></p>
       <p>作成した単語帳数: <span id="bookCount">0</span></p>
-    </div>
-
-    <div class="card">
-      <h2>プロフィール写真</h2>
-      <div class="avatar-preview">
-        <img id="avatarImg" alt="プロフィール写真" style="display:none;">
-        <span id="avatarIcon" class="avatar-icon">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12Zm0 2.5c-3.3 0-9.8 1.6-9.8 4.9v2.4h19.6v-2.4c0-3.3-6.5-4.9-9.8-4.9Z"/></svg>
-        </span>
-      </div>
-      <button type="button" onclick="changeAvatar()">写真を選択</button>
-      <button type="button" id="avatarRemoveBtn" onclick="removeAvatar()" style="display:none;">削除する</button>
-      <div id="avatarMsg" class="notice"></div>
-    </div>
-
-    <div class="card">
-      <h2>ユーザー名設定・変更</h2>
-      <form autocomplete="off" onsubmit="return false;">
-        <input type="text" id="usernameInput" name="vocaboost_username_change" placeholder="新しいユーザー名" autocomplete="off" autocapitalize="off" spellcheck="false">
-        <button type="button" onclick="updateUsername()">変更する</button>
-      </form>
-      <div id="nameMsg" class="notice"></div>
-    </div>
-
-    <div class="card">
-      <h2>自己紹介</h2>
-      <p style="font-size:13px;color:var(--color-text-sub);margin:0 0 4px;">プロフィールページに表示され、他のユーザーも見ることができます</p>
-      <form autocomplete="off" onsubmit="return false;">
-        <textarea id="bioInput" class="bio-input" maxlength="200" placeholder="例：英検準1級に向けて勉強中です。よろしくお願いします！"></textarea>
-        <div class="bio-count"><span id="bioCount">0</span> / 200</div>
-        <button type="button" onclick="updateBio()">保存する</button>
-      </form>
-      <div id="bioMsg" class="notice"></div>
+      <p class="profileEditNote">プロフィール写真・ユーザー名・自己紹介は<a id="profilePageLink" href="#">プロフィールページ</a>の鉛筆マークから編集できます</p>
     </div>
 
     <div class="card">
@@ -419,6 +340,7 @@
     const emailSpan = document.getElementById("email");
     const usernameTextSpan = document.getElementById("usernameText");
     const bookCountSpan = document.getElementById("bookCount");
+    const profilePageLink = document.getElementById("profilePageLink");
 
     // ログイン情報のキャッシュを利用してヘッダーを即時表示
     const savedUser =
@@ -437,95 +359,10 @@
 
     if (cachedProfile) {
       uidSpan.textContent = cachedProfile.uid || "";
+      if (cachedProfile.uid) profilePageLink.href = "user.html?id=" + encodeURIComponent(cachedProfile.uid);
       emailSpan.textContent = cachedProfile.email || "";
       usernameTextSpan.textContent = cachedProfile.username || "未設定";
       bookCountSpan.textContent = cachedProfile.bookCount ?? 0;
-    }
-
-    /* ===== プロフィール写真 =====
-       account-widgets.js の読み込みタイミングに依存しないよう、
-       このページ内で完結する形で写真の表示・検証・アップロードを行う。 */
-    const PROFILE_PHOTO_DATA_URL_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
-    function isValidPhotoDataUrl(url) {
-      return typeof url === "string" && PROFILE_PHOTO_DATA_URL_RE.test(url);
-    }
-
-    let currentPhotoURL = (cachedProfile && cachedProfile.photoURL) || null;
-
-    const avatarImg = document.getElementById("avatarImg");
-    const avatarIcon = document.getElementById("avatarIcon");
-    const avatarRemoveBtn = document.getElementById("avatarRemoveBtn");
-
-    function renderAvatarPreview() {
-      if (isValidPhotoDataUrl(currentPhotoURL)) {
-        avatarImg.src = currentPhotoURL;
-        avatarImg.style.display = "block";
-        avatarIcon.style.display = "none";
-        avatarRemoveBtn.style.display = "inline-block";
-      } else {
-        avatarImg.style.display = "none";
-        avatarIcon.style.display = "flex";
-        avatarRemoveBtn.style.display = "none";
-      }
-    }
-
-    renderAvatarPreview();
-
-    async function loadAvatar() {
-      try {
-        const userDoc = await db.collection("users").doc(currentUser.uid).get();
-        const data = userDoc.exists ? userDoc.data() : {};
-        currentPhotoURL = data.photoURL || null;
-        renderAvatarPreview();
-        const bio = typeof data.bio === "string" ? data.bio : "";
-        setBioInput(bio);
-        saveProfileCache({ photoURL: currentPhotoURL, bio });
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    /* ===== プロフィール写真の変更・削除 =====
-       写真の選択・トリミング・保存は profile-editor.js（user.htmlと共通）で行う。 */
-    async function changeAvatar() {
-      const msg = document.getElementById("avatarMsg");
-      if (!currentUser) return;
-      try {
-        const dataUrl = await window.VOCABOOST_PROFILE.pickAndCropAvatar();
-        if (!dataUrl) return;
-
-        msg.textContent = "アップロード中...";
-        msg.className = "notice";
-        await window.VOCABOOST_PROFILE.savePhoto(db, currentUser.uid, dataUrl);
-
-        currentPhotoURL = dataUrl;
-        renderAvatarPreview();
-        saveProfileCache({ photoURL: dataUrl });
-        msg.textContent = "プロフィール写真を変更しました";
-        msg.className = "success";
-      } catch (err) {
-        console.error(err);
-        msg.textContent = "エラー: " + err.message;
-        msg.className = "notice";
-      }
-    }
-
-    async function removeAvatar() {
-      const msg = document.getElementById("avatarMsg");
-      try {
-        await window.VOCABOOST_PROFILE.savePhoto(db, currentUser.uid, null);
-
-        currentPhotoURL = null;
-        renderAvatarPreview();
-        saveProfileCache({ photoURL: null });
-
-        msg.textContent = "プロフィール写真を削除しました";
-        msg.className = "success";
-      } catch (err) {
-        console.error(err);
-        msg.textContent = "エラー: " + err.message;
-        msg.className = "notice";
-      }
     }
 
     function saveProfileCache(partial) {
@@ -593,6 +430,7 @@
         settingsBtn.style.display = "inline-block";
 
         uidSpan.textContent = user.uid;
+        profilePageLink.href = "user.html?id=" + encodeURIComponent(user.uid);
         emailSpan.textContent = user.email;
         usernameTextSpan.textContent = user.displayName || "未設定";
 
@@ -604,7 +442,6 @@
 
         loadBookCount();
         cleanupEmptyBooks();
-        loadAvatar();
       } else {
         statusDiv.textContent = "ログアウト中";
         loginBtn.style.display = "inline-block";
@@ -699,65 +536,6 @@
       }
     }
 
-    /* ===== ユーザー名変更 ===== */
-    async function updateUsername() {
-      const msg = document.getElementById("nameMsg");
-      try {
-        const newName = await window.VOCABOOST_PROFILE.saveUsername(
-          db, currentUser, document.getElementById("usernameInput").value
-        );
-
-        usernameTextSpan.textContent = newName;
-        saveProfileCache({ username: newName });
-        msg.textContent = "ユーザー名を変更しました";
-        msg.className = "success";
-        document.getElementById("usernameInput").value = "";
-      } catch (e) {
-        msg.textContent = (e.code ? "エラー: " : "") + e.message;
-        msg.className = "notice";
-      }
-    }
-
-    /* ===== 自己紹介 =====
-       users/{uid}.bio に保存し、user.html（プロフィールページ）で他のユーザーにも表示する。 */
-    const bioInput = document.getElementById("bioInput");
-    const bioCount = document.getElementById("bioCount");
-
-    function setBioInput(text) {
-      bioInput.value = text || "";
-      bioCount.textContent = bioInput.value.length;
-    }
-
-    bioInput.addEventListener("input", () => {
-      bioCount.textContent = bioInput.value.length;
-    });
-
-    if (cachedProfile && typeof cachedProfile.bio === "string") {
-      setBioInput(cachedProfile.bio);
-    }
-
-    async function updateBio() {
-      const msg = document.getElementById("bioMsg");
-
-      if (!currentUser) {
-        msg.textContent = "ログイン情報を確認中です。少し待ってからもう一度お試しください";
-        msg.className = "notice";
-        return;
-      }
-
-      try {
-        const bio = await window.VOCABOOST_PROFILE.saveBio(db, currentUser.uid, bioInput.value);
-
-        setBioInput(bio);
-        saveProfileCache({ bio });
-        msg.textContent = bio ? "自己紹介を保存しました" : "自己紹介を削除しました";
-        msg.className = "success";
-      } catch (e) {
-        msg.textContent = (e.code ? "エラー: " : "") + e.message;
-        msg.className = "notice";
-      }
-    }
-
     /* ===== パスワード変更 ===== */
     async function changePassword() {
       const current = document.getElementById("currentPass").value;
@@ -797,21 +575,6 @@
         msg.className = "notice";
       }
     }
-
-    // ブラウザのパスワードマネージャーが自動入力したメールアドレス断片などが
-    // ユーザー名入力欄に残ってしまう場合があるため、複数のタイミングでクリアする
-    function clearUsernameAutofill() {
-      const input = document.getElementById("usernameInput");
-      if (input) input.value = "";
-    }
-
-    window.addEventListener("load", () => {
-      clearUsernameAutofill();
-      setTimeout(clearUsernameAutofill, 100);
-      setTimeout(clearUsernameAutofill, 500);
-    });
-
-    document.addEventListener("DOMContentLoaded", clearUsernameAutofill);
 
     /* ===== フォント・ダークモード設定 =====
        theme.js が起動時に <html data-theme> / --font-family をセット済み。
@@ -936,8 +699,7 @@
     });
   </script>
 
-  <script src="account-widgets.js?v=20260926c"></script>
-  <script src="profile-editor.js?v=20260926c"></script>
+  <script src="account-widgets.js?v=20260927"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 

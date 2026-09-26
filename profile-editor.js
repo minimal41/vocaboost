@@ -1,5 +1,5 @@
 // プロフィール（ユーザー名・自己紹介・プロフィール写真）の編集処理。
-// settings.html と user.html（自分のプロフィールページ）の両方から使う。
+// user.html（自分のプロフィールページ）から使う。
 // 呼び出し元ページが初期化済みの firebase / db / ログイン中ユーザーをそのまま渡す。
 (function () {
   const BIO_MAX_LENGTH = 200;

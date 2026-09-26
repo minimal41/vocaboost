@@ -164,6 +164,16 @@
       --color-bg: var(--cohort-soft);
     }
 
+    .profile-stat {
+      margin: 0 0 4px;
+      font-size: 14px;
+      color: var(--color-text-sub);
+    }
+
+    .profile-stat strong {
+      color: var(--color-text);
+    }
+
     .profile-cohort {
       margin: -4px 0 8px;
     }
@@ -447,6 +457,7 @@
         </div>
         <div id="bioMsg" class="notice"></div>
       </div>
+      <p id="bookCountText" class="profile-stat" style="display:none"></p>
       <button type="button" id="followerCountBtn" class="followerCountBtn" style="display:none" onclick="openFollowersModal()"></button>
       <button type="button" id="followBtn" class="followBtn" onclick="toggleFollow()">フォロー</button>
       <button type="button" id="reportLink" onclick="openReportModal()">このユーザーを報告する</button>
@@ -521,6 +532,10 @@
       let targetUsername = null;
       // 自分のプロフィールページを開いているか（編集ボタンの表示判定）と、編集用の現在値
       let isOwnPage = false;
+      // 作成した単語帳数（users.bookCount / 公開単語帳の数 / 自分のページでの実数）
+      let storedBookCount = null;
+      let publicBookCount = null;
+      let ownBookCount = null;
       const profileState = { username: "", bio: "", photoURL: null, cohort: null };
 
       const statusDiv = document.getElementById("status");
@@ -729,6 +744,7 @@
           if (btn) btn.style.display = own ? "inline-flex" : "none";
         });
         if (!own) ["avatar", "name", "bio"].forEach(k => toggleEditor(k, false));
+        if (own && ownBookCount === null) refreshOwnBookCount();
         renderBio(profileState.bio);
       }
 
@@ -877,6 +893,34 @@
         if (color) document.body.classList.add("vb-cohort-" + color);
       }
 
+      /* ===== 作成した単語帳数 =====
+         他人の非公開単語帳は読み取れないため、本人のログイン時に account-widgets.js が
+         保存している users/{uid}.bookCount を使う（未保存・古い場合に備えて公開数との大きい方）。
+         自分のページでは自分の単語帳をすべて読めるので、その場で正確に数える。 */
+
+      function renderBookCount() {
+        const el = document.getElementById("bookCountText");
+        if (!el) return;
+        const candidates = [storedBookCount, publicBookCount, ownBookCount].filter(n => typeof n === "number");
+        if (candidates.length === 0) return;
+        const count = ownBookCount !== null ? ownBookCount : Math.max(...candidates);
+        el.innerHTML = `作成した単語帳数：<strong>${count}</strong>`;
+        el.style.display = "block";
+        updateUserPageCache({ bookCount: count });
+      }
+
+      async function refreshOwnBookCount() {
+        try {
+          const query = db.collection("wordbooks").where("owner", "==", uid);
+          ownBookCount = typeof query.count === "function"
+            ? (await query.count().get()).data().count
+            : (await query.get()).size;
+          renderBookCount();
+        } catch (e) {
+          console.error("単語帳数の取得に失敗しました", e);
+        }
+      }
+
       async function loadUser() {
         const cachedData = localStorage.getItem(cacheKey);
 
@@ -888,6 +932,10 @@
             if (avatarContainer) avatarContainer.innerHTML = data.avatarHtml || "";
             renderBio(data.bio);
             renderCohort(data.cohort);
+            if (typeof data.bookCount === "number") {
+              storedBookCount = data.bookCount;
+              renderBookCount();
+            }
             bookList.innerHTML = data.booksHtml;
           } catch (e) {
             console.error(e);
@@ -913,6 +961,7 @@
           }
 
           const userData = userDoc.data();
+          if (typeof userData.bookCount === "number") storedBookCount = userData.bookCount;
           username = userData.username || "名無し";
           targetUsername = username;
           profileState.username = userData.username || "";
@@ -943,6 +992,8 @@
         let booksHtml = null;
         try {
           const books = await fetchBooks(uid);
+          publicBookCount = books.length;
+          renderBookCount();
           booksHtml = renderBooksHtml(books);
           bookList.innerHTML = booksHtml;
         } catch (e) {
@@ -955,7 +1006,10 @@
           try {
             localStorage.setItem(
               cacheKey,
-              JSON.stringify({ username, avatarHtml, bio, cohort, booksHtml })
+              JSON.stringify({
+                username, avatarHtml, bio, cohort, booksHtml,
+                bookCount: ownBookCount !== null ? ownBookCount : Math.max(storedBookCount || 0, publicBookCount || 0)
+              })
             );
           } catch (e) {
             console.warn("キャッシュの保存に失敗しました", e);
@@ -1144,8 +1198,8 @@
     });
   </script>
 
-  <script src="account-widgets.js?v=20260926c"></script>
-  <script src="profile-editor.js?v=20260926c"></script>
+  <script src="account-widgets.js?v=20260927"></script>
+  <script src="profile-editor.js?v=20260927"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 
