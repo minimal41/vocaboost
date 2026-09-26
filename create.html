@@ -672,6 +672,14 @@
 
     // Firestoreのバッチは1回あたり最大500件の書き込みに制限されているため、
     // 単語数の多い単語帳(CSV取り込み等で500語以上)でも失敗しないよう、
+
+    // 入力欄にフォーカスを移し、カーソルを文字の一番うしろに置く
+    // （focus()だけだとカーソルが先頭に来てしまい、続けて入力しづらかったため）
+    function focusAtEnd(el) {
+      el.focus();
+      const end = el.value.length;
+      try { el.setSelectionRange(end, end); } catch (e) { }
+    }
     // db.batch()と同じ使い方(set/update/delete/commit)のまま450件ごとに分けて書き込む
     function createChunkedBatch() {
       const ops = [];
@@ -1033,7 +1041,7 @@
       if (willShow) {
         const input = row.querySelector(`[data-type="${field}"]`);
         if (input) {
-          input.focus();
+          focusAtEnd(input);
           // 非表示(display:none)の間はscrollHeightが常に0になるため、
           // 表示した直後に高さを再計算し直す（そうしないと表示された途端
           // テキストボックスの高さがおかしく(潰れて)見えてしまう）
@@ -1559,7 +1567,7 @@
     front.addEventListener("keydown", function (event) {
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault(); // フォーム送信を防ぐ（必要に応じて）
-        back.focus();
+        focusAtEnd(back);
       }
     });
     back.addEventListener("keydown", async function (event) {
@@ -1570,7 +1578,7 @@
         await addWord();
 
         // front に戻る
-        front.focus();
+        focusAtEnd(front);
       }
     });
 
@@ -1591,14 +1599,14 @@
 
       if (target.dataset.type === "front") {
         const backInput = row.querySelector('[data-type="back"]');
-        if (backInput) backInput.focus();
+        if (backInput) focusAtEnd(backInput);
         return;
       }
 
       const nextRow = row.nextElementSibling;
       if (nextRow) {
         const nextFrontInput = nextRow.querySelector('[data-type="front"]');
-        if (nextFrontInput) nextFrontInput.focus();
+        if (nextFrontInput) focusAtEnd(nextFrontInput);
       }
     });
 
