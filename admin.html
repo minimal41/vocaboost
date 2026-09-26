@@ -607,6 +607,7 @@
 
       await loadUsers();
       await loadBooks();
+      backfillCohorts();
       await loadNotifHistory();
       await loadReports();
     });
@@ -880,6 +881,48 @@
         deleteBtn.disabled = false;
         msg.className = "notice";
         msg.textContent = "削除に失敗しました: " + e.message;
+      }
+    }
+
+    /* ===================== 期(学年タグ)の一括付与 =====================
+       各ユーザーは自分のログイン時に期が付与されるが、しばらくログインしていない
+       過去のアカウントにも付与されるよう、運営ページを開いた際に未付与・不一致の
+       users.cohort と wordbooks.ownerCohort をまとめて補完する（管理者は両方を更新可能）。 */
+    async function backfillCohorts() {
+      try {
+        const cohortByUid = new Map();
+        const writes = [];
+        usersData.forEach(u => {
+          const cohort = window.VOCABOOST_COHORT_FROM_EMAIL(u.email);
+          if (!u.email && u.cohort !== undefined) {
+            cohortByUid.set(u.uid, u.cohort);
+            return;
+          }
+          cohortByUid.set(u.uid, cohort);
+          if (u.cohort !== cohort) {
+            writes.push([db.collection("users").doc(u.uid), { cohort }]);
+            u.cohort = cohort;
+          }
+        });
+        booksData.forEach(b => {
+          if (!cohortByUid.has(b.owner)) return;
+          const cohort = cohortByUid.get(b.owner);
+          if (b.ownerCohort !== cohort) {
+            writes.push([db.collection("wordbooks").doc(b.id), { ownerCohort: cohort }]);
+            b.ownerCohort = cohort;
+          }
+        });
+
+        for (let i = 0; i < writes.length; i += 400) {
+          const batch = db.batch();
+          writes.slice(i, i + 400).forEach(([ref, data]) => batch.update(ref, data));
+          await batch.commit();
+        }
+        if (writes.length > 0) {
+          console.log(`期(学年タグ)を${writes.length}件補完しました`);
+        }
+      } catch (e) {
+        console.error("期(学年タグ)の一括付与に失敗しました", e);
       }
     }
 

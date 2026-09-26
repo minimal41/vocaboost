@@ -592,7 +592,7 @@
     if (book.ownerName) {
       creatorHtml = `
         <a href="user.html?id=${owner}" class="creator-btn">
-          ${window.VOCABOOST_AVATAR_HTML(ownerPhotoURL, 24)}
+          ${window.VOCABOOST_AVATAR_HTML(ownerPhotoURL, 24, book.ownerCohort)}
           <span>${escapeHtml(book.ownerName)}</span>
         </a>
       `;
@@ -889,7 +889,7 @@
         listEl.innerHTML = favoriters.map(u => `
           <div class="userRow">
             <a class="userLink" href="user.html?id=${encodeURIComponent(u.id)}">
-              ${window.VOCABOOST_AVATAR_HTML(u.photoURL, 36)}
+              ${window.VOCABOOST_AVATAR_HTML(u.photoURL, 36, u.cohort ?? window.VOCABOOST_COHORT_FROM_EMAIL(u.email))}
               <span>${escapeHtmlForFavoriters(u.username || "名無し")}</span>
             </a>
           </div>

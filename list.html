@@ -118,6 +118,14 @@
       font-size: 13px;
       color: var(--color-text);
     }
+
+    .user-meta-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
+    }
   </style>
 </head>
 
@@ -141,6 +149,10 @@
 
     <div style="margin-bottom:15px;">
       <input id="search" placeholder="検索" oninput="render()">
+      <select id="cohortFilter" onchange="onCohortFilterChange()"
+        style="padding:10px; border-radius:10px; border:1px solid #ccc; font-size:14px; margin-left:5px; cursor:pointer;">
+        <option value="all">すべての学年</option>
+      </select>
       <select id="sortBook" onchange="render()"
         style="padding:10px; border-radius:10px; border:1px solid #ccc; font-size:14px; margin-left:5px; cursor:pointer;">
         <option value="created">作成順（新しい）</option>
@@ -207,6 +219,107 @@
     let currentUser = null;
     let usersLoaded = false; // ★ ユーザーデータ読み込み済みフラグ
 
+    /* ===== 学年(期)での絞り込み =====
+       標準では自分の期を表示する（未ログインなら「すべての学年」）。
+       単語帳の期は wordbooks.ownerCohort を使い、まだ付与されていない古い単語帳は
+       ログイン中ならusersコレクションから作成者の期を補完する。 */
+    const MY_COHORT_KEY = "vocaboost_my_cohort";
+    let cohortFilter = "all";
+    let cohortFilterTouched = false; // ユーザーが自分で選び直したら自動では切り替えない
+    let userCohortMap = {}; // uid -> 期（ログイン中のみ取得）
+
+    function readMyCohortCache() {
+      try {
+        const v = localStorage.getItem(MY_COHORT_KEY);
+        return v === null ? null : Number(v);
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function bookCohort(b) {
+      if (b.ownerCohort !== undefined && b.ownerCohort !== null) return b.ownerCohort;
+      if (b.ownerId && userCohortMap[b.ownerId] !== undefined) return userCohortMap[b.ownerId];
+      return undefined;
+    }
+
+    function matchesCohort(cohort) {
+      if (cohortFilter === "all") return true;
+      if (cohort === undefined || cohort === null) return false;
+      return String(window.VOCABOOST_NORMALIZE_COHORT(cohort)) === cohortFilter;
+    }
+
+    // 選択肢は「すべての学年」＋実際に存在する期（新しい順）＋自分の期＋「その他」
+    function renderCohortOptions() {
+      const select = document.getElementById("cohortFilter");
+      const set = new Set();
+      books.forEach(b => {
+        const c = bookCohort(b);
+        if (c !== undefined && c !== null) set.add(window.VOCABOOST_NORMALIZE_COHORT(c));
+      });
+      users.forEach(u => set.add(window.VOCABOOST_NORMALIZE_COHORT(u.cohort)));
+      const myCohort = readMyCohortCache();
+      if (myCohort !== null) set.add(window.VOCABOOST_NORMALIZE_COHORT(myCohort));
+      if (cohortFilter !== "all") set.add(Number(cohortFilter));
+
+      const other = window.VOCABOOST_COHORT_OTHER;
+      const list = [...set].filter(c => c !== other).sort((a, b) => b - a);
+      if (set.has(other)) list.push(other);
+
+      select.innerHTML = '<option value="all">すべての学年</option>' + list.map(c => {
+        const mine = myCohort !== null && window.VOCABOOST_NORMALIZE_COHORT(myCohort) === c ? "（自分の学年）" : "";
+        return `<option value="${c}">${escapeHtml(window.VOCABOOST_COHORT_LABEL(c) + mine)}</option>`;
+      }).join("");
+      select.value = cohortFilter;
+    }
+
+    function onCohortFilterChange() {
+      cohortFilterTouched = true;
+      cohortFilter = document.getElementById("cohortFilter").value;
+      render();
+    }
+
+    function applyDefaultCohortFilter() {
+      if (cohortFilterTouched) return;
+      const myCohort = readMyCohortCache();
+      cohortFilter = myCohort === null ? "all" : String(window.VOCABOOST_NORMALIZE_COHORT(myCohort));
+    }
+
+    // 作成者の期を補完するためにusersを読む（usersの読み取りはログインが必要）
+    async function fetchUsersFromDb() {
+      const userBookCounts = {};
+      books.forEach(b => {
+        if (b.ownerId) {
+          userBookCounts[b.ownerId] = (userBookCounts[b.ownerId] || 0) + 1;
+        }
+      });
+
+      const snapUsers = await db.collection("users").get();
+      const list = snapUsers.docs.map(d => {
+        const data = d.data();
+        const createdAt = data.createdAt;
+        const cohort = (data.cohort !== undefined && data.cohort !== null)
+          ? window.VOCABOOST_NORMALIZE_COHORT(data.cohort)
+          : window.VOCABOOST_COHORT_FROM_EMAIL(data.email);
+        return {
+          id: d.id,
+          username: data.username || "名無し",
+          photoURL: data.photoURL || null,
+          cohort,
+          bookCount: userBookCounts[d.id] || 0,
+          // localStorageに保存するためTimestampをミリ秒数値に変換しておく
+          createdAtMillis: createdAt && typeof createdAt.toMillis === "function"
+            ? createdAt.toMillis()
+            : 0
+        };
+      });
+      userCohortMap = {};
+      list.forEach(u => { userCohortMap[u.id] = u.cohort; });
+      return list;
+    }
+
+    applyDefaultCohortFilter();
+
     // XSS対策: テキストをそのまま innerHTML に差し込まないようにエスケープする
     function escapeHtml(str) {
       return String(str)
@@ -260,6 +373,20 @@
         loginBtn.style.display = "none";
         logoutBtn.style.display = "inline-block";
         settingsBtn.style.display = "inline-block";
+
+        // 自分の期を記録し、標準の絞り込みを自分の学年にする
+        try {
+          localStorage.setItem(MY_COHORT_KEY, String(window.VOCABOOST_COHORT_FROM_EMAIL(user.email)));
+        } catch (e) { }
+        applyDefaultCohortFilter();
+        render();
+
+        // 期が未付与の古い単語帳の作成者の期を補完する
+        fetchUsersFromDb().then(list => {
+          users = list;
+          usersLoaded = true;
+          render();
+        }).catch(e => console.error("User load failed:", e));
       } else if (localStorage.getItem("cachedUser")) {
         (function () {
           // 端末やネットワークが遅いと1回・1.5秒の再確認だけでは間に合わないことがあるため、
@@ -303,6 +430,7 @@
 
     function logout() {
       localStorage.removeItem("cachedUser");
+      localStorage.removeItem(MY_COHORT_KEY);
       firebase.auth().signOut();
     }
 
@@ -366,6 +494,7 @@
             // （usersコレクションの読み取りにはログインが必要なため、未ログインの
             // 閲覧者でも表示できるようにするための複製）
             ownerPhotoURL: data.ownerPhotoURL || null,
+            ownerCohort: data.ownerCohort,
             count: count,
             createdAt: data.createdAt || null
           };
@@ -464,7 +593,7 @@
       if (!usersLoaded) {
 
         const cachedUsers =
-          localStorage.getItem("usersCache");
+          localStorage.getItem("usersCacheV2");
 
         if (cachedUsers) {
           try {
@@ -478,32 +607,10 @@
 
         showLoading();
         try {
-          // ユーザーごとの公開単語帳数を再計算
-          const userBookCounts = {};
-          books.forEach(b => {
-            if (b.ownerId) {
-              userBookCounts[b.ownerId] = (userBookCounts[b.ownerId] || 0) + 1;
-            }
-          });
-
-          const snapUsers = await db.collection("users").get();
-          users = snapUsers.docs.map(d => {
-            const data = d.data();
-            const createdAt = data.createdAt;
-            return {
-              id: d.id,
-              username: data.username || "名無し",
-              photoURL: data.photoURL || null,
-              bookCount: userBookCounts[d.id] || 0,
-              // localStorageに保存するためTimestampをミリ秒数値に変換しておく
-              createdAtMillis: createdAt && typeof createdAt.toMillis === "function"
-                ? createdAt.toMillis()
-                : 0
-            };
-          });
+          users = await fetchUsersFromDb();
           usersLoaded = true;
           localStorage.setItem(
-            "usersCache",
+            "usersCacheV2",
             JSON.stringify(users)
           );
         } catch (e) {
@@ -521,9 +628,12 @@
         : document.getElementById("sortUser").value;
       const area = document.getElementById("list");
       area.innerHTML = "";
+      renderCohortOptions();
 
       if (mode === "book") {
-        let filtered = books.filter(b => b.title.toLowerCase().includes(q));
+        let filtered = books.filter(b =>
+          (b.title || "").toLowerCase().includes(q) && matchesCohort(bookCohort(b))
+        );
 
         // ソート
         if (sort === "created") {
@@ -538,7 +648,12 @@
           filtered.sort((a, b) => b.count - a.count);
         }
 
+        if (filtered.length === 0 && books.length > 0) {
+          area.innerHTML = '<p class="count" style="text-align:center;">該当する単語帳はありません</p>';
+        }
+
         filtered.forEach(b => {
+          const cohort = bookCohort(b);
           const div = document.createElement("div");
           div.className = "card";
           div.innerHTML = `
@@ -546,9 +661,10 @@
           <div class="title">${escapeHtml(b.title)}</div>
           <div class="book-meta-row">
             <a href="user.html?id=${b.ownerId}" class="creator-btn">
-              ${window.VOCABOOST_AVATAR_HTML(b.ownerPhotoURL, 24)}
+              ${window.VOCABOOST_AVATAR_HTML(b.ownerPhotoURL, 24, cohort)}
               <span>${escapeHtml(b.ownerName)}</span>
             </a>
+            ${cohort !== undefined && cohort !== null ? window.VOCABOOST_COHORT_BADGE_HTML(cohort) : ""}
             <div class="count">単語数：${b.count}</div>
           </div>
         </div>
@@ -557,7 +673,9 @@
           area.appendChild(div);
         });
       } else {
-        let filtered = users.filter(u => u.username.toLowerCase().includes(q));
+        let filtered = users.filter(u =>
+          u.username.toLowerCase().includes(q) && matchesCohort(u.cohort)
+        );
 
         // ソート
         if (sort === "name") {
@@ -568,16 +686,23 @@
           filtered.sort((a, b) => (b.createdAtMillis || 0) - (a.createdAtMillis || 0));
         }
 
+        if (filtered.length === 0 && users.length > 0) {
+          area.innerHTML = '<p class="count" style="text-align:center;">該当するユーザーはいません</p>';
+        }
+
         filtered.forEach(u => {
           const div = document.createElement("div");
           div.className = "card";
           div.innerHTML = `
         <div>
           <a href="user.html?id=${u.id}" class="user-identity">
-            ${window.VOCABOOST_AVATAR_HTML(u.photoURL, 28)}
+            ${window.VOCABOOST_AVATAR_HTML(u.photoURL, 28, u.cohort)}
             <span>${escapeHtml(u.username)}</span>
           </a>
-          <div class="count">作成した単語帳数：${u.bookCount}</div>
+          <div class="user-meta-row">
+            ${window.VOCABOOST_COHORT_BADGE_HTML(u.cohort)}
+            <div class="count">作成した単語帳数：${u.bookCount}</div>
+          </div>
         </div>
         <button onclick="location.href='user.html?id=${u.id}'">見る</button>
       `;

@@ -158,6 +158,15 @@
       line-height: 1.7;
     }
 
+    /* 期(学年タグ)の色に合わせてページ背景を淡く色付けする（色はstyle.cssのvb-cohort-*） */
+    body[class*="vb-cohort-"] {
+      --color-bg: var(--cohort-soft);
+    }
+
+    .profile-cohort {
+      margin: -4px 0 8px;
+    }
+
     .profile-avatar {
       display: flex;
       justify-content: center;
@@ -256,6 +265,7 @@
       <h2>ユーザー情報</h2>
       <div id="avatarContainer" class="profile-avatar"></div>
       <p id="userNameText">読み込み中...</p>
+      <div id="cohortBadge" class="profile-cohort"></div>
       <p id="bioText" class="profile-bio" style="display:none"></p>
       <button type="button" id="followerCountBtn" class="followerCountBtn" style="display:none" onclick="openFollowersModal()"></button>
       <button type="button" id="followBtn" class="followBtn" onclick="toggleFollow()">フォロー</button>
@@ -516,6 +526,19 @@
         bioText.style.display = bio ? "block" : "none";
       }
 
+      // 期(学年タグ)をバッジ表示し、ページ背景をその期の色に近い色にする
+      function renderCohort(cohort) {
+        const badge = document.getElementById("cohortBadge");
+        document.body.classList.remove("vb-cohort-green", "vb-cohort-blue", "vb-cohort-red");
+        if (cohort === undefined || cohort === null) {
+          if (badge) badge.innerHTML = "";
+          return;
+        }
+        if (badge) badge.innerHTML = window.VOCABOOST_COHORT_BADGE_HTML(cohort);
+        const color = window.VOCABOOST_COHORT_COLOR(cohort);
+        if (color) document.body.classList.add("vb-cohort-" + color);
+      }
+
       async function loadUser() {
         const cachedData = localStorage.getItem(cacheKey);
 
@@ -525,6 +548,7 @@
             userNameText.textContent = "ユーザー名: " + data.username;
             if (avatarContainer) avatarContainer.innerHTML = data.avatarHtml || "";
             renderBio(data.bio);
+            renderCohort(data.cohort);
             bookList.innerHTML = data.booksHtml;
           } catch (e) {
             console.error(e);
@@ -538,6 +562,7 @@
         let username = null;
         let avatarHtml = null;
         let bio = "";
+        let cohort = null;
         try {
           const userDoc = await db.collection("users").doc(uid).get();
 
@@ -551,7 +576,11 @@
           const userData = userDoc.data();
           username = userData.username || "名無し";
           targetUsername = username;
-          avatarHtml = window.VOCABOOST_AVATAR_HTML(userData.photoURL, 120);
+          cohort = (userData.cohort !== undefined && userData.cohort !== null)
+            ? window.VOCABOOST_NORMALIZE_COHORT(userData.cohort)
+            : window.VOCABOOST_COHORT_FROM_EMAIL(userData.email);
+          renderCohort(cohort);
+          avatarHtml = window.VOCABOOST_AVATAR_HTML(userData.photoURL, 120, cohort);
           bio = typeof userData.bio === "string" ? userData.bio : "";
           renderBio(bio);
 
@@ -584,7 +613,7 @@
           try {
             localStorage.setItem(
               cacheKey,
-              JSON.stringify({ username, avatarHtml, bio, booksHtml })
+              JSON.stringify({ username, avatarHtml, bio, cohort, booksHtml })
             );
           } catch (e) {
             console.warn("キャッシュの保存に失敗しました", e);
@@ -622,7 +651,7 @@
           listEl.innerHTML = followers.map(u => `
             <div class="userRow">
               <a class="userLink" href="user.html?id=${encodeURIComponent(u.id)}">
-                ${window.VOCABOOST_AVATAR_HTML(u.photoURL, 36)}
+                ${window.VOCABOOST_AVATAR_HTML(u.photoURL, 36, u.cohort ?? window.VOCABOOST_COHORT_FROM_EMAIL(u.email))}
                 <span>${escapeHtml(u.username || "名無し")}</span>
               </a>
             </div>

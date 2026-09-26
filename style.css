@@ -316,6 +316,35 @@ footer {
   color: var(--color-text-sub);
 }
 
+/* ===== 期（学年タグ）の色：41期=緑、42期=青、43期=赤…の3色周期 =====
+   --cohort-main: 文字・アイコン色 / --cohort-soft: 淡い背景色 */
+.vb-cohort-green { --cohort-main: #1e9e4a; --cohort-soft: #e3f6e9; }
+.vb-cohort-blue  { --cohort-main: #2563eb; --cohort-soft: #e3ecfd; }
+.vb-cohort-red   { --cohort-main: #dc2f3c; --cohort-soft: #fce6e8; }
+
+html[data-theme="dark"] .vb-cohort-green { --cohort-main: #4cc374; --cohort-soft: #14261b; }
+html[data-theme="dark"] .vb-cohort-blue  { --cohort-main: #6d9bf5; --cohort-soft: #151f36; }
+html[data-theme="dark"] .vb-cohort-red   { --cohort-main: #f06b75; --cohort-soft: #2e1619; }
+
+.vb-avatar-icon[class*="vb-cohort-"] {
+  color: var(--cohort-main);
+  background: var(--cohort-soft);
+}
+
+.vb-cohort-badge {
+  display: inline-block;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 1.6;
+  vertical-align: middle;
+  white-space: nowrap;
+  border: 1px solid var(--cohort-main, var(--color-border));
+  color: var(--cohort-main, var(--color-text-sub));
+  background: var(--cohort-soft, transparent);
+}
+
 .vb-avatar-icon svg {
   width: 60%;
   height: 60%;

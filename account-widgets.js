@@ -160,17 +160,85 @@
     '</svg>';
 
   // photoURLが有効な画像data URLならその<img>、そうでなければ人物アイコンのHTMLを返す。
-  // sizePxは正方形の一辺の長さ(px)。
-  function avatarHtml(photoURL, sizePx) {
+  // sizePxは正方形の一辺の長さ(px)。cohort(期)を渡すと、写真未設定時の人物アイコンを
+  // その期の色(緑/青/赤)で表示する。
+  function avatarHtml(photoURL, sizePx, cohort) {
     const size = Number(sizePx) || 32;
     const style = "width:" + size + "px;height:" + size + "px;";
     if (isValidProfilePhotoUrl(photoURL)) {
       return '<img src="' + photoURL + '" alt="" class="vb-avatar-img" style="' + style + '">';
     }
-    return '<span class="vb-avatar-icon" style="' + style + '">' + PERSON_ICON_SVG + '</span>';
+    const color = cohortColor(cohort);
+    const cls = "vb-avatar-icon" + (color ? " vb-cohort-" + color : "");
+    return '<span class="' + cls + '" style="' + style + '">' + PERSON_ICON_SVG + '</span>';
   }
 
   window.VOCABOOST_AVATAR_HTML = avatarHtml;
+
+  // ===== 期（学年タグ） =====
+  // メールアドレス(学籍番号)の先頭4桁が入学年度。2023→41期、2024→42期…とし、
+  // 先頭4桁が2023以上の数字でない場合は「その他」(0)とする。
+  // users/{uid}.cohort と、未ログインの閲覧者でも絞り込めるよう
+  // wordbooks/{id}.ownerCohort に複製して保存する（ownerName等と同じ方針）。
+  const COHORT_BASE_YEAR = 2023;
+  const COHORT_BASE_NUMBER = 41;
+  const COHORT_OTHER = 0;
+
+  function cohortFromEmail(email) {
+    const m = /^(\d{4})/.exec(String(email || ""));
+    if (!m) return COHORT_OTHER;
+    const year = Number(m[1]);
+    if (year < COHORT_BASE_YEAR) return COHORT_OTHER;
+    return year - COHORT_BASE_YEAR + COHORT_BASE_NUMBER;
+  }
+
+  function normalizeCohort(cohort) {
+    const n = Number(cohort);
+    return Number.isInteger(n) && n >= COHORT_BASE_NUMBER ? n : COHORT_OTHER;
+  }
+
+  function cohortLabel(cohort) {
+    const n = normalizeCohort(cohort);
+    return n === COHORT_OTHER ? "その他" : n + "期";
+  }
+
+  // 41期=緑、42期=青、43期=赤、44期=緑…の3色周期。「その他」は色なし(null)。
+  function cohortColor(cohort) {
+    if (cohort === undefined || cohort === null) return null;
+    const n = normalizeCohort(cohort);
+    if (n === COHORT_OTHER) return null;
+    return ["green", "blue", "red"][(n - COHORT_BASE_NUMBER) % 3];
+  }
+
+  // 「41期」などのタグ(バッジ)のHTML
+  function cohortBadgeHtml(cohort) {
+    const color = cohortColor(cohort);
+    const cls = "vb-cohort-badge" + (color ? " vb-cohort-" + color : "");
+    return '<span class="' + cls + '">' + escapeHtml(cohortLabel(cohort)) + '</span>';
+  }
+
+  window.VOCABOOST_COHORT_OTHER = COHORT_OTHER;
+  window.VOCABOOST_COHORT_FROM_EMAIL = cohortFromEmail;
+  window.VOCABOOST_NORMALIZE_COHORT = normalizeCohort;
+  window.VOCABOOST_COHORT_LABEL = cohortLabel;
+  window.VOCABOOST_COHORT_COLOR = cohortColor;
+  window.VOCABOOST_COHORT_BADGE_HTML = cohortBadgeHtml;
+
+  // 指定ユーザーの期を users/{uid}.cohort と、その人の全単語帳の ownerCohort に反映する。
+  // 本人のログイン時(下記)と、運営ページでの過去アカウントの一括付与から呼ばれる。
+  window.VOCABOOST_APPLY_COHORT = async function (db, uid, cohort, userData) {
+    if (!userData || userData.cohort !== cohort) {
+      await db.collection("users").doc(uid).set({ cohort }, { merge: true });
+    }
+    const snap = await db.collection("wordbooks").where("owner", "==", uid).get();
+    const targets = snap.docs.filter(d => d.data().ownerCohort !== cohort);
+    for (let i = 0; i < targets.length; i += 400) {
+      const batch = db.batch();
+      targets.slice(i, i + 400).forEach(d => batch.update(d.ref, { ownerCohort: cohort }));
+      await batch.commit();
+    }
+    return targets.length;
+  };
   window.VOCABOOST_IS_VALID_PHOTO_URL = isValidProfilePhotoUrl;
 
   // ===== フォロー中のユーザーが新しい単語帳を作成したときの通知 =====
@@ -480,6 +548,7 @@
 
       repairUserDoc(user, userData);
       updateLastSeen(user, userData);
+      ensureCohort(user, userData);
 
       await loadNotifications(user, isAdmin);
       saveNotifCache(user.uid, isAdmin);
@@ -525,6 +594,19 @@
         console.warn("account-widgets: repaired missing user fields for", user.uid, patch);
       } catch (e) {
         console.error("account-widgets: failed to repair user doc", e);
+      }
+    }
+
+    // 過去に作られたアカウントも含め、ログイン時に期(学年タグ)が未設定・不一致なら付与し、
+    // 自分の単語帳にも複製する。一度反映されれば以降は何もしない。
+    async function ensureCohort(user, userData) {
+      if (!userData) return;
+      const cohort = cohortFromEmail(user.email || userData.email);
+      if (userData.cohort === cohort) return;
+      try {
+        await window.VOCABOOST_APPLY_COHORT(db, user.uid, cohort, userData);
+      } catch (e) {
+        console.error("account-widgets: failed to apply cohort", e);
       }
     }
 
