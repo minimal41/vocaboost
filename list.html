@@ -197,7 +197,7 @@
 
   <!-- キャッシュからの単語帳一覧を即時描画する処理がVOCABOOST_AVATAR_HTMLを使うため、
        account-widgets.js は下のメインスクリプトより先に読み込む -->
-  <script src="account-widgets.js"></script>
+  <script src="account-widgets.js?v=20260926"></script>
   <script src="analytics-tracker.js"></script>
 
   <script>
@@ -265,9 +265,12 @@
       if (myCohort !== null) set.add(window.VOCABOOST_NORMALIZE_COHORT(myCohort));
       if (cohortFilter !== "all") set.add(window.VOCABOOST_NORMALIZE_COHORT(cohortFilter));
 
+      // 学年として有効なのは41期〜今年の期のみ（それ以外は「その他」に含める）
       const other = window.VOCABOOST_COHORT_OTHER;
-      const list = [...set].filter(c => c !== other).sort((a, b) => b - a);
-      if (set.has(other)) list.push(other);
+      const maxCohort = new Date().getFullYear() - 2023 + 41;
+      const isValid = c => Number.isInteger(c) && c >= 41 && c <= maxCohort;
+      const list = [...set].filter(isValid).sort((a, b) => b - a);
+      if ([...set].some(c => !isValid(c))) list.push(other);
 
       select.innerHTML = '<option value="all">すべての学年</option>' + list.map(c => {
         const mine = myCohort !== null && window.VOCABOOST_NORMALIZE_COHORT(myCohort) === c ? "（自分の学年）" : "";

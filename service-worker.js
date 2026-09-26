@@ -1,6 +1,6 @@
 // Cache name
 // キャッシュ内容を変更したら必ずバージョンを上げる（古いキャッシュが残り続けるのを防ぐため）
-const CACHE_NAME = 'pwa-sample-caches-v20';
+const CACHE_NAME = 'pwa-sample-caches-v21';
 // オフライン時に「開いたことの無いページ」でキャッシュも無く表示できない場合に
 // 代わりに出す案内ページ（再読み込み／オフラインモードへのボタン付き）
 const OFFLINE_FALLBACK_URL = './offline-fallback.html';
@@ -251,7 +251,14 @@ self.addEventListener('fetch', (event) => {
   if (isHtmlOrAsset) {
     const cacheRequest = cacheRequestFor(event.request, url);
     event.respondWith(
-      fetch(event.request)
+      // ブラウザのHTTPキャッシュに残った古いJS/CSSが使われ、更新が反映されない
+      // (新しいHTMLと古いaccount-widgets.jsが混在する)ことがあったため、
+      // 必ずサーバーに更新の有無を確認してから取得する（変更が無ければ304で軽量）。
+      // ※ ページ遷移(mode: navigate)のリクエストにはRequestInitを渡せない(TypeErrorになる)ため、
+      //   JS/CSS等の付随リソースのみに適用する。
+      (event.request.mode === 'navigate'
+        ? fetch(event.request)
+        : fetch(new Request(event.request, { cache: 'no-cache' })))
         .then((response) => {
           // レスポンスが正常なときだけキャッシュを更新する
           if (response && response.status === 200) {
