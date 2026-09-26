@@ -204,7 +204,8 @@
         padding: 0;
         border: none;
         border-radius: 50%;
-        background-color: #dff1fc;
+        /* パソコン版のページ背景と同じ色 */
+        background-color: var(--color-bg);
         color: var(--color-accent);
         font-size: 14px;
         font-weight: bold;
@@ -212,7 +213,6 @@
       html[data-theme="dark"] .maincard1,
       html[data-theme="dark"] .maincard2,
       html[data-theme="dark"] .maincard3 {
-        background-color: #1d3444;
         color: var(--color-text);
       }
       .cardpicture1,
