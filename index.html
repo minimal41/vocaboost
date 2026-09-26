@@ -186,11 +186,40 @@
         border: solid;
         border-radius: 10px;
       }
+      /* スマホ幅：3つのボタンを横一列に並べ、枠なし・薄い水色の丸いボタンにする */
+      .card {
+        flex-wrap: nowrap;
+        gap: 12px;
+        padding: 4px 8px;
+      }
       .maincard1,
       .maincard2,
       .maincard3 {
-        height: 80px;
-        min-width: 120px;
+        flex: 0 1 100px;
+        width: auto;
+        min-width: 0;
+        height: auto;
+        aspect-ratio: 1 / 1;
+        margin: 0;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background-color: #dff1fc;
+        color: var(--color-accent);
+        font-size: 14px;
+        font-weight: bold;
+      }
+      html[data-theme="dark"] .maincard1,
+      html[data-theme="dark"] .maincard2,
+      html[data-theme="dark"] .maincard3 {
+        background-color: #1d3444;
+        color: var(--color-text);
+      }
+      .cardpicture1,
+      .cardpicture2,
+      .cardpicture3 {
+        height: 34px;
+        max-width: 70%;
       }
       .modal-content {
         width: 90%;
@@ -855,7 +884,7 @@
       alert(count + " 件に createdAt を追加しました");
     }
   </script>
-  <script src="account-widgets.js?v=20260926b"></script>
+  <script src="account-widgets.js?v=20260926c"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 

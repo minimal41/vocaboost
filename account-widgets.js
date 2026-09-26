@@ -475,6 +475,7 @@
     if (!dd) return;
     dropdownOpen = !dropdownOpen;
     dd.style.display = dropdownOpen ? "flex" : "none";
+    if (dropdownOpen && mobileMenuOpen) setMobileMenuOpen(false);
     if (dropdownOpen && markAllReadImpl) {
       markAllReadImpl();
     }
@@ -520,6 +521,7 @@
 
   function renderHeaderAvatar(data) {
     if (!data || !data.uid) return;
+    renderMobileMenuProfile(data);
     const logoutBtn = document.getElementById("logoutBtn");
     if (!logoutBtn) return;
 
@@ -546,6 +548,120 @@
     saveHeaderAvatarCache(updated);
     renderHeaderAvatar(updated);
   };
+
+  /* ===== スマホ幅のヘッダー：ハンバーガーメニュー =====
+     スマホ幅(768px以下)ではヘッダーのボタン(設定・ログアウト等)をCSSで隠し、
+     右端のハンバーガーメニューの中にまとめる。メニューの一番上には自分の写真と
+     ユーザー名(押すと自分のプロフィールへ)を出す。メニュー内の各項目は、
+     各ページがもともと持っているボタンの表示状態に合わせて出し分け、
+     押されたら元のボタンのクリックをそのまま呼び出す（ページ側の処理を再利用するため）。 */
+  const MENU_ICON_SVG = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>';
+  let mobileMenuOpen = false;
+
+  function ensureMobileMenu() {
+    let wrap = document.getElementById("vbMobileMenuWrap");
+    if (wrap) return wrap;
+    const logoutBtn = document.getElementById("logoutBtn");
+    if (!logoutBtn || !logoutBtn.parentElement) return null;
+
+    wrap = document.createElement("span");
+    wrap.id = "vbMobileMenuWrap";
+    wrap.className = "vb-mobile-menu-wrap";
+    wrap.innerHTML = `
+      <button type="button" id="vbMobileMenuBtn" class="vb-mobile-menu-btn" aria-label="メニュー" aria-expanded="false">${MENU_ICON_SVG}</button>
+      <div id="vbMobileMenu" class="vb-mobile-menu" style="display:none">
+        <a id="vbMenuProfile" class="vb-menu-profile" style="display:none"></a>
+        <button type="button" class="vb-menu-item" data-target="adminLink" style="display:none">運営</button>
+        <button type="button" class="vb-menu-item" data-target="settingsBtn" style="display:none">設定</button>
+        <button type="button" class="vb-menu-item" data-target="loginBtn" style="display:none">ログイン</button>
+        <button type="button" class="vb-menu-item" data-target="logoutBtn" style="display:none">ログアウト</button>
+      </div>
+    `;
+    logoutBtn.parentElement.appendChild(wrap);
+
+    const btn = wrap.querySelector("#vbMobileMenuBtn");
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setMobileMenuOpen(!mobileMenuOpen);
+    });
+    wrap.querySelectorAll(".vb-menu-item").forEach(item => {
+      item.addEventListener("click", () => {
+        setMobileMenuOpen(false);
+        const original = findMenuTarget(item.dataset.target);
+        if (original) original.click();
+      });
+    });
+    document.addEventListener("click", (e) => {
+      if (mobileMenuOpen && !wrap.contains(e.target)) setMobileMenuOpen(false);
+    });
+
+    // 元のボタンの表示・非表示が切り替わったらメニュー側も追従させる
+    const observer = new MutationObserver(syncMobileMenuItems);
+    ["settingsBtn", "loginBtn", "logoutBtn"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el, { attributes: true, attributeFilter: ["style"] });
+    });
+    const bellContainer = document.getElementById("notifBellContainer");
+    if (bellContainer) observer.observe(bellContainer, { childList: true });
+
+    syncMobileMenuItems();
+    return wrap;
+  }
+
+  function findMenuTarget(target) {
+    if (target === "adminLink") return document.querySelector(".admin-link-btn");
+    return document.getElementById(target);
+  }
+
+  function isShown(el) {
+    return !!el && el.style.display !== "none";
+  }
+
+  function syncMobileMenuItems() {
+    const wrap = document.getElementById("vbMobileMenuWrap");
+    if (!wrap) return;
+    wrap.querySelectorAll(".vb-menu-item").forEach(item => {
+      item.style.display = isShown(findMenuTarget(item.dataset.target)) ? "block" : "none";
+    });
+    const profile = document.getElementById("vbMenuProfile");
+    if (profile) {
+      const loggedIn = isShown(document.getElementById("logoutBtn"));
+      profile.style.display = loggedIn && profile.dataset.ready ? "flex" : "none";
+    }
+  }
+
+  function setMobileMenuOpen(open) {
+    mobileMenuOpen = open;
+    const menu = document.getElementById("vbMobileMenu");
+    const btn = document.getElementById("vbMobileMenuBtn");
+    if (menu) menu.style.display = open ? "block" : "none";
+    if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) {
+      syncMobileMenuItems();
+      closeDropdown();
+    }
+  }
+
+  function renderMobileMenuProfile(data) {
+    if (!ensureMobileMenu()) return;
+    const profile = document.getElementById("vbMenuProfile");
+    profile.href = "user.html?id=" + encodeURIComponent(data.uid);
+    profile.innerHTML =
+      avatarHtml(data.photoURL, 44, data.cohort) +
+      '<span class="vb-menu-profile-text">' +
+      '<span class="vb-menu-profile-name">' + escapeHtml(data.username || "ユーザー名未設定") + '</span>' +
+      '<span class="vb-menu-profile-sub">プロフィールを見る</span>' +
+      '</span>';
+    profile.dataset.ready = "1";
+    syncMobileMenuItems();
+  }
+
+  // ログイン中キャッシュが無い(未ログイン)場合でも、ログインボタン入りのメニューは用意する
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", ensureMobileMenu);
+  } else {
+    ensureMobileMenu();
+  }
 
   (function renderHeaderAvatarFromCache() {
     let savedUser;
@@ -624,6 +740,7 @@
 
       const headerAvatarData = {
         uid: user.uid,
+        username: (userData && userData.username) || user.displayName || "",
         photoURL: (userData && userData.photoURL) || null,
         cohort: cohortFromEmail(user.email || (userData && userData.email))
       };

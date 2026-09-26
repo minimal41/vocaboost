@@ -35,6 +35,9 @@
     await user.updateProfile({ displayName: name });
     await db.collection("users").doc(user.uid).set({ username: name }, { merge: true });
     updateOwnedBooks(db, user.uid, { ownerName: name });
+    if (window.VOCABOOST_UPDATE_HEADER_AVATAR) {
+      window.VOCABOOST_UPDATE_HEADER_AVATAR({ username: name });
+    }
     return name;
   }
 
