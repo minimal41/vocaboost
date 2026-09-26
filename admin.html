@@ -140,6 +140,22 @@
       gap: 8px;
     }
 
+    /* 通報一覧：理由の欄を広めに取る */
+    .reportTable {
+      min-width: 860px;
+    }
+
+    .reportTable .reasonCol,
+    .reportTable .reasonCell {
+      min-width: 260px;
+      width: 36%;
+    }
+
+    .reportTable .reasonCell {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
     .collapseIcon {
       font-size: 13px;
       color: var(--color-text-sub);
@@ -278,40 +294,48 @@
         <button onclick="sendNotification()">送信する</button>
         <div id="notifMsg" class="notice"></div>
 
-        <h3>送信履歴</h3>
-        <div class="tableWrap">
-          <table>
-            <thead>
-              <tr>
-                <th>タイトル</th>
-                <th>対象</th>
-                <th>送信日時</th>
-              </tr>
-            </thead>
-            <tbody id="notifHistoryBody"></tbody>
-          </table>
+        <h3 class="collapsibleHeader" onclick="toggleSection('notifHistorySection')">
+          送信履歴 <span class="collapseIcon" id="notifHistorySection_icon">▾</span>
+        </h3>
+        <div id="notifHistorySection_body">
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>タイトル</th>
+                  <th>対象</th>
+                  <th>送信日時</th>
+                </tr>
+              </thead>
+              <tbody id="notifHistoryBody"></tbody>
+            </table>
+          </div>
         </div>
       </section>
 
       <!-- 通報一覧 -->
       <section class="card">
-        <h2>通報一覧</h2>
-        <input type="text" id="reportSearch" class="searchInput" placeholder="理由・対象名で検索" oninput="renderReportList()">
-        <div class="tableWrap">
-          <table>
-            <thead>
-              <tr>
-                <th>種別</th>
-                <th>対象</th>
-                <th>理由</th>
-                <th>通報者</th>
-                <th>日時</th>
-                <th>状態</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody id="reportListBody"></tbody>
-          </table>
+        <h2 class="collapsibleHeader" onclick="toggleSection('reportSection')">
+          通報一覧 <span class="collapseIcon" id="reportSection_icon">▾</span>
+        </h2>
+        <div id="reportSection_body">
+          <input type="text" id="reportSearch" class="searchInput" placeholder="理由・対象名・通報者で検索" oninput="renderReportList()">
+          <div class="tableWrap">
+            <table class="reportTable">
+              <thead>
+                <tr>
+                  <th>種別</th>
+                  <th>対象</th>
+                  <th class="reasonCol">理由</th>
+                  <th>通報者</th>
+                  <th>日時</th>
+                  <th>状態</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="reportListBody"></tbody>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -499,7 +523,8 @@
     // 列見出しクリックで並び替え（初めてクリックした列は既定の向き、同じ列を再クリックすると上下反転）
     const USER_SORT_DEFAULT_DIR = { username: "asc", email: "asc", createdAt: "desc", lastSeenAt: "desc", status: "asc" };
     const BOOK_SORT_DEFAULT_DIR = { title: "asc", owner: "asc", wordCount: "desc", status: "asc", createdAt: "desc" };
-    let userSortKey = "createdAt";
+    // ユーザー管理は標準で最終閲覧日の新しい順に並べる
+    let userSortKey = "lastSeenAt";
     let userSortDir = "desc";
     let bookSortKey = "createdAt";
     let bookSortDir = "desc";
@@ -1063,13 +1088,22 @@
       renderReportList();
     }
 
+    // 通報者はメールアドレスではなくユーザー名で表示する（見つからない場合のみメール等で代用）
+    function reporterLabel(r) {
+      const reporter = usersData.find(u => u.uid === r.reportedBy);
+      if (reporter && reporter.username) return reporter.username;
+      return r.reportedByEmail || r.reportedBy || "";
+    }
+
     function renderReportList() {
       const q = document.getElementById("reportSearch").value.trim().toLowerCase();
       const body = document.getElementById("reportListBody");
 
       const filtered = reportsData.filter(r => {
         if (!q) return true;
-        return (r.reason || "").toLowerCase().includes(q) || (r.targetLabel || "").toLowerCase().includes(q);
+        return (r.reason || "").toLowerCase().includes(q) ||
+          (r.targetLabel || "").toLowerCase().includes(q) ||
+          reporterLabel(r).toLowerCase().includes(q);
       });
 
       if (filtered.length === 0) {
@@ -1101,8 +1135,8 @@
           <tr>
             <td>${typeLabel}</td>
             <td>${targetCell}</td>
-            <td style="max-width:220px;white-space:pre-wrap;overflow-wrap:anywhere;">${escapeHtml(r.reason || "")}</td>
-            <td>${escapeHtml(r.reportedByEmail || r.reportedBy || "")}</td>
+            <td class="reasonCell">${escapeHtml(r.reason || "")}</td>
+            <td>${escapeHtml(reporterLabel(r))}</td>
             <td>${created}</td>
             <td>${statusBadge}</td>
             <td><div class="actionCell">${actions.join("")}</div></td>
