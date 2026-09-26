@@ -518,6 +518,39 @@
         margin: 0;
       }
     }
+
+    /* スマホ幅：単語の各行を2段にして、横スクロールしなくても全部の操作に届くようにする
+       1段目: 番号・チェック・表・削除
+       2段目: 並び替えハンドル・表裏入れ替え・裏 */
+    @media (max-width: 768px) {
+      #wordList {
+        overflow-x: visible;
+      }
+
+      .wordItemMain.wordItemCols {
+        min-width: 0;
+        grid-template-columns: 22px 26px minmax(0, 1fr) auto;
+        grid-template-areas:
+          "num    check front del"
+          "handle swap  back  back";
+        row-gap: 6px;
+      }
+
+      .wordItemMain > .wordNumber { grid-area: num; }
+      .wordItemMain > .checkWrap { grid-area: check; }
+      .wordItemMain > .fieldWrap:nth-of-type(1) { grid-area: front; }
+      .wordItemMain > .swapBtn { grid-area: swap; justify-self: center; transform: rotate(90deg); margin: 0; }
+      .wordItemMain > .fieldWrap:nth-of-type(2) { grid-area: back; }
+      .wordItemMain > .smallBtn { grid-area: del; width: auto; padding-left: 10px; padding-right: 10px; }
+      .wordItemMain > .dragHandle { grid-area: handle; justify-self: center; }
+
+      /* ヒント・解説の入力欄は、表・裏の欄と同じ幅で縦に並べる */
+      .wordExtraFields {
+        display: block;
+        min-width: 0;
+        padding-left: 56px;
+      }
+    }
   </style>
 </head>
 
@@ -592,7 +625,7 @@
         <span></span>
       </div>
       <p style="font-size:12px;color:var(--color-text-sub);text-align:left;margin:6px 2px;">
-        右端の ☰ を掴んでドラッグすると単語の並び順を変更できます／各入力欄の右の「+ヒント」「+解説」ボタンから表・裏それぞれのヒントや解説を入力できます
+        ☰ を掴んでドラッグすると単語の並び順を変更できます／各入力欄の右の「+ヒント」「+解説」ボタンから表・裏それぞれのヒントや解説を入力できます
       </p>
       <div id="wordList"></div>
     </div>
