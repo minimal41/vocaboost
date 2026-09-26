@@ -964,28 +964,75 @@
         .collection("words")
         .orderBy("order")
         .onSnapshot(snapshot => {
-
-          const area = document.getElementById("wordList");
-
-          area.innerHTML = "";
-
-          snapshot.forEach(doc => {
-
-            area.insertAdjacentHTML(
-              "beforeend",
-              createWordHTML(doc.id, doc.data())
-            );
-
-          });
-
-          // Firestoreから読み込んだ内容に複数行のもの(表・裏・ヒント・解説)が
-          // あった場合に高さが正しく合うよう、DOM構築直後にリサイズしておく
-          area.querySelectorAll("textarea").forEach(autoResizeTextarea);
-
+          syncWordList(snapshot.docs);
           renumberWords();
           updateCache();
           applyPendingWordFocus();
+      });
+    }
 
+    // Firestoreの単語一覧を画面に反映する。
+    // 以前は変更のたびに一覧を丸ごと作り直していたため、単語を直してEnterで次の欄へ
+    // 移動した直後に(直した単語の保存が反映されて)一覧が再構築され、移動先の欄から
+    // カーソルが外れてしまっていた。入力途中の別の欄の内容やチェックの選択も消えていた。
+    // 今は既存の行をそのまま使い、変わった値だけを書き換える（入力中の欄は書き換えない）。
+    function syncWordList(docs) {
+      const area = document.getElementById("wordList");
+      Array.from(area.children).forEach(el => {
+        if (!el.classList.contains("wordItem")) el.remove();
+      });
+
+      const existing = new Map(Array.from(area.children).map(row => [row.id, row]));
+      let prev = null;
+
+      docs.forEach(doc => {
+        const data = doc.data();
+        let row = existing.get("word_" + doc.id);
+
+        if (row) {
+          existing.delete(row.id);
+          syncWordRow(row, data);
+        } else {
+          const tmp = document.createElement("div");
+          tmp.innerHTML = createWordHTML(doc.id, data).trim();
+          row = tmp.firstElementChild;
+          // 追加した行は、表示された後で高さを合わせる
+          requestAnimationFrame(() => row.querySelectorAll("textarea").forEach(autoResizeTextarea));
+        }
+
+        // 並び順が変わった行だけ移動する（位置が合っている行は触らない）
+        const expected = prev ? prev.nextElementSibling : area.firstElementChild;
+        if (expected !== row) area.insertBefore(row, expected);
+        prev = row;
+      });
+
+      // Firestoreから消えた単語の行を取り除く
+      existing.forEach(row => row.remove());
+    }
+
+    function syncWordRow(row, data) {
+      const active = document.activeElement;
+      ["front", "back", "hint", "note"].forEach(type => {
+        const el = row.querySelector(`[data-type="${type}"]`);
+        if (!el) return;
+        const value = data[type] || "";
+        if (el !== active && el.value !== value) {
+          el.value = value;
+          autoResizeTextarea(el);
+        }
+      });
+
+      // ヒント・解説のボタンの「入力あり」表示と、入力欄の表示を合わせる
+      [["hint", "hintRow"], ["note", "noteRow"]].forEach(([type, rowPrefix]) => {
+        const hasValue = !!data[type];
+        const extraRow = row.querySelector(`[id^="${rowPrefix}_"]`);
+        const toggleBtn = row.querySelector(`.fieldToggleBtn[onclick*="'${type}'"]`);
+        if (toggleBtn) toggleBtn.classList.toggle("hasValue", hasValue);
+        if (extraRow && hasValue && extraRow.style.display === "none") {
+          extraRow.style.display = "flex";
+          const input = extraRow.querySelector("textarea");
+          if (input) autoResizeTextarea(input);
+        }
       });
     }
 
