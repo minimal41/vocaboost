@@ -119,6 +119,21 @@
       color: var(--color-text);
     }
 
+    /* スマホ幅：パソコン版と同じく名前・作成者などを左寄せにし、ボタンだけ右下に置く。
+       （上の@media内の.card指定は、後に書かれている基本の.card指定で
+       align-items:center に上書きされて中央寄せになっていたため、ここで改めて指定する） */
+    @media (max-width: 768px) {
+      .card {
+        align-items: stretch;
+      }
+
+      .card > div:first-child {
+        width: 100%;
+        min-width: 0;
+        text-align: left;
+      }
+    }
+
     .user-meta-row {
       display: flex;
       align-items: center;
