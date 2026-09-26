@@ -249,10 +249,13 @@
       return String(window.VOCABOOST_NORMALIZE_COHORT(cohort)) === cohortFilter;
     }
 
-    // 選択肢は「すべての学年」＋実際に存在する期（新しい順）＋自分の期＋「その他」
+    // 選択肢は「すべての学年」＋41〜43期（常に表示）＋44期以降はアカウントが存在する期のみ
+    // （新しい順）＋自分の期＋「その他」
+    const ALWAYS_SHOWN_COHORTS = [41, 42, 43];
+
     function renderCohortOptions() {
       const select = document.getElementById("cohortFilter");
-      const set = new Set();
+      const set = new Set(ALWAYS_SHOWN_COHORTS);
       books.forEach(b => {
         const c = bookCohort(b);
         if (c !== undefined && c !== null) set.add(window.VOCABOOST_NORMALIZE_COHORT(c));
@@ -260,7 +263,7 @@
       users.forEach(u => set.add(window.VOCABOOST_NORMALIZE_COHORT(u.cohort)));
       const myCohort = readMyCohortCache();
       if (myCohort !== null) set.add(window.VOCABOOST_NORMALIZE_COHORT(myCohort));
-      if (cohortFilter !== "all") set.add(Number(cohortFilter));
+      if (cohortFilter !== "all") set.add(window.VOCABOOST_NORMALIZE_COHORT(cohortFilter));
 
       const other = window.VOCABOOST_COHORT_OTHER;
       const list = [...set].filter(c => c !== other).sort((a, b) => b - a);

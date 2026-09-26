@@ -184,17 +184,23 @@
   const COHORT_BASE_NUMBER = 41;
   const COHORT_OTHER = 0;
 
+  // 学年として扱うのは「2023年〜現在の年」の範囲のみ。それ以外(未来の年や
+  // 学籍番号でない数字)はすべて「その他」とする。
+  function maxCohortNumber() {
+    return new Date().getFullYear() - COHORT_BASE_YEAR + COHORT_BASE_NUMBER;
+  }
+
   function cohortFromEmail(email) {
     const m = /^(\d{4})/.exec(String(email || ""));
     if (!m) return COHORT_OTHER;
-    const year = Number(m[1]);
-    if (year < COHORT_BASE_YEAR) return COHORT_OTHER;
-    return year - COHORT_BASE_YEAR + COHORT_BASE_NUMBER;
+    return normalizeCohort(Number(m[1]) - COHORT_BASE_YEAR + COHORT_BASE_NUMBER);
   }
 
   function normalizeCohort(cohort) {
     const n = Number(cohort);
-    return Number.isInteger(n) && n >= COHORT_BASE_NUMBER ? n : COHORT_OTHER;
+    return Number.isInteger(n) && n >= COHORT_BASE_NUMBER && n <= maxCohortNumber()
+      ? n
+      : COHORT_OTHER;
   }
 
   function cohortLabel(cohort) {
@@ -218,6 +224,7 @@
   }
 
   window.VOCABOOST_COHORT_OTHER = COHORT_OTHER;
+  window.VOCABOOST_COHORT_BASE_NUMBER = COHORT_BASE_NUMBER;
   window.VOCABOOST_COHORT_FROM_EMAIL = cohortFromEmail;
   window.VOCABOOST_NORMALIZE_COHORT = normalizeCohort;
   window.VOCABOOST_COHORT_LABEL = cohortLabel;
