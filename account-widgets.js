@@ -427,7 +427,7 @@
   // 左上のロゴがホームへ戻るボタンだと分かりにくいという声があったため、
   // 右側(通知ベルの左)に家のアイコン付きの「ホーム」ボタンを置く。
   // ホーム(index.html)自体では押しても意味がないので表示しない。
-  const HOME_ICON_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/></svg>';
+  const HOME_ICON_SVG = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/></svg>';
 
   function isHomePage() {
     const path = location.pathname;
@@ -444,7 +444,7 @@
     btn.className = "header-btn vb-home-btn";
     btn.setAttribute("aria-label", "ホームへ戻る");
     btn.title = "ホームへ戻る";
-    btn.innerHTML = HOME_ICON_SVG + '<span class="vb-home-btn-label">ホーム</span>';
+    btn.innerHTML = HOME_ICON_SVG;
     bell.parentElement.insertBefore(btn, bell);
   }
 

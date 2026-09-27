@@ -139,31 +139,27 @@ input[type="file"]::-webkit-file-upload-button:active {
   opacity: 0.7;
 }
 
+/* ヘッダー右側のボタン群（ホーム・通知・設定・ログアウト・自分のアイコン）を
+   縦方向の中心でそろえる（アイコンだけのボタンと文字のボタンの高さがずれて見えないように） */
+header > div:last-child,
+header #notifBellContainer {
+  display: flex;
+  align-items: center;
+}
+
 /* ヘッダーのホームボタン（account-widgets.jsが通知ベルの左に追加）。
-   ほかのボタンより控えめに見えるよう、文字を小さく・少し薄くしている */
+   通知ベルと同じ見た目・大きさのアイコンボタンにしている */
 .vb-home-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  margin: 9px 4px !important;
-  border-radius: 10px;
+  justify-content: center;
+  padding: 8px 12px !important;
   text-decoration: none;
-  vertical-align: middle;
-  font-weight: normal;
-  font-size: 14px !important;
-  opacity: 0.75;
-  transition: opacity 0.15s, background 0.15s;
 }
 
 .vb-home-btn svg {
-  width: 17px;
-  height: 17px;
-}
-
-.vb-home-btn:hover {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.12);
+  display: block;
+  opacity: 0.9;
 }
 
 /* 左上のロゴも押せることが分かるよう、マウスを乗せたときに少し明るくする */
@@ -311,14 +307,8 @@ footer {
     margin: 0 4px !important;
   }
 
-  /* スマホ幅ではホームボタンは家のアイコンだけにして1行に収める */
   .vb-home-btn {
-    margin: 0 2px !important;
-    padding: 8px 10px !important;
-  }
-
-  .vb-home-btn-label {
-    display: none;
+    margin: 0 4px !important;
   }
 
   main {
