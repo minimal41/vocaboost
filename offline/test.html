@@ -601,31 +601,9 @@
       startMsg.textContent = "リセットしました。";
     };
 
-
-    // 日本語入力(IME)で答えを打つと、最初のEnterは変換の確定に使われ、その時点ではキーが
-    // 「Enter」として届かないため、回答するのにEnterをもう一度押す必要があった。
-    // 答え欄で変換をEnterで確定したときは、そのまま回答(1回のEnterで回答)するようにする。
-    //  - Chrome/Firefox: 確定のEnterは isComposing=true で届き、直後に compositionend が起きる
-    //  - Safari: 先に compositionend が起き、その後 keyCode=229 のEnterが届く
-    let imeEnterPending = false;
-    ans.addEventListener("compositionend", () => {
-      if (!imeEnterPending) return;
-      imeEnterPending = false;
-      // 確定した文字が入力欄に反映されてから回答する
-      setTimeout(() => {
-        if (quiz.style.display === "block" && phase === 0) check();
-      }, 0);
-    });
-
     document.addEventListener("keydown", e => {
-      const isEnter = e.key === "Enter" || e.code === "Enter" || e.code === "NumpadEnter";
-      if (!isEnter) return;
+      if (e.key !== "Enter") return;
       if (quiz.style.display !== "block") return;
-      // 変換中のEnter(確定)は、確定後(compositionend)に回答する
-      if (e.isComposing) {
-        if (e.target === ans && phase === 0) imeEnterPending = true;
-        return;
-      }
       e.preventDefault();
       if (phase === 2) return;
       check();
