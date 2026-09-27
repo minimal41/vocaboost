@@ -139,6 +139,34 @@ input[type="file"]::-webkit-file-upload-button:active {
   opacity: 0.7;
 }
 
+/* ヘッダーのホームボタン（account-widgets.jsが通知ベルの左に追加） */
+.vb-home-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  text-decoration: none;
+  vertical-align: middle;
+  font-weight: normal;
+}
+
+.vb-home-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* 左上のロゴも押せることが分かるよう、マウスを乗せたときに少し明るくする */
+.headertitle a {
+  display: inline-block;
+  border-radius: 8px;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.headertitle a:hover {
+  opacity: 0.85;
+  transform: scale(1.03);
+}
+
 /* ヘッダーの自分のアイコン（account-widgets.jsがログアウトボタンの右に追加） */
 .vb-header-avatar {
   display: inline-flex;
@@ -270,6 +298,16 @@ footer {
 
   .notif-bell-btn {
     margin: 0 4px !important;
+  }
+
+  /* スマホ幅ではホームボタンは家のアイコンだけにして1行に収める */
+  .vb-home-btn {
+    margin: 0 2px !important;
+    padding: 8px 10px !important;
+  }
+
+  .vb-home-btn-label {
+    display: none;
   }
 
   main {

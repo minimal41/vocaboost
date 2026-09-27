@@ -423,6 +423,46 @@
     });
   }
 
+  // ===== ヘッダーのホームボタン =====
+  // 左上のロゴがホームへ戻るボタンだと分かりにくいという声があったため、
+  // 右側(通知ベルの左)に家のアイコン付きの「ホーム」ボタンを置く。
+  // ホーム(index.html)自体では押しても意味がないので表示しない。
+  const HOME_ICON_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/></svg>';
+
+  function isHomePage() {
+    const path = location.pathname;
+    return path.endsWith("/") || /\/index\.html$/.test(path);
+  }
+
+  function renderHomeButton() {
+    if (document.getElementById("vbHomeBtn") || isHomePage()) return;
+    const bell = document.getElementById("notifBellContainer");
+    if (!bell || !bell.parentElement) return;
+    const btn = document.createElement("a");
+    btn.id = "vbHomeBtn";
+    btn.href = "index.html";
+    btn.className = "header-btn vb-home-btn";
+    btn.setAttribute("aria-label", "ホームへ戻る");
+    btn.title = "ホームへ戻る";
+    btn.innerHTML = HOME_ICON_SVG + '<span class="vb-home-btn-label">ホーム</span>';
+    bell.parentElement.insertBefore(btn, bell);
+  }
+
+  // ロゴにも「ホームへ戻る」ことが分かるよう説明を付ける
+  function labelHeaderLogo() {
+    const logoLink = document.querySelector("header .headertitle a");
+    if (!logoLink) return;
+    logoLink.title = "ホームへ戻る";
+    logoLink.setAttribute("aria-label", "Vocaboost ホームへ戻る");
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => { renderHomeButton(); labelHeaderLogo(); });
+  } else {
+    renderHomeButton();
+    labelHeaderLogo();
+  }
+
   // 二重描画を避けつつ運営リンクを追加する。既に追加済みなら何もしない
   function renderAdminLink() {
     if (document.querySelector(".admin-link-btn")) return;
