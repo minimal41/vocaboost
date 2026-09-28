@@ -511,6 +511,18 @@
         `${i + 1}/${filteredWords.length} 問`;
     }
 
+    // 正解した単語を「正解済み」として記録する。保存容量不足で保存に失敗しても
+    // 処理を止めない（止まるとボタンが「回答」のまま残り、Enterを2回押す必要があった）
+    function markLearned(word) {
+      if (learned[id].includes(word.front)) return;
+      learned[id].push(word.front);
+      try {
+        localStorage.setItem("learnedWords", JSON.stringify(learned));
+      } catch (e) {
+        console.warn("正解済みの記録を保存できませんでした（端末の保存容量不足の可能性）", e);
+      }
+    }
+
     window.check = () => {
       if (phase === 0) {
 
@@ -518,10 +530,7 @@
           if (ans.value.trim() === getAnswerText(filteredWords[i])) {
             result.innerHTML = '<span class="correct">正解</span>';
             correct++;
-            if (!learned[id].includes(filteredWords[i].front)) {
-              learned[id].push(filteredWords[i].front);
-              localStorage.setItem("learnedWords", JSON.stringify(learned));
-            }
+            markLearned(filteredWords[i]);
             revealNote();
             phase = 1;
             document.getElementById("answerBtn").textContent = "次へ (Enter)";
@@ -547,10 +556,7 @@
         if (ans.value.trim() === getAnswerText(filteredWords[i])) {
           result.innerHTML = '<span class="correct">正解</span>';
           correct++;
-          if (!learned[id].includes(filteredWords[i].front)) {
-            learned[id].push(filteredWords[i].front);
-            localStorage.setItem("learnedWords", JSON.stringify(learned));
-          }
+          markLearned(filteredWords[i]);
         } else {
           result.innerHTML = '<span class="wrong">不正解</span>　正解: ' + escapeTestHtml(getAnswerText(filteredWords[i]));
         }
@@ -565,10 +571,7 @@
 
     window.markCorrect = () => {
       correct++;
-      if (!learned[id].includes(filteredWords[i].front)) {
-        learned[id].push(filteredWords[i].front);
-        localStorage.setItem("learnedWords", JSON.stringify(learned));
-      }
+      markLearned(filteredWords[i]);
       result.innerHTML += '<br><br><span class="correct">正解</span>';
       document.getElementById("selfButtons").style.display = "none";
       const answerBtn = document.getElementById("answerBtn");
@@ -597,7 +600,11 @@
     window.resetLearned = () => {
       if (!confirm("学習データを削除しますか？")) return;
       learned[id] = [];
-      localStorage.setItem("learnedWords", JSON.stringify(learned));
+      try {
+        localStorage.setItem("learnedWords", JSON.stringify(learned));
+      } catch (e) {
+        console.warn("学習データの保存に失敗しました", e);
+      }
       startMsg.textContent = "リセットしました。";
     };
 
