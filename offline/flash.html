@@ -248,6 +248,56 @@
       min-height: 1em;
     }
 
+
+    /* 全画面表示 */
+    .fullscreenBar {
+      text-align: center;
+      margin: 0 auto 30px;
+    }
+
+    #fullscreenBtn {
+      font-size: 14px;
+      padding: 8px 14px;
+    }
+
+    body.fullscreen-mode header,
+    body.fullscreen-mode footer {
+      display: none !important;
+    }
+
+    body.fullscreen-mode .card {
+      max-width: min(1000px, 94vw);
+      box-sizing: border-box;
+      margin: 3vh auto 12px;
+    }
+
+    body.fullscreen-mode .fullscreenBar {
+      margin-bottom: 12px;
+    }
+
+    body.fullscreen-mode #quizCard {
+      min-height: calc(100vh - 3vh - 90px);
+      min-height: calc(100dvh - 3vh - 90px);
+    }
+
+    body.fullscreen-mode #front {
+      font-size: 56px;
+    }
+
+    body.fullscreen-mode #back {
+      font-size: 40px;
+    }
+
+    @media (max-width: 768px) {
+      body.fullscreen-mode #front {
+        font-size: 36px;
+      }
+
+      body.fullscreen-mode #back {
+        font-size: 28px;
+      }
+    }
+
   </style>
 </head>
 
@@ -317,6 +367,9 @@
       <button onclick="restart()">もう一回</button>
       <button onclick="goBack()">戻る</button>
     </div>
+  <div class="fullscreenBar">
+    <button id="fullscreenBtn" type="button" onclick="toggleFullscreen()">全画面表示</button>
+  </div>
   </main>
   <footer>
     <div class="footer-inner">
@@ -559,6 +612,49 @@
       quizCard.style.display = "flex";
       render();
     };
+  </script>
+  <script>
+    // 全画面表示：ヘッダーやフッターを隠してカードだけを表示する。
+    // ブラウザの全画面(Fullscreen API)が使える端末ではそれも使う
+    // （iPhoneのSafariなど使えない端末でも、ヘッダー・フッターは隠れる）
+    (function () {
+      const btn = document.getElementById("fullscreenBtn");
+
+      function setFullscreenMode(on) {
+        document.body.classList.toggle("fullscreen-mode", on);
+        btn.textContent = on ? "全画面を終了" : "全画面表示";
+      }
+
+      function browserFullscreenElement() {
+        return document.fullscreenElement || document.webkitFullscreenElement || null;
+      }
+
+      window.toggleFullscreen = () => {
+        const on = !document.body.classList.contains("fullscreen-mode");
+        setFullscreenMode(on);
+        const el = document.documentElement;
+        try {
+          if (on) {
+            if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+            else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+          } else if (browserFullscreenElement()) {
+            if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+          }
+        } catch (e) {
+          // 全画面にできなくても、ヘッダー・フッターを隠す表示は続ける
+        }
+        // フォーカスが残ると、次のEnterでこのボタンが押されてしまうため外す
+        btn.blur();
+      };
+
+      // Escキーなどでブラウザの全画面が解除されたら、表示も元に戻す
+      function onFullscreenChange() {
+        if (!browserFullscreenElement()) setFullscreenMode(false);
+      }
+      document.addEventListener("fullscreenchange", onFullscreenChange);
+      document.addEventListener("webkitfullscreenchange", onFullscreenChange);
+    })();
   </script>
 </body>
 
