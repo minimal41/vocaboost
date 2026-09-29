@@ -526,9 +526,7 @@
 
     window.showBack = () => {
       if (!show) {
-        back.style.display = "block";
-        noteText.style.display = noteText.textContent ? "block" : "none";
-        show = true;
+        revealAnswer();
       } else {
         i++;
         render();
@@ -555,17 +553,32 @@
       showBack();
     });
 
-    // 左右の矢印キーやスワイプで前後のカードに移動する
+    // 左右の矢印キーやスワイプで前後に移動する。
+    // 進む: 1 → 1の答え → 2 → 2の答え、戻る: 2の答え → 2 → 1の答え → 1
+    function revealAnswer() {
+      back.style.display = "block";
+      noteText.style.display = noteText.textContent ? "block" : "none";
+      show = true;
+    }
+
     function goNextCard() {
       if (i >= words.length) return;
-      i++;
-      render();
+      showBack();
     }
 
     function goPrevCard() {
+      if (show) {
+        // 答えを表示中なら、同じカードの答えを隠した状態に戻る
+        back.style.display = "none";
+        noteText.style.display = "none";
+        show = false;
+        return;
+      }
       if (i <= 0) return;
+      // 前のカードには、答えを表示した状態で戻る
       i--;
       render();
+      revealAnswer();
     }
 
     document.addEventListener("keydown", e => {
