@@ -660,6 +660,8 @@
         return;
       }
 
+      i = 0;
+      correct = 0;
       start.style.display = "none";
       quiz.style.display = "block";
       render();
@@ -906,12 +908,11 @@
         phase = 1;
     };
     
+    // 「もう一回」ではすぐに始めず、設定画面（メニュー）に戻って設定を選び直せるようにする
     window.restart = () => {
-      i = 0; correct = 0;
       end.style.display = "none";
-      quiz.style.display = "block";
-      makeList();
-      render();
+      startMsg.textContent = "";
+      start.style.display = "block";
     };
 
     window.resetLearned = () => {
