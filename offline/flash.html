@@ -522,7 +522,61 @@
       document.getElementById("progressBar").style.width = progress + "%";
       document.getElementById("progressText").textContent =
         `${i + 1}/${words.length} 問`;
+
+      fitCardText();
     }
+
+    // 長い単語は文字を小さくして、カードに収まるようにする。
+    // 答え・ヒント・解説をすべて表示したときの高さで調整するので、
+    // 答えを見たときに文字の大きさやボタンの位置が変わらない
+    const quizContent = document.getElementById("quizContent");
+
+    function fitCardText() {
+      if (quizCard.style.display !== "flex") return;
+      front.style.fontSize = "";
+      back.style.fontSize = "";
+
+      // 一時的に答え・ヒント・解説を表示した状態で測る
+      const saved = [back, noteText, hintText].map(el => el.style.display);
+      back.style.display = "block";
+      noteText.style.display = noteText.textContent ? "block" : "none";
+      hintText.style.display = hintText.textContent ? "block" : "none";
+
+      const frontBase = parseFloat(getComputedStyle(front).fontSize);
+      const backBase = parseFloat(getComputedStyle(back).fontSize);
+      // カードの高さの上限（全画面では画面の高さに合わせたカードの高さ）から、
+      // ボタンや進み具合など単語以外の部分の高さを引いた分に収める
+      const cardMin = parseFloat(getComputedStyle(quizCard).minHeight) || 0;
+      const contentMin = parseFloat(getComputedStyle(quizContent).minHeight) || 0;
+      const others = quizCard.offsetHeight - quizContent.offsetHeight;
+      const allowed = Math.max(contentMin, cardMin - others);
+
+      // まず横にはみ出す単語（スペースのない長い単語など）を、表・裏それぞれ別に小さくする
+      let frontScale = 1, backScale = 1;
+      const apply = () => {
+        front.style.fontSize = (frontBase * frontScale) + "px";
+        back.style.fontSize = (backBase * backScale) + "px";
+      };
+      while (front.scrollWidth > front.clientWidth + 1 && frontScale > 0.35) {
+        frontScale *= 0.9;
+        apply();
+      }
+      while (back.scrollWidth > back.clientWidth + 1 && backScale > 0.35) {
+        backScale *= 0.9;
+        apply();
+      }
+      // それでも縦に収まらないときは、表・裏をいっしょに小さくする
+      while (quizContent.offsetHeight > allowed + 1 && Math.max(frontScale, backScale) > 0.35) {
+        frontScale = Math.max(frontScale * 0.9, 0.3);
+        backScale = Math.max(backScale * 0.9, 0.3);
+        apply();
+      }
+
+      [back, noteText, hintText].forEach((el, k) => { el.style.display = saved[k]; });
+    }
+
+    // 画面の大きさが変わったとき（全画面の切り替えを含む）も調整し直す
+    window.addEventListener("resize", fitCardText);
 
     window.showHint = () => {
       hintText.style.display = "block";
@@ -713,11 +767,16 @@
         }
         // フォーカスが残ると、次のEnterでこのボタンが押されてしまうため外す
         btn.blur();
+        // iPhoneなど画面サイズが変わらない端末でも、文字の大きさを調整し直す
+        window.dispatchEvent(new Event("resize"));
       };
 
       // Escキーなどでブラウザの全画面が解除されたら、表示も元に戻す
       function onFullscreenChange() {
-        if (!browserFullscreenElement()) setFullscreenMode(false);
+        if (!browserFullscreenElement()) {
+          setFullscreenMode(false);
+          window.dispatchEvent(new Event("resize"));
+        }
       }
       document.addEventListener("fullscreenchange", onFullscreenChange);
       document.addEventListener("webkitfullscreenchange", onFullscreenChange);
