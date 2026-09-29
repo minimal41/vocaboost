@@ -733,7 +733,29 @@
       document.getElementById("progressBar").style.width = progress + "%";
       document.getElementById("progressText").textContent =
         `${i+1}/${filteredWords.length} 問`;
+
+      fitQuestionText();
     }
+
+    // 長い問題文は文字を小さくして、カードに収まるようにする
+    // （横にはみ出さず、縦も一定の高さに収まるまで小さくする）
+    function fitQuestionText() {
+      if (quiz.style.display !== "block") return;
+      q.style.fontSize = "";
+      const base = parseFloat(getComputedStyle(q).fontSize);
+      // 問題文に使える高さ：通常は約4行分、全画面では画面の高さの35%まで
+      const maxHeight = document.body.classList.contains("fullscreen-mode")
+        ? Math.max(base * 1.4 * 3, window.innerHeight * 0.35)
+        : Math.max(160, base * 1.4 * 4);
+      let scale = 1;
+      while ((q.scrollWidth > q.clientWidth + 1 || q.offsetHeight > maxHeight + 1) && scale > 0.35) {
+        scale *= 0.9;
+        q.style.fontSize = (base * scale) + "px";
+      }
+    }
+
+    // 画面の大きさが変わったとき（全画面の切り替えを含む）も調整し直す
+    window.addEventListener("resize", fitQuestionText);
 
     // 正解した単語を「正解済み」として記録する。
     // 端末の保存容量(localStorage)がいっぱいだと保存で例外が発生し、以前はその時点で
@@ -908,11 +930,16 @@
         }
         // フォーカスが残ると、次のEnterでこのボタンが押されてしまうため外す
         btn.blur();
+        // iPhoneなど画面サイズが変わらない端末でも、文字の大きさを調整し直す
+        window.dispatchEvent(new Event("resize"));
       };
 
       // Escキーなどでブラウザの全画面が解除されたら、表示も元に戻す
       function onFullscreenChange() {
-        if (!browserFullscreenElement()) setFullscreenMode(false);
+        if (!browserFullscreenElement()) {
+          setFullscreenMode(false);
+          window.dispatchEvent(new Event("resize"));
+        }
       }
       document.addEventListener("fullscreenchange", onFullscreenChange);
       document.addEventListener("webkitfullscreenchange", onFullscreenChange);
