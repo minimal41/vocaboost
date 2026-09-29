@@ -323,6 +323,7 @@
 
     body.fullscreen-mode #q {
       font-size: 56px;
+      margin: 20px 0;
     }
 
     body.fullscreen-mode #ans {
@@ -382,6 +383,19 @@
       body.fullscreen-mode #selfButtons {
         margin-top: auto;
       }
+    }
+
+    /* 自分で採点するときの「あなたの回答」「正解」の枠 */
+    .selfCheckBox {
+      text-align: left;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 10px;
+    }
+
+    body.fullscreen-mode .selfCheckBox {
+      font-size: 20px;
     }
 
   </style>
@@ -686,14 +700,15 @@
           }
 
           ans.readOnly = true;
-          result.innerHTML = `
-          <div style="text-align:left;border:1px solid var(--color-border);border-radius:8px;padding:12px;margin-top:10px;">
-              <div><b>あなたの回答</b></div>
-              <div style="margin-bottom:12px;">${ans.value ? escapeTestHtml(ans.value) : "（未入力）"}</div>
-              <div><b>正解</b></div>
-              <div>${escapeTestHtml(getAnswerText(filteredWords[i]))}</div>
-          </div>
-          `;
+          // #resultは改行をそのまま表示する(white-space: pre-wrap)ため、HTMLの改行や字下げが
+          // 空行として表示されて枠が縦に大きく広がっていた。改行を入れずに組み立てる
+          result.innerHTML =
+            '<div class="selfCheckBox">' +
+              '<div><b>あなたの回答</b></div>' +
+              '<div style="margin-bottom:12px;">' + (ans.value ? escapeTestHtml(ans.value) : "（未入力）") + '</div>' +
+              '<div><b>正解</b></div>' +
+              '<div>' + escapeTestHtml(getAnswerText(filteredWords[i])) + '</div>' +
+            '</div>';
           document.getElementById("answerBtn").style.display = "none";
           document.getElementById("selfButtons").style.display = "block";
           revealNote();
