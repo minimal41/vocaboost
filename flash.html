@@ -175,8 +175,52 @@
     }
 
     /* 覚えた単語のチェック */
+    .answerRow {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+    }
+
     .knownOption {
-      margin-top: 16px;
+      display: flex;
+      cursor: pointer;
+    }
+
+    .knownOption input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 24px;
+      height: 24px;
+      margin: 0;
+      border: 2px solid var(--color-accent);
+      border-radius: 6px;
+      background: var(--color-surface);
+      position: relative;
+      cursor: pointer;
+      transition: .2s;
+    }
+
+    .knownOption input[type="checkbox"]:checked {
+      background: var(--color-accent);
+    }
+
+    .knownOption input[type="checkbox"]::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 6px;
+      height: 11px;
+      border-right: 3px solid white;
+      border-bottom: 3px solid white;
+      transform: translate(-50%, -58%) rotate(45deg);
+      opacity: 0;
+      transition: opacity .15s;
+    }
+
+    .knownOption input[type="checkbox"]:checked::before {
+      opacity: 1;
     }
 
     #knownList {
@@ -255,11 +299,12 @@
         <p id="hintText" style="display:none"></p>
         <p id="back" style="display:none"></p>
         <p id="noteText" style="display:none"></p>
-        <button onclick="showBack()">答えを見る (Enter)</button>
-        <label class="option knownOption">
-          <input type="checkbox" id="knownCheck" onchange="toggleKnownCurrent()">
-          <span>覚えた（次から飛ばす）</span>
-        </label>
+        <div class="answerRow">
+          <button onclick="showBack()">答えを見る (Enter)</button>
+          <label class="knownOption" title="覚えた（次から飛ばす）">
+            <input type="checkbox" id="knownCheck" onchange="toggleKnownCurrent()" aria-label="覚えた（次から飛ばす）">
+          </label>
+        </div>
       </div>
 
       <div id="progress">
