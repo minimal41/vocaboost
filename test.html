@@ -285,7 +285,8 @@
     /* 全画面表示 */
     .fullscreenBar {
       text-align: center;
-      margin: 0 auto 30px;
+      /* カードの下の余白(30px)を詰めて、カードのすぐ下に置く */
+      margin: -18px auto 30px;
     }
 
     #fullscreenBtn {
@@ -304,7 +305,13 @@
       margin: 3vh auto 12px;
     }
 
+    /* 空の.mainが伸びてカードとボタンの間が空かないようにする */
+    body.fullscreen-mode .main {
+      flex: none;
+    }
+
     body.fullscreen-mode .fullscreenBar {
+      margin-top: -4px;
       margin-bottom: 12px;
     }
 

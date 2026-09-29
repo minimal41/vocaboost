@@ -56,7 +56,8 @@
 
     #quizContent {
       flex-grow: 1;
-      min-height: 120px;
+      /* 答え・ヒント・解説を表示しても下のボタンの位置が動かないよう、あらかじめ高さを確保する */
+      min-height: 370px;
     }
 
     #progress {
@@ -249,7 +250,8 @@
     /* 全画面表示 */
     .fullscreenBar {
       text-align: center;
-      margin: 0 auto 30px;
+      /* カードの下の余白(40px)を詰めて、カードのすぐ下に置く */
+      margin: -28px auto 30px;
     }
 
     #fullscreenBtn {
@@ -269,6 +271,7 @@
     }
 
     body.fullscreen-mode .fullscreenBar {
+      margin-top: -4px;
       margin-bottom: 12px;
     }
 
@@ -355,12 +358,14 @@
         <p id="hintText" style="display:none"></p>
         <p id="back" style="display:none"></p>
         <p id="noteText" style="display:none"></p>
-        <div class="answerRow">
-          <button onclick="showBack()">答えを見る (Enter)</button>
-          <label class="knownOption" title="覚えた（次から飛ばす）">
-            <input type="checkbox" id="knownCheck" onchange="toggleKnownCurrent()" aria-label="覚えた（次から飛ばす）">
-          </label>
-        </div>
+      </div>
+
+      <!-- 答えを見るボタンとチェックは、答えの長さで位置が動かないようカードの下の方に固定する -->
+      <div class="answerRow">
+        <button onclick="showBack()">答えを見る (Enter)</button>
+        <label class="knownOption" title="覚えた（次から飛ばす）">
+          <input type="checkbox" id="knownCheck" onchange="toggleKnownCurrent()" aria-label="覚えた（次から飛ばす）">
+        </label>
       </div>
 
       <div id="progress">
