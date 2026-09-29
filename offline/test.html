@@ -382,6 +382,10 @@
       selfMode = false,
       swapMode = false;
 
+    // スキップなしのテストで正解した単語（最後まで解き終えたら正解済みの記録と置き換える）
+    let sessionLearned = [],
+        replaceLearnedOnFinish = false;
+
     let learned = JSON.parse(localStorage.getItem("learnedWords")) || {};
     if (!learned[id]) learned[id] = [];
 
@@ -435,19 +439,16 @@
       const skip = document.getElementById("skipCheck").checked;
       const random = document.getElementById("randomCheck").checked;
 
+      // スキップなしで解くときは、最後まで解き終えた時点で正解済みの記録を
+      // このテストで正解した単語だけに置き換える（途中でやめた場合は前の記録を残す）。
+      // 次にスキップをオンにしたとき、その回に正解した単語だけがスキップされる
+      replaceLearnedOnFinish = !skip;
+      sessionLearned = [];
+
       if (skip) {
         filteredWords = words.filter(w => !learned[id].includes(w.front));
       } else {
-        // スキップなしで解き直すときは、それまでの正解済みの記録を消す。
-        // このテストで正解した単語だけが記録され、次にスキップをオンにしたとき
-        // その単語だけがスキップされるようにする
         filteredWords = [...words];
-        learned[id] = [];
-        try {
-          localStorage.setItem("learnedWords", JSON.stringify(learned));
-        } catch (e) {
-          console.warn("正解済みの記録を保存できませんでした（端末の保存容量不足の可能性）", e);
-        }
       }
 
       if (random) {
@@ -488,6 +489,11 @@
 
     function render() {
       if (i >= filteredWords.length) {
+        if (replaceLearnedOnFinish) {
+          replaceLearnedOnFinish = false;
+          learned[id] = sessionLearned.slice();
+          saveLearned();
+        }
         quiz.style.display = "none";
         end.style.display = "block";
         score.textContent = filteredWords.length
@@ -523,8 +529,13 @@
     // 正解した単語を「正解済み」として記録する。保存容量不足で保存に失敗しても
     // 処理を止めない（止まるとボタンが「回答」のまま残り、Enterを2回押す必要があった）
     function markLearned(word) {
+      if (!sessionLearned.includes(word.front)) sessionLearned.push(word.front);
       if (learned[id].includes(word.front)) return;
       learned[id].push(word.front);
+      saveLearned();
+    }
+
+    function saveLearned() {
       try {
         localStorage.setItem("learnedWords", JSON.stringify(learned));
       } catch (e) {
