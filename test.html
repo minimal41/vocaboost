@@ -349,6 +349,40 @@
       }
     }
 
+
+    /* パソコンの全画面表示では、回答ボタンと進み具合のバーをカードの一番下に置く */
+    @media (min-width: 769px) {
+      /* 出題中の#quizはJSで display:block を指定しているため、ここで flex に切り替える */
+      body.fullscreen-mode #quiz[style*="display: block"] {
+        display: flex !important;
+      }
+
+      body.fullscreen-mode #quizContent {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      body.fullscreen-mode #quizContent > * {
+        max-width: 100%;
+      }
+
+      body.fullscreen-mode #ans,
+      body.fullscreen-mode #q,
+      body.fullscreen-mode #result,
+      body.fullscreen-mode #noteText {
+        align-self: stretch;
+      }
+
+      body.fullscreen-mode #answerBtn {
+        margin-top: auto;
+      }
+
+      body.fullscreen-mode #selfButtons {
+        margin-top: auto;
+      }
+    }
+
   </style>
 </head>
 
