@@ -88,6 +88,119 @@
     #back {
       min-height: 30px;
     }
+    /* 設定項目 */
+    .option {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: min(360px, 90%);
+      margin: 10px auto;
+      padding: 10px 16px;
+      background: var(--color-surface);
+      border: 2px solid var(--color-border);
+      border-radius: 14px;
+      cursor: pointer;
+      transition: .2s;
+      user-select: none;
+      box-sizing: border-box;
+    }
+
+    .option:hover {
+      border-color: var(--color-accent);
+      background: var(--color-bg);
+      transform: translateY(-1px);
+    }
+
+    .option input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 28px;
+      height: 28px;
+      border: 2px solid var(--color-accent);
+      border-radius: 8px;
+      background: var(--color-surface);
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: .2s;
+    }
+
+    .option input[type="checkbox"]:checked {
+      background: var(--color-accent);
+    }
+
+    .option input[type="checkbox"]::before {
+      content: "";
+      position: absolute;
+
+      left: 50%;
+      top: 50%;
+
+      width: 7px;
+      height: 12px;
+
+      border-right: 3px solid white;
+      border-bottom: 3px solid white;
+
+      transform: translate(-50%, -58%) rotate(45deg);
+
+      opacity: 0;
+      transition: opacity .15s;
+    }
+
+    .option span {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .option input[type="checkbox"]:checked::before {
+        opacity: 1;
+    }
+
+    @media (max-width:768px){
+
+      .option{
+        width:95%;
+        padding:12px 14px;
+      }
+
+      .option input[type="checkbox"]{
+        width:30px;
+        height:30px;
+      }
+
+      .option span{
+        font-size:17px;
+      }
+    }
+
+    /* 覚えた単語のチェック */
+    .knownOption {
+      margin-top: 16px;
+    }
+
+    #knownList {
+      max-height: 60vh;
+      overflow-y: auto;
+      margin: 10px 0 20px;
+    }
+
+    #knownList .option span {
+      font-size: 16px;
+      font-weight: normal;
+      text-align: left;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    #knownList .knownBack {
+      color: var(--color-text-sub);
+    }
+
+    #startMsg {
+      min-height: 1em;
+    }
+
   </style>
 </head>
 
@@ -108,14 +221,32 @@
     <div class="card" id="start">
       <h2>フラッシュカード設定</h2>
 
-      <label>
-        <input type="checkbox" id="randomCheck">ランダム出題
-      </label><br><br>
+      <label class="option">
+        <input type="checkbox" id="skipKnownCheck" checked>
+        <span>チェック済みをスキップ</span>
+      </label>
+
+      <label class="option">
+        <input type="checkbox" id="randomCheck">
+        <span>ランダム出題する</span>
+      </label>
+
+      <p id="startMsg"></p>
+
+      <button id="knownListBtn" type="button" onclick="openKnownList()">チェック済みの単語を見る</button>
+      <br><br>
 
       <button id="startBtn" onclick="startFlash()" disabled>読み込み中...</button>
       <br><br>
       <button onclick="goBack()">戻る</button>
     </div>
+    <div class="card" id="knownCard" style="display:none">
+      <h2>チェック済みの単語</h2>
+      <p>チェックを外した単語は、次から出題されるようになります。</p>
+      <div id="knownList"></div>
+      <button type="button" onclick="closeKnownList()">戻る</button>
+    </div>
+
     <div class="card" id="quizCard" style="display:none">
 
       <div id="quizContent">
@@ -125,6 +256,10 @@
         <p id="back" style="display:none"></p>
         <p id="noteText" style="display:none"></p>
         <button onclick="showBack()">答えを見る (Enter)</button>
+        <label class="option knownOption">
+          <input type="checkbox" id="knownCheck" onchange="toggleKnownCurrent()">
+          <span>覚えた（次から飛ばす）</span>
+        </label>
       </div>
 
       <div id="progress">
@@ -282,6 +417,7 @@
         }
         startBtn.disabled = false;
         startBtn.textContent = "▶ スタート";
+        updateKnownCount();
       } catch (e) {
         console.error(e);
         startBtn.textContent = "読み込みに失敗しました";
@@ -291,6 +427,85 @@
     const hintBtn = document.getElementById("hintBtn");
     const hintText = document.getElementById("hintText");
     const noteText = document.getElementById("noteText");
+
+    // 覚えた単語（チェック済み）の記録。単語帳ごとに表面の文字を保存する
+    let known = {};
+    try {
+      known = JSON.parse(localStorage.getItem("flashKnownWords")) || {};
+    } catch (e) {
+      known = {};
+    }
+    if (!Array.isArray(known[id])) known[id] = [];
+
+    function saveKnown() {
+      try {
+        localStorage.setItem("flashKnownWords", JSON.stringify(known));
+      } catch (e) {
+        console.warn("チェック済みの記録を保存できませんでした（端末の保存容量不足の可能性）", e);
+      }
+    }
+
+    function setKnown(word, isKnown) {
+      const idx = known[id].indexOf(word.front);
+      if (isKnown && idx === -1) known[id].push(word.front);
+      if (!isKnown && idx !== -1) known[id].splice(idx, 1);
+      saveKnown();
+    }
+
+    function knownWordsInBook() {
+      return originalWords.filter(w => known[id].includes(w.front));
+    }
+
+    function updateKnownCount() {
+      const btn = document.getElementById("knownListBtn");
+      if (btn) btn.textContent = `チェック済みの単語を見る (${knownWordsInBook().length})`;
+    }
+
+    // 出題中のカードの「覚えた」チェックを切り替えたとき
+    window.toggleKnownCurrent = () => {
+      const check = document.getElementById("knownCheck");
+      setKnown(words[i], check.checked);
+      // フォーカスが残ると、次のEnterやSpaceがチェックボックスに反応してしまうため外す
+      check.blur();
+    };
+
+    // スタート前のページで、チェック済みの単語を一覧表示する
+    window.openKnownList = () => {
+      const list = document.getElementById("knownList");
+      list.innerHTML = "";
+      const items = knownWordsInBook();
+      if (items.length === 0) {
+        const p = document.createElement("p");
+        p.textContent = "チェック済みの単語はありません";
+        list.appendChild(p);
+      }
+      items.forEach(w => {
+        const label = document.createElement("label");
+        label.className = "option";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = true;
+        input.addEventListener("change", () => setKnown(w, input.checked));
+        const span = document.createElement("span");
+        span.textContent = w.front;
+        const backSpan = document.createElement("div");
+        backSpan.className = "knownBack";
+        backSpan.textContent = w.back || "";
+        span.appendChild(backSpan);
+        label.appendChild(input);
+        label.appendChild(span);
+        list.appendChild(label);
+      });
+      document.getElementById("startMsg").textContent = "";
+      document.getElementById("start").style.display = "none";
+      document.getElementById("knownCard").style.display = "block";
+    };
+
+    window.closeKnownList = () => {
+      document.getElementById("knownCard").style.display = "none";
+      document.getElementById("start").style.display = "block";
+      updateKnownCount();
+    };
 
     function render() {
       if (i >= words.length) {
@@ -302,6 +517,7 @@
       back.textContent = words[i].back;
       back.style.display = "none";
       show = false;
+      document.getElementById("knownCheck").checked = known[id].includes(words[i].front);
 
       // ヒントは普段は非表示にしておき、「ヒントを表示」ボタンを押したときだけ見せる
       const hint = words[i].hint || "";
@@ -345,6 +561,10 @@
       i = 0;
 
       applyOrder();
+      if (words.length === 0) {
+        showNoWordsMessage();
+        return;
+      }
 
       endCard.style.display = "none";
       quizCard.style.display = "flex";
@@ -397,16 +617,36 @@
 
     function applyOrder() {
       const random = document.getElementById("randomCheck").checked;
+      const skip = document.getElementById("skipKnownCheck").checked;
+
+      // 「チェック済みをスキップ」がONなら、覚えたとチェックした単語は出題しない
+      const base = skip
+        ? originalWords.filter(w => !known[id].includes(w.front))
+        : originalWords;
 
       if (random) {
-        words = shuffled(originalWords);
+        words = shuffled(base);
       } else {
-        words = originalWords.slice();
+        words = base.slice();
       }
+    }
+
+    // 出題する単語がないとき（すべてチェック済みのとき）はスタート前のページに戻して知らせる
+    function showNoWordsMessage() {
+      quizCard.style.display = "none";
+      endCard.style.display = "none";
+      document.getElementById("start").style.display = "block";
+      updateKnownCount();
+      document.getElementById("startMsg").textContent =
+        "すべての単語がチェック済みです。チェックを外すか、「チェック済みをスキップ」をオフにしてください。";
     }
 
     window.startFlash = () => {
       applyOrder();
+      if (words.length === 0) {
+        showNoWordsMessage();
+        return;
+      }
 
       document.getElementById("start").style.display = "none";
       quizCard.style.display = "flex";
