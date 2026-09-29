@@ -568,7 +568,16 @@
       if (skip) {
         filteredWords = words.filter(w => !learned[id].includes(w.front));
       } else {
+        // スキップなしで解き直すときは、それまでの正解済みの記録を消す。
+        // このテストで正解した単語だけが記録され、次にスキップをオンにしたとき
+        // その単語だけがスキップされるようにする
         filteredWords = [...words];
+        learned[id] = [];
+        try {
+          localStorage.setItem("learnedWords", JSON.stringify(learned));
+        } catch (e) {
+          console.warn("正解済みの記録を保存できませんでした（端末の保存容量不足の可能性）", e);
+        }
       }
 
       // ★ ランダムONのときだけシャッフル
