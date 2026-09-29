@@ -322,10 +322,12 @@
 
     body.fullscreen-mode #q {
       font-size: 56px;
-      margin: 20px 0;
+      /* 問題文と回答欄が近づきすぎないよう、下側は広めに空ける */
+      margin: 20px 0 40px;
     }
 
     body.fullscreen-mode #ans {
+      margin-top: 16px;
       max-width: none;
       width: 100%;
       font-size: 24px;
