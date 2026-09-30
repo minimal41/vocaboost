@@ -734,6 +734,11 @@
     function render() {
       const state = states[mode];
       const area = document.getElementById("list");
+      // 一覧を作り直す間にページが一瞬短くなると、ブラウザがスクロール位置を一番上に
+      // 戻してしまう（「もっと見る」を押すと先頭に戻っていた）。作り直す間は高さを保ち、
+      // スクロール位置もそのままにする
+      const scrollY = window.scrollY;
+      area.style.minHeight = area.offsetHeight + "px";
       Array.from(area.children).forEach(el => { if (el.id !== "loading-overlay") el.remove(); });
       renderCohortOptions();
 
@@ -804,6 +809,9 @@
         footer.appendChild(more);
       }
       area.appendChild(footer);
+
+      area.style.minHeight = "200px";
+      if (window.scrollY !== scrollY) window.scrollTo(0, scrollY);
     }
 
     loadList(true);
