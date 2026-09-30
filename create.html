@@ -891,6 +891,8 @@
 
         const doc = await db.collection("wordbooks").add({
           title: title,
+          // 検索ページでタイトルの一部から探せるようにする検索用キー
+          searchKeys: window.VOCABOOST_SEARCH_KEYS ? window.VOCABOOST_SEARCH_KEYS(title) : [],
           description: description,
           isPublic: isPublic,
           owner: currentUser.uid,
@@ -1658,7 +1660,7 @@
     }
   </script>
 
-  <script src="account-widgets.js?v=20260927e"></script>
+  <script src="account-widgets.js?v=20260930"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 

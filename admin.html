@@ -917,40 +917,65 @@
        過去のアカウントにも付与されるよう、運営ページを開いた際に未付与・不一致の
        users.cohort と wordbooks.ownerCohort をまとめて補完する（管理者は両方を更新可能）。 */
     async function backfillCohorts() {
+      // 期(学年タグ)に加えて、検索ページ(list.html)で使う検索用キー(searchKeys)と
+      // ユーザーの作成した単語帳数(bookCount)も、未付与・不一致のものをまとめて補完する。
+      // （検索ページは全件を読み込まずにFirestoreのクエリで絞り込むため、これらのフィールドが必要）
       try {
+        const keysOf = window.VOCABOOST_SEARCH_KEYS;
+        const same = window.VOCABOOST_SAME_SEARCH_KEYS;
+        const patches = new Map(); // path -> [ref, patch]
+        const addPatch = (ref, field, value) => {
+          if (!patches.has(ref.path)) patches.set(ref.path, [ref, {}]);
+          patches.get(ref.path)[1][field] = value;
+        };
+
+        // 読み込んだ単語帳が上限(1000件)に達していない＝全件読めているときだけ単語帳数を補完する
+        const bookCountByOwner = new Map();
+        const booksComplete = booksData.length < 1000;
+        booksData.forEach(b => bookCountByOwner.set(b.owner, (bookCountByOwner.get(b.owner) || 0) + 1));
+
         const cohortByUid = new Map();
-        const writes = [];
         usersData.forEach(u => {
+          const ref = db.collection("users").doc(u.uid);
           const cohort = window.VOCABOOST_COHORT_FROM_EMAIL(u.email);
           if (!u.email && u.cohort !== undefined) {
             cohortByUid.set(u.uid, u.cohort);
-            return;
+          } else {
+            cohortByUid.set(u.uid, cohort);
+            if (u.cohort !== cohort) { addPatch(ref, "cohort", cohort); u.cohort = cohort; }
           }
-          cohortByUid.set(u.uid, cohort);
-          if (u.cohort !== cohort) {
-            writes.push([db.collection("users").doc(u.uid), { cohort }]);
-            u.cohort = cohort;
+          if (keysOf) {
+            const keys = keysOf(u.username || "");
+            if (!same(u.searchKeys, keys)) { addPatch(ref, "searchKeys", keys); u.searchKeys = keys; }
+          }
+          if (booksComplete) {
+            const count = bookCountByOwner.get(u.uid) || 0;
+            if (u.bookCount !== count) { addPatch(ref, "bookCount", count); u.bookCount = count; }
           }
         });
         booksData.forEach(b => {
-          if (!cohortByUid.has(b.owner)) return;
-          const cohort = cohortByUid.get(b.owner);
-          if (b.ownerCohort !== cohort) {
-            writes.push([db.collection("wordbooks").doc(b.id), { ownerCohort: cohort }]);
-            b.ownerCohort = cohort;
+          const ref = db.collection("wordbooks").doc(b.id);
+          if (cohortByUid.has(b.owner)) {
+            const cohort = cohortByUid.get(b.owner);
+            if (b.ownerCohort !== cohort) { addPatch(ref, "ownerCohort", cohort); b.ownerCohort = cohort; }
+          }
+          if (keysOf) {
+            const keys = keysOf(b.title || "");
+            if (!same(b.searchKeys, keys)) { addPatch(ref, "searchKeys", keys); b.searchKeys = keys; }
           }
         });
 
+        const writes = Array.from(patches.values());
         for (let i = 0; i < writes.length; i += 400) {
           const batch = db.batch();
           writes.slice(i, i + 400).forEach(([ref, data]) => batch.update(ref, data));
           await batch.commit();
         }
         if (writes.length > 0) {
-          console.log(`期(学年タグ)を${writes.length}件補完しました`);
+          console.log(`期・検索用キー・単語帳数を${writes.length}件補完しました`);
         }
       } catch (e) {
-        console.error("期(学年タグ)の一括付与に失敗しました", e);
+        console.error("期・検索用キー等の一括付与に失敗しました", e);
       }
     }
 
@@ -1305,7 +1330,7 @@
     }
   </script>
 
-  <script src="account-widgets.js?v=20260927e"></script>
+  <script src="account-widgets.js?v=20260930"></script>
 </body>
 
 </html>

@@ -1444,6 +1444,7 @@
 
         const newBookRef = await db.collection("wordbooks").add({
           title: newTitle,
+          searchKeys: window.VOCABOOST_SEARCH_KEYS ? window.VOCABOOST_SEARCH_KEYS(newTitle) : [],
           description: bookData.description || "",
           isPublic: newIsPublic,
           owner: currentUser.uid,
@@ -1542,6 +1543,8 @@
       try {
         await db.collection("wordbooks").doc(bookId).update({
           title: title,
+          // タイトルを変えたときも検索ページで見つかるよう、検索用キーを更新する
+          searchKeys: window.VOCABOOST_SEARCH_KEYS ? window.VOCABOOST_SEARCH_KEYS(title) : [],
           description: desc,
           isPublic: isPublic,
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -2269,7 +2272,7 @@ window.addEventListener("beforeunload", () => {
 });
   </script>
 
-  <script src="account-widgets.js?v=20260927e"></script>
+  <script src="account-widgets.js?v=20260930"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 

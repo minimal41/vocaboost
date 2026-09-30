@@ -33,7 +33,11 @@
       throw new Error(`ユーザー名は${USERNAME_MAX_LENGTH}文字以内で入力してください`);
     }
     await user.updateProfile({ displayName: name });
-    await db.collection("users").doc(user.uid).set({ username: name }, { merge: true });
+    await db.collection("users").doc(user.uid).set({
+      username: name,
+      // 検索ページでユーザー名の一部から探せるようにする検索用キー
+      searchKeys: window.VOCABOOST_SEARCH_KEYS ? window.VOCABOOST_SEARCH_KEYS(name) : []
+    }, { merge: true });
     updateOwnedBooks(db, user.uid, { ownerName: name });
     if (window.VOCABOOST_UPDATE_HEADER_AVATAR) {
       window.VOCABOOST_UPDATE_HEADER_AVATAR({ username: name });

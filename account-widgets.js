@@ -233,6 +233,38 @@
 
   // 指定ユーザーの期を users/{uid}.cohort と、その人の全単語帳の ownerCohort に反映する。
   // 本人のログイン時(下記)と、運営ページでの過去アカウントの一括付与から呼ばれる。
+  // ===== 検索用キー =====
+  // Firestoreは「文字列の途中に含まれるか」で検索できないため、タイトルやユーザー名を
+  // 1文字・2文字ずつに区切ったもの(searchKeys)をドキュメントに保存しておき、
+  // 検索時は検索語の2文字(または1文字)を array-contains で探してから、画面側で
+  // 検索語を含むものだけに絞り込む（list.html）。全件を読み込まずに検索できる。
+  // 大文字/小文字・全角/半角・カタカナ/ひらがなの違いは同じものとして扱う。
+  function normalizeSearchText(str) {
+    return String(str || "")
+      .normalize("NFKC")
+      .toLowerCase()
+      .replace(/[\u30a1-\u30f6]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60))
+      .replace(/\s+/g, "");
+  }
+
+  function searchKeys(str) {
+    const text = Array.from(normalizeSearchText(str)).slice(0, 60);
+    const keys = new Set();
+    for (let k = 0; k < text.length; k++) {
+      keys.add(text[k]);
+      if (k + 1 < text.length) keys.add(text[k] + text[k + 1]);
+    }
+    return Array.from(keys);
+  }
+
+  function sameKeys(a, b) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, k) => v === b[k]);
+  }
+
+  window.VOCABOOST_NORMALIZE_SEARCH_TEXT = normalizeSearchText;
+  window.VOCABOOST_SEARCH_KEYS = searchKeys;
+  window.VOCABOOST_SAME_SEARCH_KEYS = sameKeys;
+
   window.VOCABOOST_APPLY_COHORT = async function (db, uid, cohort, userData) {
     if (!userData || userData.cohort !== cohort) {
       await db.collection("users").doc(uid).set({ cohort }, { merge: true });
@@ -350,7 +382,7 @@
 
   // 直近の通知一覧・既読状態・管理者判定をlocalStorageに保存しておき、
   // 次回訪問時にFirebase/Firestoreの応答を待たずに即座に描画できるようにする
-  const NOTIF_REFRESH_MS = 3 * 60 * 1000;
+  const NOTIF_REFRESH_MS = 10 * 60 * 1000;
   let notifFetchedAt = 0; // 通知一覧を実際にFirestoreから取得した時刻
 
   function saveNotifCache(uid, isAdmin, savedAt) {
@@ -811,6 +843,7 @@
       repairUserDoc(user, userData);
       updateLastSeen(user, userData);
       ensureCohort(user, userData);
+      ensureSearchIndex(user, userData);
       syncBookCount(user, userData);
 
       // 通知一覧はページを移動するたびに最大60件を読み直していたため、
@@ -876,21 +909,19 @@
     // 「作成した単語帳数」を表示できるよう、自分の単語帳数を users/{uid}.bookCount に保存しておく。
     // 集計クエリ(count)が使える場合は毎回、使えない場合は全件取得になるため10分に1回だけ更新する。
     const BOOK_COUNT_THROTTLE_MS = 10 * 60 * 1000;
+    // 集計クエリ(count)は、件数が少なくても1回ごとに読み取り1回分として数えられる
     async function syncBookCount(user, userData) {
       if (!userData) return;
       try {
+        // ページを移動するたびに数えると読み取り回数が増えるため、10分に1回だけ数える
+        const key = "vocaboost_bookcount_synced_" + user.uid;
+        const last = Number(localStorage.getItem(key) || 0);
+        if (typeof userData.bookCount === "number" && Date.now() - last < BOOK_COUNT_THROTTLE_MS) return;
         const query = db.collection("wordbooks").where("owner", "==", user.uid);
-        let count;
-        if (typeof query.count === "function") {
-          const agg = await query.count().get();
-          count = agg.data().count;
-        } else {
-          const key = "vocaboost_bookcount_synced_" + user.uid;
-          const last = Number(localStorage.getItem(key) || 0);
-          if (typeof userData.bookCount === "number" && Date.now() - last < BOOK_COUNT_THROTTLE_MS) return;
-          count = (await query.get()).size;
-          try { localStorage.setItem(key, String(Date.now())); } catch (e) { }
-        }
+        const count = typeof query.count === "function"
+          ? (await query.count().get()).data().count
+          : (await query.get()).size;
+        try { localStorage.setItem(key, String(Date.now())); } catch (e) { }
         if (userData.bookCount !== count) {
           await db.collection("users").doc(user.uid).set({ bookCount: count }, { merge: true });
         }
@@ -901,6 +932,40 @@
 
     // 過去に作られたアカウントも含め、ログイン時に期(学年タグ)が未設定・不一致なら付与し、
     // 自分の単語帳にも複製する。一度反映されれば以降は何もしない。
+    // 検索ページ(list.html)の検索・学年の絞り込みに使うフィールドを、自分のユーザー情報と
+    // 自分の単語帳に付けておく（過去に作られたものにも付くよう、ログイン時に1回だけ行う）。
+    const SEARCH_INDEX_VERSION = 1;
+    async function ensureSearchIndex(user, userData) {
+      if (!userData) return;
+      try {
+        const patch = {};
+        const nameKeys = searchKeys(userData.username || "");
+        if (!sameKeys(userData.searchKeys, nameKeys)) patch.searchKeys = nameKeys;
+        if (userData.searchIndexVersion !== SEARCH_INDEX_VERSION) {
+          const cohort = cohortFromEmail(user.email || userData.email);
+          const snap = await db.collection("wordbooks").where("owner", "==", user.uid).get();
+          const targets = snap.docs.filter(d => {
+            const b = d.data();
+            return !sameKeys(b.searchKeys, searchKeys(b.title || "")) || b.ownerCohort !== cohort;
+          });
+          for (let k = 0; k < targets.length; k += 400) {
+            const batch = db.batch();
+            targets.slice(k, k + 400).forEach(d => batch.update(d.ref, {
+              searchKeys: searchKeys(d.data().title || ""),
+              ownerCohort: cohort
+            }));
+            await batch.commit();
+          }
+          patch.searchIndexVersion = SEARCH_INDEX_VERSION;
+        }
+        if (Object.keys(patch).length) {
+          await db.collection("users").doc(user.uid).set(patch, { merge: true });
+        }
+      } catch (e) {
+        console.error("account-widgets: failed to update search index", e);
+      }
+    }
+
     async function ensureCohort(user, userData) {
       if (!userData) return;
       const cohort = cohortFromEmail(user.email || userData.email);

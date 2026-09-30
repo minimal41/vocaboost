@@ -134,6 +134,16 @@
       }
     }
 
+    .listFooter {
+      text-align: center;
+      margin: 10px 0 20px;
+    }
+
+    #searchBtn {
+      padding: 10px 16px;
+      margin-left: 5px;
+    }
+
     .user-meta-row {
       display: flex;
       align-items: center;
@@ -163,20 +173,22 @@
     </div>
 
     <div style="margin-bottom:15px;">
-      <input id="search" placeholder="検索" oninput="render()">
+      <input id="search" placeholder="タイトル・ユーザー名で検索" enterkeyhint="search"
+        oninput="onSearchInput()" onkeydown="if (event.key === 'Enter' && !event.isComposing) applySearch()">
+      <button type="button" id="searchBtn" onclick="applySearch()">検索</button>
       <select id="cohortFilter" onchange="onCohortFilterChange()"
         style="padding:10px; border-radius:10px; border:1px solid #ccc; font-size:14px; margin-left:5px; cursor:pointer;">
         <option value="all">すべての学年</option>
       </select>
-      <select id="sortBook" onchange="render()"
+      <select id="sortBook" onchange="onSortChange()"
         style="padding:10px; border-radius:10px; border:1px solid #ccc; font-size:14px; margin-left:5px; cursor:pointer;">
         <option value="created">作成順（新しい）</option>
         <option value="name">名称順</option>
         <option value="count">単語数順</option>
       </select>
-      <select id="sortUser" onchange="render()" style="display:none;
+      <select id="sortUser" onchange="onSortChange()" style="display:none;
         padding:10px; border-radius:10px; border:1px solid #ccc; font-size:14px; margin-left:5px; cursor:pointer;">
-        <option value="count">公開単語帳作成数順</option>
+        <option value="count">作成した単語帳数順</option>
         <option value="created">登録順（新しい）</option>
         <option value="name">名称順</option>
       </select>
@@ -212,7 +224,7 @@
 
   <!-- キャッシュからの単語帳一覧を即時描画する処理がVOCABOOST_AVATAR_HTMLを使うため、
        account-widgets.js は下のメインスクリプトより先に読み込む -->
-  <script src="account-widgets.js?v=20260927e"></script>
+  <script src="account-widgets.js?v=20260930"></script>
   <script src="analytics-tracker.js"></script>
 
   <script>
@@ -229,19 +241,32 @@
     const db = firebase.firestore();
 
     let mode = "book"; // book / user
-    let books = [];
-    let users = [];
     let currentUser = null;
-    let usersLoaded = false; // ★ ユーザーデータ読み込み済みフラグ
+
+    /* ===== 一覧の読み込み方針（Firestoreの読み取り回数を抑えるため） =====
+       以前は開くたびに公開単語帳・ユーザーを全件読み込んでいて、読み取り回数が
+       無料枠を大きく超えていた。今は
+        - 並び順・学年の絞り込みはFirestoreのクエリで行い、PAGE_SIZE件ずつ読み込む（「もっと見る」で続き）
+        - タイトル・ユーザー名の検索は、各ドキュメントに保存した検索用キー(searchKeys)で
+          サーバー側から探す（検索ボタン/Enterで実行）
+        - 1ページ目は数分間このタブ内で使い回す（sessionStorage）
+       ようにしている。 */
+    const PAGE_SIZE = 30;
+    const SEARCH_PAGE_SIZE = 60;
+    const SEARCH_FALLBACK_SIZE = 200;
+    const LIST_CACHE_TTL = 5 * 60 * 1000;
+
+    const states = {
+      book: { key: null, items: [], lastDoc: null, hasMore: false, loading: false, fromCache: false, fallback: false, error: "" },
+      user: { key: null, items: [], lastDoc: null, hasMore: false, loading: false, fromCache: false, fallback: false, error: "" }
+    };
+    let appliedSearch = ""; // 検索ボタン/Enterで確定した検索語
 
     /* ===== 学年(期)での絞り込み =====
-       標準では自分の期を表示する（未ログインなら「すべての学年」）。
-       単語帳の期は wordbooks.ownerCohort を使い、まだ付与されていない古い単語帳は
-       ログイン中ならusersコレクションから作成者の期を補完する。 */
+       標準では自分の期を表示する（未ログインなら「すべての学年」）。 */
     const MY_COHORT_KEY = "vocaboost_my_cohort";
     let cohortFilter = "all";
     let cohortFilterTouched = false; // ユーザーが自分で選び直したら自動では切り替えない
-    let userCohortMap = {}; // uid -> 期（ログイン中のみ取得）
 
     function readMyCohortCache() {
       try {
@@ -252,30 +277,46 @@
       }
     }
 
-    function bookCohort(b) {
-      if (b.ownerCohort !== undefined && b.ownerCohort !== null) return b.ownerCohort;
-      if (b.ownerId && userCohortMap[b.ownerId] !== undefined) return userCohortMap[b.ownerId];
-      return undefined;
-    }
-
-    function matchesCohort(cohort) {
-      if (cohortFilter === "all") return true;
-      if (cohort === undefined || cohort === null) return false;
-      return String(window.VOCABOOST_NORMALIZE_COHORT(cohort)) === cohortFilter;
-    }
-
     // 選択肢は「すべての学年」＋41〜43期（常に表示）＋44期以降はアカウントが存在する期のみ
     // （新しい順）＋自分の期＋「その他」
     const ALWAYS_SHOWN_COHORTS = [41, 42, 43];
+    const EXISTING_COHORTS_KEY = "vocaboost_existing_cohorts";
+    let existingCohorts = [];
+    try {
+      const saved = JSON.parse(localStorage.getItem(EXISTING_COHORTS_KEY) || "null");
+      if (saved && Array.isArray(saved.list)) existingCohorts = saved.list;
+    } catch (e) { }
+
+    // 44期以降のアカウントが存在するかを1件ずつだけ確認する（結果は1日保存）
+    async function checkExistingCohorts() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(EXISTING_COHORTS_KEY) || "null");
+        if (saved && Date.now() - saved.checkedAt < 24 * 60 * 60 * 1000) return;
+      } catch (e) { }
+      const maxCohort = new Date().getFullYear() - 2023 + 41;
+      const found = [];
+      for (let c = 44; c <= maxCohort; c++) {
+        try {
+          const snap = await db.collection("users").where("cohort", "==", c).limit(1).get();
+          if (!snap.empty) found.push(c);
+        } catch (e) {
+          return; // 未ログインなどで確認できないときは何もしない
+        }
+      }
+      existingCohorts = found;
+      try {
+        localStorage.setItem(EXISTING_COHORTS_KEY, JSON.stringify({ checkedAt: Date.now(), list: found }));
+      } catch (e) { }
+      renderCohortOptions();
+    }
 
     function renderCohortOptions() {
       const select = document.getElementById("cohortFilter");
-      const set = new Set(ALWAYS_SHOWN_COHORTS);
-      books.forEach(b => {
-        const c = bookCohort(b);
-        if (c !== undefined && c !== null) set.add(window.VOCABOOST_NORMALIZE_COHORT(c));
+      const set = new Set(ALWAYS_SHOWN_COHORTS.concat(existingCohorts));
+      states.book.items.forEach(b => {
+        if (b.ownerCohort !== undefined && b.ownerCohort !== null) set.add(window.VOCABOOST_NORMALIZE_COHORT(b.ownerCohort));
       });
-      users.forEach(u => set.add(window.VOCABOOST_NORMALIZE_COHORT(u.cohort)));
+      states.user.items.forEach(u => set.add(window.VOCABOOST_NORMALIZE_COHORT(u.cohort)));
       const myCohort = readMyCohortCache();
       if (myCohort !== null) set.add(window.VOCABOOST_NORMALIZE_COHORT(myCohort));
       if (cohortFilter !== "all") set.add(window.VOCABOOST_NORMALIZE_COHORT(cohortFilter));
@@ -285,7 +326,7 @@
       const maxCohort = new Date().getFullYear() - 2023 + 41;
       const isValid = c => Number.isInteger(c) && c >= 41 && c <= maxCohort;
       const list = [...set].filter(isValid).sort((a, b) => b - a);
-      if ([...set].some(c => !isValid(c))) list.push(other);
+      list.push(other);
 
       select.innerHTML = '<option value="all">すべての学年</option>' + list.map(c => {
         const mine = myCohort !== null && window.VOCABOOST_NORMALIZE_COHORT(myCohort) === c ? "（自分の学年）" : "";
@@ -297,53 +338,25 @@
     function onCohortFilterChange() {
       cohortFilterTouched = true;
       cohortFilter = document.getElementById("cohortFilter").value;
-      render();
+      loadList(true);
     }
 
     function applyDefaultCohortFilter() {
-      if (cohortFilterTouched) return;
+      if (cohortFilterTouched) return false;
       const myCohort = readMyCohortCache();
-      cohortFilter = myCohort === null ? "all" : String(window.VOCABOOST_NORMALIZE_COHORT(myCohort));
-    }
-
-    // 作成者の期を補完するためにusersを読む（usersの読み取りはログインが必要）
-    async function fetchUsersFromDb() {
-      const userBookCounts = {};
-      books.forEach(b => {
-        if (b.ownerId) {
-          userBookCounts[b.ownerId] = (userBookCounts[b.ownerId] || 0) + 1;
-        }
-      });
-
-      const snapUsers = await db.collection("users").get();
-      const list = snapUsers.docs.map(d => {
-        const data = d.data();
-        const createdAt = data.createdAt;
-        const cohort = (data.cohort !== undefined && data.cohort !== null)
-          ? window.VOCABOOST_NORMALIZE_COHORT(data.cohort)
-          : window.VOCABOOST_COHORT_FROM_EMAIL(data.email);
-        return {
-          id: d.id,
-          username: data.username || "名無し",
-          photoURL: data.photoURL || null,
-          cohort,
-          bookCount: userBookCounts[d.id] || 0,
-          // localStorageに保存するためTimestampをミリ秒数値に変換しておく
-          createdAtMillis: createdAt && typeof createdAt.toMillis === "function"
-            ? createdAt.toMillis()
-            : 0
-        };
-      });
-      userCohortMap = {};
-      list.forEach(u => { userCohortMap[u.id] = u.cohort; });
-      return list;
+      const next = myCohort === null ? "all" : String(window.VOCABOOST_NORMALIZE_COHORT(myCohort));
+      const changed = next !== cohortFilter;
+      cohortFilter = next;
+      return changed;
     }
 
     applyDefaultCohortFilter();
 
-    // Firestoreからの単語帳一覧の取得が終わったら解決する
-    let resolveBooksReady;
-    const booksReady = new Promise(r => { resolveBooksReady = r; });
+    // 以前の全件キャッシュ（容量を圧迫していたもの）は不要になったので削除する
+    try {
+      localStorage.removeItem("publicBooks");
+      localStorage.removeItem("usersCacheV2");
+    } catch (e) { }
 
     // XSS対策: テキストをそのまま innerHTML に差し込まないようにエスケープする
     function escapeHtml(str) {
@@ -403,19 +416,12 @@
         try {
           localStorage.setItem(MY_COHORT_KEY, String(window.VOCABOOST_COHORT_FROM_EMAIL(user.email)));
         } catch (e) { }
-        applyDefaultCohortFilter();
-        render();
-
-        // 期が未付与の古い単語帳がある場合だけ、作成者の期を補完するためにusersを読む
-        // （usersは全員分のプロフィール写真を含み重いため、不要なときは読まない）
-        booksReady.then(() => {
-          if (usersLoaded || !books.some(b => b.ownerCohort === undefined || b.ownerCohort === null)) return;
-          fetchUsersFromDb().then(list => {
-            users = list;
-            usersLoaded = true;
-            render();
-          }).catch(e => console.error("User load failed:", e));
-        });
+        if (applyDefaultCohortFilter()) {
+          loadList(true);
+        } else {
+          renderCohortOptions();
+        }
+        checkExistingCohorts();
       } else if (localStorage.getItem("cachedUser")) {
         (function () {
           // 端末やネットワークが遅いと1回・1.5秒の再確認だけでは間に合わないことがあるため、
@@ -463,136 +469,6 @@
       firebase.auth().signOut();
     }
 
-    async function load() {
-
-      const cachedBooks = localStorage.getItem("publicBooks");
-
-      // まずキャッシュ表示
-      if (cachedBooks) {
-        try {
-          books = JSON.parse(cachedBooks);
-          render();
-          hideLoading();
-        } catch (e) {
-          console.error(e);
-        }
-      } else {
-        // キャッシュがない時だけローディング
-        showLoading();
-      }
-
-      try {
-
-        const snap = await db.collection("wordbooks")
-          .where("isPublic", "==", true)
-          .get();
-
-        const bookPromises = snap.docs.map(async (d) => {
-
-          const data = d.data();
-          let count = data.wordCount;
-
-          // 古いデータの補完
-          if (count === undefined) {
-            try {
-              const wordSnap = await db
-                .collection("wordbooks")
-                .doc(d.id)
-                .collection("words")
-                .get();
-
-              count = wordSnap.size;
-
-              db.collection("wordbooks")
-                .doc(d.id)
-                .update({
-                  wordCount: count
-                });
-
-            } catch (e) {
-              count = 0;
-            }
-          }
-
-          return {
-            id: d.id,
-            title: data.title,
-            ownerName: data.ownerName || "不明",
-            ownerId: data.owner,
-            // ownerNameと同様、wordbookドキュメント側に複製された写真をそのまま使う
-            // （usersコレクションの読み取りにはログインが必要なため、未ログインの
-            // 閲覧者でも表示できるようにするための複製）
-            ownerPhotoURL: data.ownerPhotoURL || null,
-            ownerCohort: data.ownerCohort,
-            // 数値以外が書き込まれていてもHTMLとして解釈されないよう数値化する
-            count: Number(count) || 0,
-            createdAt: data.createdAt || null
-          };
-        });
-
-        books = await Promise.all(bookPromises);
-
-        // 描画を最優先で行う。キャッシュ保存(localStorage)はプロフィール写真の
-        // data URLを多数含むため容量超過(QuotaExceededError)になることがあるが、
-        // その場合でも取得できたデータは必ず表示する。
-        render();
-
-        try {
-          // view.html用キャッシュ（作成者ボタンの見た目をview.html側の描画と合わせておく）。
-          // 一覧に出ている単語帳の数だけ書き込まれるため、作成者の写真(base64画像)を
-          // そのまま含めると件数が多い一覧ではすぐにlocalStorageの容量超過
-          // (QuotaExceededError)を起こしていた。この事前キャッシュはview.htmlが
-          // Firestoreから最新データを取得するまでの一瞬だけ表示されるものなので、
-          // 写真は含めず（アイコン表示のみ）にしてサイズを抑える。
-          books.forEach(b => {
-            localStorage.setItem(
-              `book_${b.id}`,
-              JSON.stringify({
-                owner: b.ownerId,
-                title: b.title,
-                detailHtml: `
-                  <a href="user.html?id=${b.ownerId}" class="creator-btn">
-                    ${window.VOCABOOST_AVATAR_HTML(null, 24)}
-                    <span>${escapeHtml(b.ownerName)}</span>
-                  </a>
-                  <div class="meta-row">計 ${b.count} 単語</div>
-                `,
-                wordsHtml: ""
-              })
-            );
-          });
-
-          // キャッシュ更新。
-          // 表示中の画面(このrender()呼び出し)は写真付きのbooksをそのまま使うが、
-          // 保存するキャッシュの方は作成者の写真(base64画像)を除いておく。
-          // 一覧の件数が多いとbooks全体をそのまま保存するだけで
-          // localStorageの容量超過(QuotaExceededError)になっていたため。
-          // 次回訪問時の一瞬の先行表示でだけアイコンになるが、直後にFirestoreから
-          // 取得した最新データで再描画されるため実害は無い。
-          localStorage.setItem(
-            "publicBooks",
-            JSON.stringify(books.map(b => ({ ...b, ownerPhotoURL: null })))
-          );
-        } catch (e) {
-          console.warn("単語帳一覧のキャッシュ保存に失敗しました(表示には影響しません)", e);
-        }
-
-      } catch (e) {
-
-        console.error("Load failed:", e);
-
-        if (!cachedBooks) {
-          alert("読み込みに失敗しました");
-        }
-
-      } finally {
-
-        hideLoading();
-        resolveBooksReady();
-
-      }
-    }
-
     function showLoading() {
       const overlay = document.getElementById('loading-overlay');
       if (overlay) overlay.classList.remove('hidden');
@@ -605,93 +481,280 @@
       }
     }
 
+    function currentSort() {
+      return mode === "book"
+        ? document.getElementById("sortBook").value
+        : document.getElementById("sortUser").value;
+    }
+
+    function stateKey() {
+      return [mode, cohortFilter, currentSort(), appliedSearch].join("|");
+    }
+
+    // 並び替えに使うフィールドと向き
+    const SORT_FIELDS = {
+      book: { created: ["createdAt", "desc"], name: ["title", "asc"], count: ["wordCount", "desc"] },
+      user: { count: ["bookCount", "desc"], created: ["createdAt", "desc"], name: ["username", "asc"] }
+    };
+
+    function searchKeyFor(term) {
+      const keys = window.VOCABOOST_SEARCH_KEYS ? window.VOCABOOST_SEARCH_KEYS(term) : [];
+      // 2文字の組み合わせの方が絞り込めるので優先する
+      return keys.find(k => k.length === 2) || keys[0] || "";
+    }
+
+    function normalizeText(str) {
+      return window.VOCABOOST_NORMALIZE_SEARCH_TEXT
+        ? window.VOCABOOST_NORMALIZE_SEARCH_TEXT(str)
+        : String(str || "").toLowerCase();
+    }
+
+    // useFallback: 複合インデックスが未作成のときは並び替えなしのクエリで取得し、画面側で並べ替える
+    function buildQuery(useFallback) {
+      const sort = SORT_FIELDS[mode][currentSort()];
+      let q = mode === "book"
+        ? db.collection("wordbooks").where("isPublic", "==", true)
+        : db.collection("users");
+      if (cohortFilter !== "all") {
+        q = q.where(mode === "book" ? "ownerCohort" : "cohort", "==", Number(cohortFilter));
+      }
+      if (appliedSearch) {
+        // インデックス未作成時は、検索キーを使わずに最大SEARCH_FALLBACK_SIZE件から画面側で探す
+        return useFallback ? q : q.where("searchKeys", "array-contains", searchKeyFor(appliedSearch));
+      }
+      if (!useFallback) q = q.orderBy(sort[0], sort[1]);
+      return q;
+    }
+
+    function toBookItem(d) {
+      const data = d.data();
+      return {
+        id: d.id,
+        title: data.title || "(無題)",
+        ownerName: data.ownerName || "不明",
+        ownerId: data.owner,
+        // ownerNameと同様、wordbookドキュメント側に複製された写真をそのまま使う
+        // （usersコレクションの読み取りにはログインが必要なため、未ログインの閲覧者でも表示できるように）
+        ownerPhotoURL: data.ownerPhotoURL || null,
+        ownerCohort: data.ownerCohort,
+        // 数値以外が書き込まれていてもHTMLとして解釈されないよう数値化する
+        count: Number(data.wordCount) || 0,
+        createdAtMillis: data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : 0
+      };
+    }
+
+    function toUserItem(d) {
+      const data = d.data();
+      return {
+        id: d.id,
+        username: data.username || "名無し",
+        photoURL: data.photoURL || null,
+        cohort: (data.cohort !== undefined && data.cohort !== null)
+          ? window.VOCABOOST_NORMALIZE_COHORT(data.cohort)
+          : window.VOCABOOST_COHORT_FROM_EMAIL(data.email),
+        bookCount: typeof data.bookCount === "number" ? data.bookCount : null,
+        createdAtMillis: data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : 0
+      };
+    }
+
+    // 1ページ目はこのタブ内で数分間使い回す（写真を含むためlocalStorageではなくsessionStorageに保存）
+    function readListCache(key) {
+      try {
+        const c = JSON.parse(sessionStorage.getItem("vb_list_" + key) || "null");
+        return c && Array.isArray(c.items) ? c : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function writeListCache(key, state) {
+      try {
+        sessionStorage.setItem("vb_list_" + key, JSON.stringify({
+          savedAt: Date.now(), items: state.items, hasMore: state.hasMore
+        }));
+      } catch (e) {
+        // 容量超過などで保存できなくても表示には影響しない
+      }
+    }
+
+    function isIndexError(e) {
+      return e && (e.code === "failed-precondition" || /index/i.test(e.message || ""));
+    }
+
+    // retryWithoutSort: 並び替え用のインデックスが無かったときの、並び替えなしでの再読み込み
+    async function loadList(reset, retryWithoutSort) {
+      const state = states[mode];
+      const key = stateKey();
+
+      if (retryWithoutSort) {
+        state.fallback = true;
+      } else if (reset) {
+        Object.assign(state, { key, items: [], lastDoc: null, hasMore: false, fromCache: false, fallback: false, error: "" });
+        const cached = readListCache(key);
+        if (cached) {
+          state.items = cached.items;
+          state.hasMore = cached.hasMore;
+          state.fromCache = true;
+          hideLoading();
+          render();
+          if (Date.now() - cached.savedAt < LIST_CACHE_TTL) return;
+        } else {
+          showLoading();
+        }
+      } else if (state.loading || state.key !== key) {
+        return;
+      }
+      const loadFromTop = reset || retryWithoutSort;
+
+      // ユーザー一覧の読み取りにはログインが必要（Firestoreのルール）
+      if (mode === "user" && !firebase.auth().currentUser && !localStorage.getItem("cachedUser")) {
+        state.error = "ユーザー一覧を見るにはログインしてください。";
+        hideLoading();
+        render();
+        return;
+      }
+
+      state.loading = true;
+      render();
+
+      const size = appliedSearch ? (state.fallback ? SEARCH_FALLBACK_SIZE : SEARCH_PAGE_SIZE) : PAGE_SIZE;
+      let retryPending = false;
+      try {
+        let q = buildQuery(state.fallback);
+        // キャッシュから表示した一覧の続きは、続きの位置が分からないため先頭から読み直す
+        const refetchFromTop = state.fromCache && !loadFromTop;
+        let limit = size;
+        if (refetchFromTop) {
+          limit = state.items.length + size;
+        } else if (state.lastDoc && !loadFromTop) {
+          q = q.startAfter(state.lastDoc);
+        }
+        const snap = await q.limit(limit).get();
+        if (state.key !== key) return; // 読み込み中に条件が変わった
+
+        const mapped = snap.docs.map(mode === "book" ? toBookItem : toUserItem);
+        state.items = (loadFromTop || refetchFromTop) ? mapped : state.items.concat(mapped);
+        state.lastDoc = snap.docs.length ? snap.docs[snap.docs.length - 1] : state.lastDoc;
+        state.hasMore = snap.docs.length === limit;
+        state.fromCache = false;
+        if (loadFromTop || refetchFromTop) writeListCache(key, state);
+        if (mode === "book") saveViewPreviewCache(mapped);
+      } catch (e) {
+        if (!state.fallback && isIndexError(e)) {
+          // 並び替え用のインデックスがまだ無い場合は、並び替えなしで読み直す
+          console.warn("インデックスが未作成のため、並び替えなしで読み込みます", e);
+          state.loading = false;
+          retryPending = true;
+        } else {
+          console.error("Load failed:", e);
+          state.error = "読み込みに失敗しました。通信状況を確認してもう一度お試しください。";
+        }
+      } finally {
+        if (state.key === key && !retryPending) {
+          state.loading = false;
+          hideLoading();
+          render();
+        }
+      }
+      if (retryPending) return loadList(false, true);
+    }
+
+    // view.htmlを開いたときに一瞬で表示するためのキャッシュ（読み込んだ分だけ・写真なし）
+    function saveViewPreviewCache(items) {
+      items.forEach(b => {
+        try {
+          localStorage.setItem(
+            `book_${b.id}`,
+            JSON.stringify({
+              owner: b.ownerId,
+              title: b.title,
+              detailHtml: `
+                <a href="user.html?id=${encodeURIComponent(b.ownerId || "")}" class="creator-btn">
+                  ${window.VOCABOOST_AVATAR_HTML(null, 24)}
+                  <span>${escapeHtml(b.ownerName)}</span>
+                </a>
+                <div class="meta-row">計 ${b.count} 単語</div>
+              `,
+              wordsHtml: ""
+            })
+          );
+        } catch (e) { }
+      });
+    }
+
+    function onSearchInput() {
+      // 入力を消したときは、検索をやめて通常の一覧に戻す
+      if (!document.getElementById("search").value.trim() && appliedSearch) {
+        applySearch();
+      }
+    }
+
+    function applySearch() {
+      appliedSearch = normalizeText(document.getElementById("search").value);
+      loadList(true);
+    }
+
+    function onSortChange() {
+      loadList(true);
+    }
+
     function showBooks() {
       mode = "book";
       document.getElementById("bookTab").className = "tab active";
       document.getElementById("userTab").className = "tab inactive";
       document.getElementById("sortBook").style.display = "";
       document.getElementById("sortUser").style.display = "none";
-      render();
+      if (states.book.key !== stateKey()) loadList(true); else render();
     }
 
-    async function showUsers() {
+    function showUsers() {
       mode = "user";
       document.getElementById("bookTab").className = "tab inactive";
       document.getElementById("userTab").className = "tab active";
       document.getElementById("sortBook").style.display = "none";
       document.getElementById("sortUser").style.display = "";
+      if (states.user.key !== stateKey()) loadList(true); else render();
+    }
 
-      if (!usersLoaded) {
-
-        const cachedUsers =
-          localStorage.getItem("usersCacheV2");
-
-        if (cachedUsers) {
-          try {
-            users = JSON.parse(cachedUsers);
-            usersLoaded = true;
-            render();
-          } catch (e) {
-            console.error(e);
-          }
-        }
-
-        showLoading();
-        try {
-          users = await fetchUsersFromDb();
-          usersLoaded = true;
-          localStorage.setItem(
-            "usersCacheV2",
-            JSON.stringify(users)
-          );
-        } catch (e) {
-          console.error("User load failed:", e);
-        }
-        hideLoading();
+    function sortItems(items) {
+      const sort = currentSort();
+      const list = items.slice();
+      if (mode === "book") {
+        if (sort === "created") list.sort((a, b) => (b.createdAtMillis || 0) - (a.createdAtMillis || 0));
+        else if (sort === "name") list.sort((a, b) => a.title.localeCompare(b.title, "ja"));
+        else if (sort === "count") list.sort((a, b) => b.count - a.count);
+      } else {
+        if (sort === "name") list.sort((a, b) => a.username.localeCompare(b.username, "ja"));
+        else if (sort === "count") list.sort((a, b) => (b.bookCount || 0) - (a.bookCount || 0));
+        else if (sort === "created") list.sort((a, b) => (b.createdAtMillis || 0) - (a.createdAtMillis || 0));
       }
-      render();
+      return list;
     }
 
     function render() {
-      const q = document.getElementById("search").value.toLowerCase();
-      const sort = mode === "book"
-        ? document.getElementById("sortBook").value
-        : document.getElementById("sortUser").value;
+      const state = states[mode];
       const area = document.getElementById("list");
-      area.innerHTML = "";
+      Array.from(area.children).forEach(el => { if (el.id !== "loading-overlay") el.remove(); });
       renderCohortOptions();
 
+      let items = state.items;
+      // 検索時はキーで大まかに絞った結果から、検索語を含むものだけを表示する
+      if (appliedSearch) {
+        items = items.filter(it => normalizeText(mode === "book" ? it.title : it.username).includes(appliedSearch));
+      }
+      // 検索時・インデックス未作成時はサーバー側で並べ替えていないので、ここで並べ替える
+      if (appliedSearch || state.fallback) items = sortItems(items);
+
       if (mode === "book") {
-        let filtered = books.filter(b =>
-          (b.title || "").toLowerCase().includes(q) && matchesCohort(bookCohort(b))
-        );
-
-        // ソート
-        if (sort === "created") {
-          filtered.sort((a, b) => {
-            if (!a.createdAt) return 1;
-            if (!b.createdAt) return -1;
-            return b.createdAt.seconds - a.createdAt.seconds;
-          });
-        } else if (sort === "name") {
-          filtered.sort((a, b) => a.title.localeCompare(b.title, 'ja'));
-        } else if (sort === "count") {
-          filtered.sort((a, b) => b.count - a.count);
-        }
-
-        if (filtered.length === 0 && books.length > 0) {
-          area.innerHTML = '<p class="count" style="text-align:center;">該当する単語帳はありません</p>';
-        }
-
-        filtered.forEach(b => {
-          const cohort = bookCohort(b);
+        items.forEach(b => {
+          const cohort = b.ownerCohort;
           const div = document.createElement("div");
           div.className = "card";
           div.innerHTML = `
         <div>
           <div class="title">${escapeHtml(b.title)}</div>
           <div class="book-meta-row">
-            <a href="user.html?id=${b.ownerId}" class="creator-btn">
+            <a href="user.html?id=${encodeURIComponent(b.ownerId || "")}" class="creator-btn">
               ${window.VOCABOOST_AVATAR_HTML(b.ownerPhotoURL, 24, cohort)}
               <span>${escapeHtml(b.ownerName)}</span>
             </a>
@@ -699,50 +762,51 @@
             <div class="count">単語数：${b.count}</div>
           </div>
         </div>
-        <button onclick="location.href='view.html?id=${b.id}'">開く</button>
+        <button onclick="location.href='view.html?id=${encodeURIComponent(b.id)}'">開く</button>
       `;
           area.appendChild(div);
         });
       } else {
-        let filtered = users.filter(u =>
-          u.username.toLowerCase().includes(q) && matchesCohort(u.cohort)
-        );
-
-        // ソート
-        if (sort === "name") {
-          filtered.sort((a, b) => a.username.localeCompare(b.username, 'ja'));
-        } else if (sort === "count") {
-          filtered.sort((a, b) => b.bookCount - a.bookCount);
-        } else if (sort === "created") {
-          filtered.sort((a, b) => (b.createdAtMillis || 0) - (a.createdAtMillis || 0));
-        }
-
-        if (filtered.length === 0 && users.length > 0) {
-          area.innerHTML = '<p class="count" style="text-align:center;">該当するユーザーはいません</p>';
-        }
-
-        filtered.forEach(u => {
+        items.forEach(u => {
           const div = document.createElement("div");
           div.className = "card";
           div.innerHTML = `
         <div>
-          <a href="user.html?id=${u.id}" class="user-identity">
+          <a href="user.html?id=${encodeURIComponent(u.id)}" class="user-identity">
             ${window.VOCABOOST_AVATAR_HTML(u.photoURL, 28, u.cohort)}
             <span>${escapeHtml(u.username)}</span>
           </a>
           <div class="user-meta-row">
             ${window.VOCABOOST_COHORT_BADGE_HTML(u.cohort)}
-            <div class="count">作成した単語帳数：${u.bookCount}</div>
+            <div class="count">作成した単語帳数：${u.bookCount === null ? "-" : u.bookCount}</div>
           </div>
         </div>
-        <button onclick="location.href='user.html?id=${u.id}'">見る</button>
+        <button onclick="location.href='user.html?id=${encodeURIComponent(u.id)}'">見る</button>
       `;
           area.appendChild(div);
         });
       }
+
+      const footer = document.createElement("div");
+      footer.className = "listFooter";
+      if (state.error) {
+        footer.innerHTML = `<p class="count">${escapeHtml(state.error)}</p>`;
+      } else if (!state.loading && items.length === 0 && state.key === stateKey()) {
+        footer.innerHTML = `<p class="count">${mode === "book" ? "該当する単語帳はありません" : "該当するユーザーはいません"}</p>`;
+      }
+      if (state.hasMore && !state.error) {
+        const more = document.createElement("button");
+        more.type = "button";
+        more.className = "moreBtn";
+        more.textContent = state.loading ? "読み込み中..." : "もっと見る";
+        more.disabled = state.loading;
+        more.onclick = () => loadList(false);
+        footer.appendChild(more);
+      }
+      area.appendChild(footer);
     }
 
-    load();
+    loadList(true);
   </script>
 </body>
 
