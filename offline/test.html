@@ -181,47 +181,6 @@
       min-height: 200px;
     }
 
-    /* 答え(正解・不正解や解説)は問題文の下、回答欄は回答ボタンのすぐ上に置く。
-       回答欄とボタンはひとまとめにしてカードの下側に固定し、答えが表示されても
-       回答欄の位置が動かないようにする（答えの表示はその上の空いた場所に出る） */
-    #quiz[style*="display: block"] {
-      display: flex !important;
-    }
-
-    #quizContent {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    #quizContent > * {
-      max-width: 100%;
-    }
-
-    #q,
-    #result,
-    #noteText {
-      align-self: stretch;
-    }
-
-    #answerArea {
-      align-self: stretch;
-      margin-top: auto;
-      padding-top: 10px;
-    }
-
-    /* 答え(正解・不正解、解説、自分で採点するときの枠)が表示されても回答欄が
-       押し下げられないよう、問題文と回答欄の間に表示用の場所をあらかじめ確保しておく */
-    body:not(.fullscreen-mode) #quiz {
-      min-height: 580px;
-    }
-
-    @media (max-width: 768px) {
-      body:not(.fullscreen-mode) #quiz {
-        min-height: 520px;
-      }
-    }
-
     @media (max-width: 768px) {
       .card {
         max-width: 70%;
@@ -419,7 +378,13 @@
         align-self: stretch;
       }
 
+      body.fullscreen-mode #answerBtn {
+        margin-top: auto;
+      }
 
+      body.fullscreen-mode #selfButtons {
+        margin-top: auto;
+      }
     }
 
     /* 自分で採点するときの「あなたの回答」「正解」の枠 */
@@ -483,16 +448,13 @@
         <h2 id="q"></h2>
         <button id="hintBtn" type="button" onclick="showHint()" style="display:none">ヒントを表示</button>
         <p id="hintText" style="display:none"></p>
+        <input id="ans" placeholder="答えを入力" autocomplete="off"><br>
         <p id="result"></p>
         <p id="noteText" style="display:none"></p>
-        <!-- 回答欄は回答ボタンのすぐ上に置き、カードの下側に固定する -->
-        <div id="answerArea">
-          <input id="ans" placeholder="答えを入力" autocomplete="off">
-          <button id="answerBtn" onclick="check()">回答 (Enter)</button>
-          <div id="selfButtons" style="display:none;">
-            <button onclick="markCorrect()">正解</button>
-            <button onclick="markWrong()">不正解</button>
-          </div>
+        <button id="answerBtn" onclick="check()">回答 (Enter)</button>
+        <div id="selfButtons" style="display:none;">
+          <button onclick="markCorrect()">正解</button>
+          <button onclick="markWrong()">不正解</button>
         </div>
       </div>
 
