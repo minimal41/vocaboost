@@ -228,6 +228,20 @@
     .switch input:checked + .switch-track::before {
       transform: translateX(22px);
     }
+
+    .cacheDesc {
+      font-size: 13px;
+      color: var(--color-text-sub);
+      margin: 6px auto;
+      max-width: 520px;
+      line-height: 1.6;
+    }
+
+    .cacheUsage {
+      font-size: 13px;
+      color: var(--color-text-sub);
+      min-height: 1.2em;
+    }
   </style>
 </head>
 
@@ -294,6 +308,15 @@
           <span class="switch-track"></span>
         </span>
       </label>
+    </div>
+
+    <div class="card">
+      <h2>キャッシュの削除</h2>
+      <p class="cacheDesc">表示を速くするために端末に保存しているデータ（単語帳・一覧などの一時的な保存）を削除します。表示がおかしいときや、端末の保存容量がいっぱいのときにお試しください。</p>
+      <p class="cacheDesc">オフラインに保存した単語帳、ログイン状態、表示設定、学習の記録（テストの正解済み・暗記の「覚えた」）は削除されません。</p>
+      <p class="cacheUsage" id="cacheUsage"></p>
+      <button type="button" id="clearCacheBtn" onclick="clearSiteCache()">キャッシュを削除する</button>
+      <div id="cacheMsg" class="notice"></div>
     </div>
 
   </main>
@@ -530,6 +553,109 @@
         msg.className = "notice";
       }
     }
+
+    /* ===== キャッシュの削除 =====
+       表示を速くするための一時的な保存データ(localStorage/sessionStorage)と、
+       Service Workerが保存しているページのコピー(Cache Storage)を削除する。
+       次のものは削除しない（下の一覧に無い保存データは、今後増えたものも含めてすべて削除対象）:
+        - オフラインに保存した単語帳と、オフラインモードのページを電波が無くても開くためのファイル
+        - ログイン状態、表示設定（フォント・ダークモード）
+        - 学習の記録（テストの正解済み・暗記の「覚えた」）と、アクセス解析用の端末ID */
+    const KEEP_STORAGE_KEYS = [
+      "vocaboost_offlineBooks",
+      "cachedUser",
+      "vocaboost_theme",
+      "vocaboost_font",
+      "learnedWords",
+      "flashKnownWords",
+      "vocaboost_deviceId"
+    ];
+
+    // オフラインモードで使うページ・ファイルはCache Storageからも消さない
+    function isOfflineAssetUrl(url) {
+      const path = new URL(url).pathname;
+      return /\/offline\/(index|flash|test)\.html$/.test(path) ||
+        /\/(offline-storage\.js|offline-fallback\.html|style\.css|theme\.js|manifest\.json)$/.test(path) ||
+        /\/images\//.test(path) ||
+        /__sw_meta__/.test(path);
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes) return "0 KB";
+      if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + " KB";
+      return (bytes / 1024 / 1024).toFixed(1) + " MB";
+    }
+
+    function localStorageBytes() {
+      let total = 0;
+      try {
+        for (let k = 0; k < localStorage.length; k++) {
+          const key = localStorage.key(k);
+          if (KEEP_STORAGE_KEYS.includes(key)) continue;
+          total += (key.length + (localStorage.getItem(key) || "").length) * 2;
+        }
+      } catch (e) { }
+      return total;
+    }
+
+    function showCacheUsage() {
+      const el = document.getElementById("cacheUsage");
+      if (el) el.textContent = "削除できる一時的な保存データ：約 " + formatBytes(localStorageBytes()) + "（ページのコピーを除く）";
+    }
+
+    async function clearSiteCache() {
+      const msg = document.getElementById("cacheMsg");
+      const btn = document.getElementById("clearCacheBtn");
+      if (!confirm("キャッシュを削除しますか？\n（オフラインに保存した単語帳やログイン状態は消えません）")) return;
+
+      btn.disabled = true;
+      msg.className = "notice";
+      msg.textContent = "削除しています...";
+
+      let removedKeys = 0;
+      let removedPages = 0;
+      try {
+        // 1. localStorage（残すもの以外）
+        const keys = [];
+        for (let k = 0; k < localStorage.length; k++) keys.push(localStorage.key(k));
+        keys.forEach(key => {
+          if (!KEEP_STORAGE_KEYS.includes(key)) {
+            localStorage.removeItem(key);
+            removedKeys++;
+          }
+        });
+
+        // 2. sessionStorage（検索ページの一覧の一時保存など）
+        try { sessionStorage.clear(); } catch (e) { }
+
+        // 3. Cache Storage（オフラインモードで使うファイル以外のページのコピー）
+        if (window.caches) {
+          const names = await caches.keys();
+          for (const name of names) {
+            const cache = await caches.open(name);
+            const requests = await cache.keys();
+            for (const req of requests) {
+              if (!isOfflineAssetUrl(req.url)) {
+                await cache.delete(req);
+                removedPages++;
+              }
+            }
+          }
+        }
+
+        msg.className = "success";
+        msg.textContent = `キャッシュを削除しました（保存データ ${removedKeys} 件、ページのコピー ${removedPages} 件）。ページを読み込み直します...`;
+        // 削除した表示用データを使っている画面を作り直すため、少し待ってから再読み込みする
+        setTimeout(() => location.reload(), 1200);
+      } catch (e) {
+        console.error(e);
+        msg.className = "notice";
+        msg.textContent = "削除中にエラーが発生しました: " + e.message;
+        btn.disabled = false;
+      }
+    }
+
+    showCacheUsage();
 
     /* ===== フォント・ダークモード設定 =====
        theme.js が起動時に <html data-theme> / --font-family をセット済み。
