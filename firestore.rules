@@ -6,7 +6,7 @@ rules_version = '2';
 // Firebase コンソール（Firestore Database → ルール）に手動で貼り付けて公開するか、
 // Firebase CLI をお持ちの場合は `firebase deploy --only firestore:rules` を実行してください。
 //
-// admin.html / analytics.html / account-widgets.js が管理者と判定するメールアドレスと、
+// admin.html / analytics.html / usage.html / account-widgets.js が管理者と判定するメールアドレスと、
 // ここでの isAdmin() の一覧は必ず一致させてください。
 //
 // また notifications コレクションへのクエリ（target==での絞り込み、

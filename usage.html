@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
+  <title>Firebase使用量</title>
+  <link rel="apple-touch-icon" sizes="512x512" href="./images/icon.png">
+  <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script src="theme.js"></script>
+
+  <style>
+    .card {
+      background: var(--color-surface);
+      color: var(--color-text);
+      padding: 25px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    .card h2 {
+      margin-top: 0;
+    }
+
+    #accessDenied {
+      text-align: center;
+      padding: 60px 20px;
+    }
+
+    .backLink {
+      display: inline-block;
+      margin-bottom: 16px;
+      color: var(--color-accent);
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .summaryRow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .summaryTile {
+      flex: 1 1 140px;
+      background: var(--color-bg, transparent);
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+
+    .summaryTile .label {
+      font-size: 12px;
+      color: var(--color-text-sub);
+    }
+
+    .summaryTile .value {
+      font-size: 22px;
+      font-weight: bold;
+      margin-top: 4px;
+    }
+
+    .summaryTile .value .unit {
+      font-size: 13px;
+      font-weight: normal;
+      color: var(--color-text-sub);
+      margin-left: 4px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--color-text-sub);
+      margin: 4px 0 12px;
+    }
+
+    .legendItem {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legendDot {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    .legendDot.pv {
+      background: var(--color-accent);
+    }
+
+    .legendDot.ss {
+      background: var(--color-success);
+    }
+
+    .dateNav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .dateNav .dateLabel {
+      font-weight: bold;
+      min-width: 130px;
+    }
+
+    .smallActionBtn {
+      display: inline-block;
+      background: var(--color-border);
+      color: var(--color-text);
+      border: none;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .smallActionBtn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    .chartWrap {
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 160px;
+      min-width: 720px;
+      border-bottom: 1px solid var(--color-border);
+      padding-bottom: 2px;
+    }
+
+    .chartCol {
+      flex: 1 1 0;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 1px;
+      height: 100%;
+      min-width: 10px;
+    }
+
+    .chartBar {
+      width: 45%;
+      min-height: 1px;
+      border-radius: 2px 2px 0 0;
+    }
+
+    .chartBar.pv {
+      background: var(--color-accent);
+    }
+
+    .chartBar.ss {
+      background: var(--color-success);
+    }
+
+    .chartAxis {
+      display: flex;
+      gap: 3px;
+      min-width: 720px;
+      font-size: 10px;
+      color: var(--color-text-sub);
+      margin-top: 4px;
+    }
+
+    .chartAxis span {
+      flex: 1 1 0;
+      text-align: center;
+      min-width: 10px;
+      white-space: nowrap;
+    }
+
+    .tableWrap {
+      overflow-x: auto;
+      margin-top: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      min-width: 420px;
+    }
+
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--color-border);
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      color: var(--color-text-sub);
+      font-weight: bold;
+      white-space: nowrap;
+    }
+
+    td.num {
+      text-align: right;
+    }
+
+    .trendTable td, .trendTable th {
+      text-align: right;
+    }
+
+    .trendTable td:first-child, .trendTable th:first-child {
+      text-align: left;
+    }
+
+    .meterRow {
+      margin-bottom: 18px;
+    }
+
+    .meterHead {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .meterHead .meterName {
+      font-weight: bold;
+    }
+
+    .meterHead .meterNums {
+      color: var(--color-text-sub);
+      font-size: 13px;
+    }
+
+    .meterTrack {
+      position: relative;
+      height: 14px;
+      background: var(--color-border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .meterFill {
+      height: 100%;
+      background: var(--color-success);
+      border-radius: 999px;
+      transition: width 0.3s;
+    }
+
+    .meterFill.warning {
+      background: #e3a92a;
+    }
+
+    .meterFill.danger {
+      background: var(--color-danger);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      white-space: nowrap;
+      margin-left: 6px;
+    }
+
+    .badge-normal {
+      background: var(--color-success);
+      color: #ffffff;
+    }
+
+    .badge-warning {
+      background: #e3a92a;
+      color: #2b2200;
+    }
+
+    .badge-danger {
+      background: var(--color-danger);
+      color: #ffffff;
+    }
+
+    .legendDot.read {
+      background: var(--color-accent);
+    }
+
+    .legendDot.write {
+      background: var(--color-success);
+    }
+
+    .legendDot.del {
+      background: #e3a92a;
+    }
+
+    .chartBar.read {
+      background: var(--color-accent);
+    }
+
+    .chartBar.write {
+      background: var(--color-success);
+    }
+
+    .chartBar.del {
+      background: #e3a92a;
+    }
+
+    .chartBar {
+      width: 30%;
+    }
+
+    .note {
+      color: var(--color-text-sub);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .errorBox {
+      color: var(--color-danger);
+      font-size: 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-top: 10px;
+    }
+
+    .tokenRow {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .tokenRow input {
+      flex: 1 1 260px;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--color-border);
+      font-size: 14px;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+
+    details summary {
+      cursor: pointer;
+      color: var(--color-text-sub);
+      font-size: 13px;
+    }
+
+    .trendTable td.over {
+      color: var(--color-danger);
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <p class="headertitle"><a href="index.html"><img src="./images/rogo.png" height="70vh"></a></p>
+    <div id="status" style="display:none">ログイン確認中...</div>
+    <div>
+      <span id="notifBellContainer"></span>
+      <button id="settingsBtn" class="header-btn" style="display:none" onclick="goPage('settings.html')">設定</button>
+      <button id="loginBtn" class="header-btn" onclick="location.href='login.html'">ログイン</button>
+      <button id="logoutBtn" class="header-btn" style="display:none" onclick="logout()">ログアウト</button>
+    </div>
+  </header>
+
+  <main>
+
+    <div id="loadingArea" style="padding:60px 20px;">確認中...</div>
+
+    <div id="accessDenied" style="display:none">
+      <p>このページには管理者のみアクセスできます。</p>
+    </div>
+
+    <div id="usageContent" style="display:none">
+      <a class="backLink" href="admin.html">← 運営ページに戻る</a>
+      <h1>Firebase使用量</h1>
+      <p class="note">
+        Firestoreの読み取り・書き込み・削除の回数を、Google Cloudの監視データ（Cloud Monitoring）から取得して、
+        無料プラン（Sparkプラン）の1日あたりの上限と比べて表示します。<br>
+        無料枠の「1日」は<strong>太平洋時間（米国）の0時</strong>に切り替わります（日本時間では夏時間中は16時、それ以外は17時）。
+        数値は数分遅れで反映されます。
+      </p>
+
+      <!-- 接続 -->
+      <section class="card" id="connectCard">
+        <h2>Google Cloudに接続</h2>
+        <p class="note">
+          使用量の取得には、Firebaseプロジェクト（quiz1-4ffdc）の閲覧権限を持つGoogleアカウントでの認可が必要です
+          （このサイトのログインとは別です）。取得した認可は、このタブを閉じるか約1時間で無効になります。
+        </p>
+        <div class="tokenRow">
+          <button id="googleConnectBtn" onclick="connectWithGoogle()">Googleアカウントで接続して取得</button>
+          <button class="smallActionBtn" id="reloadBtn" onclick="loadUsage()" style="display:none">再読み込み</button>
+          <button class="smallActionBtn" id="disconnectBtn" onclick="disconnect()" style="display:none">接続を解除</button>
+        </div>
+        <p class="note" id="clientIdMissing" style="display:none">
+          ※「Googleアカウントで接続」を使うには、このファイルの OAUTH_CLIENT_ID を設定してください（下の「初回の設定方法」を参照）。
+        </p>
+        <details style="margin-top:12px;">
+          <summary>アクセストークンを直接貼り付ける</summary>
+          <p class="note">
+            gcloud CLI をお持ちの場合は <code>gcloud auth print-access-token</code> で表示されるトークンを貼り付けても取得できます。
+          </p>
+          <div class="tokenRow">
+            <input type="password" id="manualToken" placeholder="ya29.から始まるアクセストークン" autocomplete="off">
+            <button class="smallActionBtn" onclick="useManualToken()">このトークンで取得</button>
+          </div>
+        </details>
+        <details style="margin-top:12px;">
+          <summary>初回の設定方法</summary>
+          <ol class="note">
+            <li>Google Cloud コンソールでプロジェクト「quiz1-4ffdc」を開き、「APIとサービス → ライブラリ」で <strong>Cloud Monitoring API</strong> が有効になっているか確認します（無効なら有効化）。</li>
+            <li>「APIとサービス → 認証情報」で、OAuth 2.0 クライアントID（Firebaseが自動作成した「Web client (auto created by Google Service)」で可）を開き、
+              「承認済みのJavaScript生成元」にこのサイトのURL（例: <code id="originExample"></code>）を追加して保存します。</li>
+            <li>そのクライアントIDを usage.html の <code>OAUTH_CLIENT_ID</code> に設定します。</li>
+            <li>接続するGoogleアカウントには、プロジェクトの「オーナー」「編集者」「閲覧者」または「モニタリング閲覧者」のいずれかの権限が必要です。</li>
+            <li>OAuth同意画面が「テスト」状態の場合は、接続するGoogleアカウントをテストユーザーに追加してください。「このアプリはGoogleで確認されていません」と表示された場合は「詳細 → 移動」で続行できます。</li>
+          </ol>
+        </details>
+        <div class="errorBox" id="errorBox"></div>
+      </section>
+
+      <div id="usageArea" style="display:none">
+        <!-- 今日の使用量 -->
+        <section class="card">
+          <h2>今日の使用量（無料枠の1日）</h2>
+          <p class="note" id="todayRange"></p>
+          <div id="overallStatus" style="margin-bottom:14px;"></div>
+          <div id="todayMeters"></div>
+          <p class="note" id="lastUpdated"></p>
+        </section>
+
+        <!-- 今日の1時間ごとの推移 -->
+        <section class="card">
+          <h2>今日の1時間ごとの推移</h2>
+          <div class="legend">
+            <span class="legendItem"><span class="legendDot read"></span>読み取り</span>
+            <span class="legendItem"><span class="legendDot write"></span>書き込み</span>
+            <span class="legendItem"><span class="legendDot del"></span>削除</span>
+          </div>
+          <div class="chartWrap">
+            <div class="chart" id="hourChart"></div>
+            <div class="chartAxis" id="hourChartAxis"></div>
+          </div>
+          <p class="note">横軸は日本時間です。棒にカーソルを合わせると回数が表示されます。</p>
+        </section>
+
+        <!-- 直近7日間 -->
+        <section class="card">
+          <h2>直近7日間の推移</h2>
+          <div class="legend">
+            <span class="legendItem"><span class="legendDot read"></span>読み取り</span>
+            <span class="legendItem"><span class="legendDot write"></span>書き込み</span>
+            <span class="legendItem"><span class="legendDot del"></span>削除</span>
+          </div>
+          <div class="chartWrap">
+            <div class="chart" id="weekChart" style="min-width:0;"></div>
+            <div class="chartAxis" id="weekChartAxis" style="min-width:0;"></div>
+          </div>
+          <div class="tableWrap">
+            <table class="trendTable">
+              <thead>
+                <tr>
+                  <th>日付（太平洋時間）</th>
+                  <th>読み取り</th>
+                  <th>書き込み</th>
+                  <th>削除</th>
+                </tr>
+              </thead>
+              <tbody id="weekTableBody"></tbody>
+            </table>
+          </div>
+          <p class="note">グラフの棒の高さは、それぞれの上限に対する割合です。表の赤字は無料枠の上限を超えた日です。</p>
+        </section>
+
+        <!-- 無料枠一覧 -->
+        <section class="card">
+          <h2>無料プラン（Spark）の主な上限</h2>
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>項目</th>
+                  <th class="num">上限</th>
+                  <th>超えた場合</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Firestore 読み取り</td><td class="num">50,000 回/日</td><td>その日の残り時間は読み取りが失敗します</td></tr>
+                <tr><td>Firestore 書き込み</td><td class="num">20,000 回/日</td><td>その日の残り時間は書き込みが失敗します</td></tr>
+                <tr><td>Firestore 削除</td><td class="num">20,000 回/日</td><td>その日の残り時間は削除が失敗します</td></tr>
+                <tr><td>Firestore 保存容量</td><td class="num">1 GiB</td><td>新しいデータを保存できなくなります</td></tr>
+                <tr><td>Firestore 送信データ量</td><td class="num">10 GiB/月</td><td>その月の残りは通信が失敗します</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            上限は変更されることがあります。最新の値は
+            <a href="https://firebase.google.com/pricing" target="_blank" rel="noopener">Firebaseの料金ページ</a>
+            で確認してください。保存容量・送信データ量はFirebaseコンソールの「Firestore Database → 使用状況」で確認できます。
+          </p>
+        </section>
+      </div>
+    </div>
+
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footertitle"><img src="./images/rogo.png" height="70vh"></div>
+      <div class="footer-links">
+        <a href="index.html">ホーム</a>
+        <a href="list.html">検索</a>
+        <a href="create.html">作成</a>
+        <a href="favorites.html">お気に入り</a>
+        <a href="settings.html">設定</a>
+        <a href="update.html">更新履歴</a>
+        <a href="contact.html">お問い合わせ</a>
+      </div>
+      <div class="copy">© 2026 TEAM-Minimal, Shiratae</div>
+    </div>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async></script>
+
+  <script>
+    // account-widgets.js にも同じ一覧がある。管理者を追加/削除する場合はこのファイル・admin.html・
+    // analytics.html・account-widgets.js・firestore.rules のすべてを書き換えること。
+    const ADMIN_EMAILS = [
+      "202301745@edu.nishiyamato.ed.jp",
+      "202305145@edu.nishiyamato.ed.jp"
+    ];
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyD7CJmO3eAO0o2EPRDsVqTtZ_whRd_3-3E",
+      authDomain: "quiz1-4ffdc.firebaseapp.com",
+      projectId: "quiz1-4ffdc",
+      storageBucket: "quiz1-4ffdc.firebasestorage.app",
+      messagingSenderId: "152062126332",
+      appId: "1:152062126332:web:845af237a1a76207214f79"
+    };
+
+    // 使用量はブラウザから直接 Cloud Monitoring API を呼び出して取得する（バックエンドが無いため）。
+    // Google Cloud コンソール「APIとサービス → 認証情報」の OAuth 2.0 クライアントID（ウェブアプリ）を設定する。
+    // クライアントIDは公開されても問題ない値（秘密鍵ではない）。空のままだとトークン貼り付けでのみ取得できる。
+    // FirebaseのGoogleログイン（signInWithPopup）でトークンを取ると、運営のメール/パスワードのアカウントに
+    // Googleログインが紐づいたり置き換わったりする恐れがあるため、Firebase Authとは別のGoogle Identity Servicesを使う。
+    const OAUTH_CLIENT_ID = "";
+    const MONITORING_SCOPE = "https://www.googleapis.com/auth/monitoring.read";
+    const TOKEN_STORAGE_KEY = "vocaboost_usageToken";
+
+    // 無料プラン(Spark)の1日あたりの上限（太平洋時間の0時にリセット）
+    const METRICS = [
+      { key: "read", label: "読み取り", type: "firestore.googleapis.com/document/read_count", limit: 50000 },
+      { key: "write", label: "書き込み", type: "firestore.googleapis.com/document/write_count", limit: 20000 },
+      { key: "del", label: "削除", type: "firestore.googleapis.com/document/delete_count", limit: 20000 }
+    ];
+    const QUOTA_TIME_ZONE = "America/Los_Angeles";
+    const ALIGN_SECONDS = 300; // 5分ごとに合計したデータを取得し、画面側で1時間・1日ごとにまとめる
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    let currentUser = null;
+    let accessToken = null;
+
+    const statusDiv = document.getElementById("status");
+    const loginBtn = document.getElementById("loginBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const settingsBtn = document.getElementById("settingsBtn");
+
+    const savedUser = JSON.parse(localStorage.getItem("cachedUser"));
+    if (savedUser) {
+      settingsBtn.style.display = "inline-block";
+      logoutBtn.style.display = "inline-block";
+      loginBtn.style.display = "none";
+    }
+
+    function goPage(page) {
+      const hasCachedUser = !!localStorage.getItem("cachedUser");
+      if (currentUser || hasCachedUser) {
+        location.href = page;
+      } else {
+        alert("ログインしてください");
+        location.href = "login.html";
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("cachedUser");
+      disconnect();
+      auth.signOut();
+    }
+
+    function handleSignedOut() {
+      statusDiv.textContent = "ログアウト中";
+      loginBtn.style.display = "inline-block";
+      logoutBtn.style.display = "none";
+      settingsBtn.style.display = "none";
+      // 表示中の内容を急に消さないよう、初回読み込み中に未ログインと判明した場合のみ「管理者のみ」表示に確定させる
+      const usageContent = document.getElementById("usageContent");
+      if (!usageContent || usageContent.style.display === "none") {
+        document.getElementById("loadingArea").style.display = "none";
+        document.getElementById("accessDenied").style.display = "block";
+      }
+    }
+
+    auth.onAuthStateChanged(async (user) => {
+      currentUser = user;
+
+      if (!user) {
+        if (localStorage.getItem("cachedUser")) {
+          (function () {
+            // 端末やネットワークが遅い場合に備え、間隔を広げながら最大4回(合計15秒)まで再確認する
+            const delays = [1000, 2000, 4000, 8000];
+            const recheck = (i) => {
+              setTimeout(() => {
+                if (auth.currentUser) return;
+                if (i + 1 < delays.length) recheck(i + 1);
+                else {
+                  handleSignedOut();
+                  if (window.VOCABOOST_SHOW_SESSION_LOST_NOTICE) {
+                    window.VOCABOOST_SHOW_SESSION_LOST_NOTICE(!navigator.onLine);
+                  }
+                }
+              }, delays[i]);
+            };
+            recheck(0);
+          })();
+          return;
+        }
+        handleSignedOut();
+        return;
+      }
+
+      localStorage.setItem("cachedUser", JSON.stringify({ uid: user.uid }));
+      statusDiv.textContent = "ログイン中: " + user.uid;
+      loginBtn.style.display = "none";
+      logoutBtn.style.display = "inline-block";
+      settingsBtn.style.display = "inline-block";
+
+      if (!ADMIN_EMAILS.includes(user.email)) {
+        document.getElementById("loadingArea").style.display = "none";
+        document.getElementById("accessDenied").style.display = "block";
+        return;
+      }
+
+      if (document.getElementById("usageContent").style.display === "block") return;
+      document.getElementById("loadingArea").style.display = "none";
+      document.getElementById("usageContent").style.display = "block";
+      initConnectCard();
+    });
+
+    /* ===================== 認可（アクセストークン） ===================== */
+
+    function initConnectCard() {
+      document.getElementById("originExample").textContent = location.origin;
+      if (!OAUTH_CLIENT_ID) {
+        document.getElementById("googleConnectBtn").disabled = true;
+        document.getElementById("clientIdMissing").style.display = "block";
+      }
+      // 同じタブ内で有効期限内のトークンがあれば、そのまま使って読み込む
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(TOKEN_STORAGE_KEY) || "null");
+        if (saved && saved.token && saved.expiresAt > Date.now() + 60 * 1000) {
+          accessToken = saved.token;
+          loadUsage();
+        }
+      } catch (e) { /* sessionStorageが使えない環境では毎回接続する */ }
+    }
+
+    function saveToken(token, expiresInSec) {
+      accessToken = token;
+      try {
+        sessionStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify({
+          token: token,
+          expiresAt: Date.now() + (expiresInSec || 3600) * 1000
+        }));
+      } catch (e) { /* 保存できなくても今回の表示には影響しない */ }
+    }
+
+    let tokenClient = null;
+
+    function connectWithGoogle() {
+      showError("");
+      if (!OAUTH_CLIENT_ID) return;
+      if (!window.google || !google.accounts || !google.accounts.oauth2) {
+        showError("Googleの認可用スクリプトを読み込めませんでした。通信状況を確認して再度お試しください。");
+        return;
+      }
+      if (!tokenClient) {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: OAUTH_CLIENT_ID,
+          scope: MONITORING_SCOPE,
+          callback: (resp) => {
+            if (resp.error) {
+              showError("Googleでの認可に失敗しました: " + (resp.error_description || resp.error));
+              return;
+            }
+            saveToken(resp.access_token, Number(resp.expires_in));
+            loadUsage();
+          },
+          error_callback: (err) => {
+            // ポップアップを閉じた場合など
+            if (err && err.type === "popup_closed") return;
+            showError("Googleでの認可を完了できませんでした" + (err && err.type ? "（" + err.type + "）" : "") + "。ポップアップがブロックされていないか確認してください。");
+          }
+        });
+      }
+      tokenClient.requestAccessToken();
+    }
+
+    function useManualToken() {
+      const input = document.getElementById("manualToken");
+      const token = input.value.trim();
+      if (!token) return;
+      input.value = "";
+      showError("");
+      saveToken(token, 3600);
+      loadUsage();
+    }
+
+    function disconnect() {
+      if (accessToken && window.google && google.accounts && google.accounts.oauth2) {
+        google.accounts.oauth2.revoke(accessToken, () => {});
+      }
+      accessToken = null;
+      try { sessionStorage.removeItem(TOKEN_STORAGE_KEY); } catch (e) {}
+      document.getElementById("usageArea").style.display = "none";
+      document.getElementById("reloadBtn").style.display = "none";
+      document.getElementById("disconnectBtn").style.display = "none";
+    }
+
+    function showError(msg) {
+      document.getElementById("errorBox").textContent = msg;
+    }
+
+    /* ===================== Cloud Monitoring API ===================== */
+
+    // 指定した指標を ALIGN_SECONDS 秒ごとに合計した値の一覧を [{start: Date, value: number}] で返す
+    async function fetchMetric(metricType, startTime, endTime) {
+      const params = new URLSearchParams({
+        "filter": `metric.type = "${metricType}"`,
+        "interval.startTime": startTime.toISOString(),
+        "interval.endTime": endTime.toISOString(),
+        "aggregation.alignmentPeriod": ALIGN_SECONDS + "s",
+        "aggregation.perSeriesAligner": "ALIGN_SUM",
+        // データベース・操作の種類ごとに分かれている系列を1本に合算する
+        "aggregation.crossSeriesReducer": "REDUCE_SUM"
+      });
+      const points = [];
+      let pageToken = "";
+      do {
+        if (pageToken) params.set("pageToken", pageToken);
+        const res = await fetch(
+          `https://monitoring.googleapis.com/v3/projects/${firebaseConfig.projectId}/timeSeries?` + params.toString(),
+          { headers: { "Authorization": "Bearer " + accessToken } }
+        );
+        if (!res.ok) {
+          let detail = "";
+          try {
+            const body = await res.json();
+            detail = body.error && body.error.message ? body.error.message : "";
+          } catch (e) {}
+          const err = new Error(detail || ("HTTP " + res.status));
+          err.status = res.status;
+          throw err;
+        }
+        const body = await res.json();
+        (body.timeSeries || []).forEach(series => {
+          (series.points || []).forEach(p => {
+            const end = new Date(p.interval.endTime);
+            const start = p.interval.startTime
+              ? new Date(p.interval.startTime)
+              : new Date(end.getTime() - ALIGN_SECONDS * 1000);
+            const v = p.value.int64Value !== undefined ? Number(p.value.int64Value) : Number(p.value.doubleValue || 0);
+            points.push({ start: start, value: v });
+          });
+        });
+        pageToken = body.nextPageToken || "";
+      } while (pageToken);
+      return points;
+    }
+
+    /* ===================== 日付（太平洋時間）の扱い ===================== */
+
+    const ptDateFormatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: QUOTA_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit"
+    });
+    const ptTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+      timeZone: QUOTA_TIME_ZONE, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+    });
+
+    // 太平洋時間での日付キー（例: "2026-10-10"）
+    function ptDateKey(date) {
+      return ptDateFormatter.format(date);
+    }
+
+    // 指定時刻を含む、太平洋時間での1日の開始時刻
+    function ptDayStart(date) {
+      const parts = {};
+      ptTimeFormatter.formatToParts(date).forEach(p => { parts[p.type] = Number(p.value); });
+      const msSinceMidnight = ((parts.hour * 60 + parts.minute) * 60 + parts.second) * 1000 + date.getMilliseconds();
+      return new Date(date.getTime() - msSinceMidnight);
+    }
+
+    function pad(n) {
+      return String(n).padStart(2, "0");
+    }
+
+    // 端末のタイムゾーン設定に関わらず日本時間で表示する
+    const jstFormatter = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+    });
+
+    function jstParts(date) {
+      const parts = {};
+      jstFormatter.formatToParts(date).forEach(p => { parts[p.type] = p.value; });
+      return parts;
+    }
+
+    function jstLabel(date) {
+      const p = jstParts(date);
+      return `${Number(p.month)}/${Number(p.day)} ${p.hour}:${p.minute}`;
+    }
+
+    function jstHour(date) {
+      return jstParts(date).hour;
+    }
+
+    function ptKeyLabel(key) {
+      const [y, m, d] = key.split("-").map(Number);
+      const wd = ["日", "月", "火", "水", "木", "金", "土"][new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+      return `${m}/${d}(${wd})`;
+    }
+
+    function fmt(n) {
+      return Number(n).toLocaleString("ja-JP");
+    }
+
+    /* ===================== 読み込みと表示 ===================== */
+
+    let loading = false;
+
+    async function loadUsage() {
+      if (!accessToken || loading) return;
+      loading = true;
+      showError("");
+      const reloadBtn = document.getElementById("reloadBtn");
+      reloadBtn.disabled = true;
+      reloadBtn.textContent = "読み込み中...";
+
+      try {
+        const now = new Date();
+        // 5分の区切りにそろえる（最後の区切りから現在までの分は、次の読み込みで反映される）
+        const end = new Date(Math.floor(now.getTime() / (ALIGN_SECONDS * 1000)) * ALIGN_SECONDS * 1000);
+        const todayStart = ptDayStart(now);
+        // 直近7日分（今日を含む）。夏時間の切り替えで1日が25時間になる場合に備えて少し余分に取る
+        const start = new Date(todayStart.getTime() - 6 * 86400000 - 2 * 3600000);
+
+        const results = await Promise.all(METRICS.map(m => fetchMetric(m.type, start, end)));
+        const data = {};
+        METRICS.forEach((m, i) => { data[m.key] = results[i]; });
+
+        renderToday(data, todayStart, now);
+        renderHourly(data, todayStart, now);
+        renderWeek(data, todayStart);
+
+        document.getElementById("lastUpdated").textContent =
+          `最終取得: ${jstLabel(now)}（${jstLabel(end)}までのデータ）`;
+        document.getElementById("usageArea").style.display = "block";
+        reloadBtn.style.display = "inline-block";
+        document.getElementById("disconnectBtn").style.display = "inline-block";
+      } catch (e) {
+        console.error(e);
+        if (e.status === 401) {
+          disconnect();
+          showError("認可の有効期限が切れたか、無効なトークンです。もう一度接続してください。");
+        } else if (e.status === 403) {
+          showError("使用量を取得する権限がありません。接続したGoogleアカウントにプロジェクトの閲覧権限（またはモニタリング閲覧者）があるか、Cloud Monitoring APIが有効になっているか確認してください。\n詳細: " + e.message);
+        } else {
+          showError("使用量を取得できませんでした: " + e.message);
+        }
+      } finally {
+        loading = false;
+        reloadBtn.disabled = false;
+        reloadBtn.textContent = "再読み込み";
+      }
+    }
+
+    function levelOf(ratio) {
+      if (ratio >= 1) return "danger";
+      if (ratio >= 0.8) return "warning";
+      return "normal";
+    }
+
+    function renderToday(data, todayStart, now) {
+      const todayKey = ptDateKey(now);
+      const nextReset = new Date(ptDayStart(new Date(todayStart.getTime() + 26 * 3600000)).getTime());
+      document.getElementById("todayRange").textContent =
+        `集計期間: ${jstLabel(todayStart)} 〜 ${jstLabel(nextReset)}（日本時間）　次のリセットまで約${Math.max(0, Math.ceil((nextReset - now) / 3600000))}時間`;
+
+      let worst = "normal";
+      const html = METRICS.map(m => {
+        const used = data[m.key].filter(p => ptDateKey(p.start) === todayKey).reduce((s, p) => s + p.value, 0);
+        const ratio = used / m.limit;
+        const level = levelOf(ratio);
+        if (level === "danger" || (level === "warning" && worst === "normal")) worst = level;
+        const badgeText = level === "danger" ? "上限超過" : level === "warning" ? "80%以上" : "余裕あり";
+        // 今のペースのまま1日を終えた場合の見込み
+        const elapsed = Math.max(1, now - todayStart);
+        const projected = Math.round(used * (nextReset - todayStart) / elapsed);
+        return `<div class="meterRow">
+          <div class="meterHead">
+            <span class="meterName">${m.label}<span class="badge badge-${level}">${badgeText}</span></span>
+            <span class="meterNums">${fmt(used)} / ${fmt(m.limit)} 回（${(ratio * 100).toFixed(1)}%）・残り ${fmt(Math.max(0, m.limit - used))} 回・このペースだと1日で約 ${fmt(projected)} 回</span>
+          </div>
+          <div class="meterTrack"><div class="meterFill ${level === "normal" ? "" : level}" style="width:${Math.min(100, ratio * 100)}%"></div></div>
+        </div>`;
+      }).join("");
+      document.getElementById("todayMeters").innerHTML = html;
+
+      const statusText = worst === "danger"
+        ? "⚠️ 今日は無料枠の上限を超えています。リセットまで該当する操作が失敗する可能性があります。"
+        : worst === "warning"
+          ? "⚠️ 無料枠の上限に近づいています（80%以上）。"
+          : "✅ 今日は無料枠の範囲内です。";
+      document.getElementById("overallStatus").innerHTML =
+        `<span class="badge badge-${worst}" style="margin-left:0;font-size:13px;">${statusText}</span>`;
+    }
+
+    function renderHourly(data, todayStart, now) {
+      const hours = Math.max(1, Math.ceil((now - todayStart) / 3600000));
+      const slots = [];
+      for (let i = 0; i < hours; i++) {
+        slots.push({ start: new Date(todayStart.getTime() + i * 3600000), read: 0, write: 0, del: 0 });
+      }
+      METRICS.forEach(m => {
+        data[m.key].forEach(p => {
+          const idx = Math.floor((p.start - todayStart) / 3600000);
+          if (idx >= 0 && idx < slots.length) slots[idx][m.key] += p.value;
+        });
+      });
+
+      const max = Math.max(1, ...slots.map(s => Math.max(s.read, s.write, s.del)));
+      document.getElementById("hourChart").innerHTML = slots.map(s => {
+        const title = `${jstHour(s.start)}:00〜 読み取り:${fmt(s.read)} 書き込み:${fmt(s.write)} 削除:${fmt(s.del)}`;
+        return `<div class="chartCol" title="${title}">
+          <div class="chartBar read" style="height:${Math.round(s.read / max * 100)}%"></div>
+          <div class="chartBar write" style="height:${Math.round(s.write / max * 100)}%"></div>
+          <div class="chartBar del" style="height:${Math.round(s.del / max * 100)}%"></div>
+        </div>`;
+      }).join("");
+      document.getElementById("hourChartAxis").innerHTML = slots.map((s, i) =>
+        `<span>${i % 2 === 0 ? jstHour(s.start) + ":00" : ""}</span>`
+      ).join("");
+    }
+
+    function renderWeek(data, todayStart) {
+      // 今日から遡って7日分の日付キー（正午付近の時刻で日付を求め、夏時間の境目でもずれないようにする）
+      const keys = [];
+      for (let i = 6; i >= 0; i--) {
+        keys.push(ptDateKey(new Date(todayStart.getTime() - i * 86400000 + 12 * 3600000)));
+      }
+      const byDay = new Map(keys.map(k => [k, { key: k, read: 0, write: 0, del: 0 }]));
+      METRICS.forEach(m => {
+        data[m.key].forEach(p => {
+          const entry = byDay.get(ptDateKey(p.start));
+          if (entry) entry[m.key] += p.value;
+        });
+      });
+      const days = Array.from(byDay.values());
+
+      // 上限を基準にした割合で棒の高さを決める（上限ラインを100%として比べやすくする）
+      const ratios = days.flatMap(d => METRICS.map(m => d[m.key] / m.limit));
+      const maxRatio = Math.max(1, ...ratios);
+      document.getElementById("weekChart").innerHTML = days.map(d => {
+        const title = `${ptKeyLabel(d.key)} ` + METRICS.map(m => `${m.label}:${fmt(d[m.key])}`).join(" ");
+        return `<div class="chartCol" title="${title}">` + METRICS.map(m =>
+          `<div class="chartBar ${m.key}" style="height:${Math.round(d[m.key] / m.limit / maxRatio * 100)}%"></div>`
+        ).join("") + `</div>`;
+      }).join("");
+      document.getElementById("weekChartAxis").innerHTML = days.map(d => `<span>${ptKeyLabel(d.key)}</span>`).join("");
+
+      document.getElementById("weekTableBody").innerHTML = days.map(d => `
+        <tr>
+          <td>${ptKeyLabel(d.key)}</td>
+          ${METRICS.map(m => `<td class="${d[m.key] > m.limit ? "over" : ""}">${fmt(d[m.key])}<br><span class="note">${(d[m.key] / m.limit * 100).toFixed(1)}%</span></td>`).join("")}
+        </tr>
+      `).join("");
+    }
+  </script>
+
+  <script src="account-widgets.js?v=20260930"></script>
+</body>
+
+</html>
