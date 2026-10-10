@@ -100,14 +100,47 @@ window.VOCABOOST_LOAD_FONT = function (entry) {
   }
 };
 
+// ダークモード設定: "system"（端末の設定に合わせる・既定）| "light" | "dark"
+// 以前の設定(vocaboost_theme)はオン/オフの2択で、オフにすると"light"が保存されていたため、
+// 明示的にダークモードを選んでいた場合のみ"dark"として引き継ぎ、それ以外は端末の設定に合わせる。
+window.VOCABOOST_THEME_KEY = "vocaboost_themeMode";
+
+window.VOCABOOST_GET_THEME_MODE = function () {
+  try {
+    let mode = localStorage.getItem(window.VOCABOOST_THEME_KEY);
+    if (mode !== "system" && mode !== "light" && mode !== "dark") {
+      mode = localStorage.getItem("vocaboost_theme") === "dark" ? "dark" : "system";
+      localStorage.setItem(window.VOCABOOST_THEME_KEY, mode);
+    }
+    return mode;
+  } catch (e) {
+    return "system";
+  }
+};
+
+window.VOCABOOST_APPLY_THEME = function () {
+  const mode = window.VOCABOOST_GET_THEME_MODE();
+  const systemDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  if (mode === "dark" || (mode === "system" && systemDark)) {
+    document.documentElement.setAttribute("data-theme", "dark");
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+  }
+};
+
+// ページを開いたまま端末のダーク/ライトが切り替わった場合も追従する
+if (window.matchMedia) {
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  const onChange = () => window.VOCABOOST_APPLY_THEME();
+  if (mq.addEventListener) mq.addEventListener("change", onChange);
+  else if (mq.addListener) mq.addListener(onChange);
+}
+
 (function () {
   try {
-    const theme = localStorage.getItem("vocaboost_theme"); // "dark" | "light" | null
     const font = localStorage.getItem("vocaboost_font");   // "standard" | フォントのfamily名 | null
 
-    if (theme === "dark") {
-      document.documentElement.setAttribute("data-theme", "dark");
-    }
+    window.VOCABOOST_APPLY_THEME();
 
     if (font && font !== "standard") {
       // Google Fonts / ローカル同梱フォントが選択されている場合、CSSを動的に読み込んで反映する

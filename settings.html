@@ -89,6 +89,18 @@
       font-weight: bold;
     }
 
+    .theme-select {
+      flex-shrink: 0;
+      margin-left: 12px;
+      padding: 8px 10px;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      background: var(--color-surface);
+      color: var(--color-text);
+      font-size: 14px;
+      font-family: inherit;
+    }
+
     .option-row .option-desc {
       font-size: 12px;
       color: var(--color-text-sub);
@@ -298,16 +310,17 @@
         <div class="font-list" id="fontList"></div>
       </div>
 
-      <label class="option-row option-row-clickable" for="darkModeToggle">
+      <div class="option-row">
         <div>
           <div class="option-label">ダークモード</div>
-          <div class="option-desc">画面全体を暗い配色に切り替えます</div>
+          <div class="option-desc">画面全体の配色を選びます。「端末の設定に合わせる」では、端末のダークモードに合わせて自動で切り替わります</div>
         </div>
-        <span class="switch">
-          <input type="checkbox" id="darkModeToggle">
-          <span class="switch-track"></span>
-        </span>
-      </label>
+        <select id="themeModeSelect" class="theme-select">
+          <option value="system">端末の設定に合わせる</option>
+          <option value="light">ライト</option>
+          <option value="dark">ダーク</option>
+        </select>
+      </div>
     </div>
 
     <div class="card">
@@ -565,6 +578,7 @@
       "vocaboost_offlineBooks",
       "cachedUser",
       "vocaboost_theme",
+      "vocaboost_themeMode",
       "vocaboost_font",
       "learnedWords",
       "flashKnownWords",
@@ -661,12 +675,12 @@
        theme.js が起動時に <html data-theme> / --font-family をセット済み。
        ここでは設定ページ上のUI状態をそれに合わせ、変更時にlocalStorageへ保存する。 */
     const FONT_KEY = "vocaboost_font";
-    const THEME_KEY = "vocaboost_theme";
+    const THEME_KEY = window.VOCABOOST_THEME_KEY;
     const DEFAULT_FONT = "standard";
 
     const fontSearch = document.getElementById("fontSearch");
     const fontList = document.getElementById("fontList");
-    const darkModeToggle = document.getElementById("darkModeToggle");
+    const themeModeSelect = document.getElementById("themeModeSelect");
 
     // 「標準」を先頭に追加した全フォントリスト
     const ALL_FONTS = [
@@ -806,16 +820,11 @@
     // 初期表示
     renderFontList("");
 
-    darkModeToggle.checked = localStorage.getItem(THEME_KEY) === "dark";
+    themeModeSelect.value = window.VOCABOOST_GET_THEME_MODE();
 
-    darkModeToggle.addEventListener("change", () => {
-      if (darkModeToggle.checked) {
-        document.documentElement.setAttribute("data-theme", "dark");
-        localStorage.setItem(THEME_KEY, "dark");
-      } else {
-        document.documentElement.removeAttribute("data-theme");
-        localStorage.setItem(THEME_KEY, "light");
-      }
+    themeModeSelect.addEventListener("change", () => {
+      localStorage.setItem(THEME_KEY, themeModeSelect.value);
+      window.VOCABOOST_APPLY_THEME();
     });
   </script>
 
