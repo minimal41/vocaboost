@@ -28,6 +28,17 @@
 4. **学習**: 作成した単語帳を開いて、フラッシュカード形式などで学習できます。
 5. **公開**: 設定を「公開」にすると、他のユーザーがあなたの単語帳を見つけられるようになります。
 
+## 🔔 プッシュ通知（スマホ向け）の設定
+
+通知（運営からのお知らせ・フォロー・お気に入り登録など）を、スマホにプッシュ通知としても届けられます。
+利用者は「設定」→「通知設定」でオンにします（PCでは項目が表示されません。iPhone・iPadはiOS 16.4以降で、ホーム画面に追加したアプリから開いた場合のみ）。
+
+有効にするには、運営側で次の作業が必要です。
+
+1. **VAPIDキーの設定**: Firebaseコンソール →「プロジェクトの設定」→「Cloud Messaging」→「ウェブプッシュ証明書」で鍵ペアを生成し、公開鍵を `account-widgets.js` の `PUSH_VAPID_KEY` に貼り付ける（空のままだと設定画面に「準備中」と表示される）。
+2. **Firestoreルールの反映**: `firestore.rules` に追加した `pushTokens` のルールを公開する（`firebase deploy --only firestore:rules`）。
+3. **Cloud Functionsのデプロイ**: Firebaseプロジェクトを従量課金(Blaze)プランにしたうえで、`cd functions && npm install && cd .. && firebase deploy --only functions`。`notifications` に通知が追加されるたびに `functions/index.js` が宛先の端末へ送信する。
+
 ## 📅 更新履歴
 
 詳細なアップデート内容は [update.html](./quiz1/update.html) をご確認ください。

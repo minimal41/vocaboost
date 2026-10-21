@@ -302,3 +302,64 @@ self.addEventListener('fetch', (event) => {
       .then((response) => response || fetch(event.request))
   );
 });
+// ===== プッシュ通知（スマホ向け） =====
+// 送信はFirebase Cloud Functions(functions/index.js)が、notificationsコレクションに
+// 通知が追加されたタイミングでFirebase Cloud Messaging経由で行う。
+// 通知の表示は自前で行うため、FCMからは表示用のnotificationを含まない
+// dataメッセージ（title・body・link・notifId）として届く。
+// ページ側(account-widgets.js)が「最後にプッシュ通知を受け取った時刻」を見て
+// ヘッダーの通知ベルのキャッシュを読み直せるよう、受信時刻をメタデータ用キャッシュに記録する。
+const LAST_PUSH_REQUEST = new Request('./__sw_meta__/last_push');
+
+// 通知ベル・通知一覧ページと同じ安全性チェック（相対パスの.htmlのみ遷移先として許可する）
+function isSafePushLink(link) {
+  return typeof link === 'string' && /^[a-zA-Z0-9_-]+\.html(\?[a-zA-Z0-9_=&%.-]*)?$/.test(link);
+}
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (e) {
+    payload = { data: { body: event.data ? event.data.text() : '' } };
+  }
+  // FCMのdataメッセージは { data: {...}, from, ... } の形で届く
+  const data = payload.data || payload;
+  const fallback = payload.notification || {};
+  const title = data.title || fallback.title || 'Vocaboost';
+  const body = data.body || fallback.body || '';
+  const link = isSafePushLink(data.link) ? data.link : 'notifications.html';
+
+  event.waitUntil(Promise.all([
+    // iOSでは、受け取ったプッシュごとに必ず通知を表示しないと購読が取り消されるため、
+    // アプリを開いている最中でも常に表示する
+    self.registration.showNotification(title, {
+      body,
+      icon: './images/icon.png',
+      tag: data.notifId || undefined,
+      data: { link }
+    }),
+    caches.open(META_CACHE_NAME)
+      .then((cache) => cache.put(LAST_PUSH_REQUEST, new Response(String(Date.now()))))
+      .catch(() => {}),
+    // 開いているページのヘッダーの通知ベルを、すぐに最新の内容に更新させる
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) => clients.forEach((client) => client.postMessage({ type: 'vocaboost-push-received' })))
+      .catch(() => {})
+  ]));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const link = (event.notification.data && event.notification.data.link) || 'notifications.html';
+  const targetUrl = new URL(link, self.registration.scope).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      // 同じページが既に開いていればそれを前面に出し、無ければ新しく開く
+      const existing = clients.find((client) => client.url === targetUrl);
+      if (existing && 'focus' in existing) return existing.focus();
+      return self.clients.openWindow(targetUrl);
+    })
+  );
+});

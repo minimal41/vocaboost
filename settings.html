@@ -249,6 +249,22 @@
       line-height: 1.6;
     }
 
+    .pushMsg {
+      font-size: 13px;
+      color: var(--color-text-sub);
+      line-height: 1.6;
+      text-align: left;
+    }
+
+    .pushMsg:empty {
+      display: none;
+    }
+
+    .switch input:disabled + .switch-track {
+      cursor: not-allowed;
+      opacity: .5;
+    }
+
     .cacheUsage {
       font-size: 13px;
       color: var(--color-text-sub);
@@ -321,6 +337,22 @@
           <option value="dark">ダーク</option>
         </select>
       </div>
+    </div>
+
+    <!-- スマホ・タブレットのときだけ表示する（account-widgets.js の VOCABOOST_PUSH） -->
+    <div class="card" id="pushCard" style="display:none">
+      <h2>通知設定</h2>
+      <div class="option-row">
+        <div>
+          <div class="option-label">プッシュ通知</div>
+          <div class="option-desc">運営からのお知らせ・フォロー・お気に入り登録などの通知を、サイトを開いていない時もこの端末に届けます</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="pushToggle" disabled>
+          <span class="switch-track"></span>
+        </label>
+      </div>
+      <div id="pushMsg" class="pushMsg"></div>
     </div>
 
     <div class="card">
@@ -572,7 +604,7 @@
        Service Workerが保存しているページのコピー(Cache Storage)を削除する。
        次のものは削除しない（下の一覧に無い保存データは、今後増えたものも含めてすべて削除対象）:
         - オフラインに保存した単語帳と、オフラインモードのページを電波が無くても開くためのファイル
-        - ログイン状態、表示設定（フォント・ダークモード）
+        - ログイン状態、表示設定（フォント・ダークモード）、プッシュ通知の設定
         - 学習の記録（テストの正解済み・暗記の「覚えた」）と、アクセス解析用の端末ID */
     const KEEP_STORAGE_KEYS = [
       "vocaboost_offlineBooks",
@@ -580,6 +612,7 @@
       "vocaboost_theme",
       "vocaboost_themeMode",
       "vocaboost_font",
+      "vocaboost_push",
       "learnedWords",
       "flashKnownWords",
       "vocaboost_deviceId"
@@ -826,9 +859,62 @@
       localStorage.setItem(THEME_KEY, themeModeSelect.value);
       window.VOCABOOST_APPLY_THEME();
     });
+
+    /* ===== プッシュ通知設定 =====
+       実際の登録・解除は account-widgets.js（このスクリプトより後に読み込まれる）の
+       VOCABOOST_PUSH が行うため、全スクリプトの読み込み後に初期化する。 */
+    const PUSH_STATUS_MESSAGES = {
+      needs_install: "iPhone・iPadでは、Safariの共有ボタンから「ホーム画面に追加」し、ホーム画面のアイコンから開くとプッシュ通知をオンにできます（iOS 16.4以降）。",
+      unsupported: "このブラウザはプッシュ通知に対応していません。",
+      not_configured: "プッシュ通知は現在準備中です。",
+      denied: "通知がブロックされています。端末の設定（またはブラウザのサイト設定）からこのサイトの通知を許可してください。",
+      enabled: "",
+      disabled: ""
+    };
+
+    function renderPushSetting(status) {
+      const card = document.getElementById("pushCard");
+      const toggle = document.getElementById("pushToggle");
+      const msg = document.getElementById("pushMsg");
+      if (status === "pc") {
+        card.style.display = "none";
+        return;
+      }
+      card.style.display = "";
+      toggle.checked = status === "enabled";
+      toggle.disabled = status !== "enabled" && status !== "disabled";
+      msg.textContent = PUSH_STATUS_MESSAGES[status] || "";
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      if (!window.VOCABOOST_PUSH) return;
+      const toggle = document.getElementById("pushToggle");
+      const msg = document.getElementById("pushMsg");
+      renderPushSetting(window.VOCABOOST_PUSH.getStatus());
+      // ログイン確認が終わると「別アカウントで有効にした設定」かどうかが確定するため描画し直す
+      auth.onAuthStateChanged(() => renderPushSetting(window.VOCABOOST_PUSH.getStatus()));
+
+      toggle.addEventListener("change", async () => {
+        const turningOn = toggle.checked;
+        toggle.disabled = true;
+        msg.textContent = turningOn ? "設定しています..." : "解除しています...";
+        try {
+          const status = turningOn
+            ? await window.VOCABOOST_PUSH.enable()
+            : await window.VOCABOOST_PUSH.disable();
+          renderPushSetting(status);
+          if (turningOn && status === "enabled") msg.textContent = "プッシュ通知をオンにしました。";
+          else if (turningOn && status === "disabled") msg.textContent = "通知が許可されなかったため、オンにできませんでした。";
+        } catch (e) {
+          console.error("settings: failed to change push setting", e);
+          renderPushSetting(window.VOCABOOST_PUSH.getStatus());
+          msg.textContent = "設定を変更できませんでした: " + e.message;
+        }
+      });
+    });
   </script>
 
-  <script src="account-widgets.js?v=20260930"></script>
+  <script src="account-widgets.js?v=20261021"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 

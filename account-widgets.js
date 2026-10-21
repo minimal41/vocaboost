@@ -368,6 +368,255 @@
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   };
 
+  // ===== スマホ向けプッシュ通知 =====
+  // 設定ページ(settings.html)でオンにすると、この端末のFirebase Cloud Messagingの
+  // トークンを pushTokens/{トークン} に保存する。notificationsコレクションに通知が
+  // 追加されると、Cloud Functions(functions/index.js)が宛先ユーザーのトークンへ
+  // プッシュ通知を送り、service-worker.js が受け取って表示する。
+  // 対象はスマホ・タブレットのみ（PCでは設定項目自体を表示しない）。
+  // iPhone・iPadはiOS 16.4以降で、ホーム画面に追加したアプリから開いた場合のみ利用できる。
+
+  // Firebaseコンソール →「プロジェクトの設定」→「Cloud Messaging」→「ウェブプッシュ証明書」で
+  // 生成した鍵ペア（公開鍵）。空のままの間はプッシュ通知の設定を「準備中」として無効にする。
+  const PUSH_VAPID_KEY = "";
+  const PUSH_STATE_KEY = "vocaboost_push";
+  // トークンはFCM側で更新されることがあるため、1日に1回程度確認して保存し直す
+  const PUSH_TOKEN_REFRESH_MS = 24 * 60 * 60 * 1000;
+  const MESSAGING_SDK_URL = "https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js";
+
+  function isMobileDevice() {
+    if (navigator.userAgentData && navigator.userAgentData.mobile === true) return true;
+    const ua = navigator.userAgent || "";
+    if (/Android|iPhone|iPad|iPod/i.test(ua)) return true;
+    // iPadOS 13以降のSafariはMacと同じUser-Agentを名乗るため、タッチ対応かどうかで見分ける
+    return /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+  }
+
+  function isIOSDevice() {
+    const ua = navigator.userAgent || "";
+    return /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  }
+
+  function isStandaloneApp() {
+    return window.navigator.standalone === true ||
+      (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+  }
+
+  function isPushSupported() {
+    return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  }
+
+  function loadPushState() {
+    try {
+      return JSON.parse(localStorage.getItem(PUSH_STATE_KEY) || "null");
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function savePushState(state) {
+    try {
+      localStorage.setItem(PUSH_STATE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.warn("account-widgets: failed to save push state", e);
+    }
+  }
+
+  function clearPushState() {
+    try {
+      localStorage.removeItem(PUSH_STATE_KEY);
+    } catch (e) { }
+  }
+
+  // ログアウト等、応答を待ち続けると操作が止まってしまう箇所で使う
+  function withTimeout(promise, ms) {
+    return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms))]);
+  }
+
+  // Messaging SDKはプッシュ通知を使う場合にしか必要ないため、全ページで読み込まず必要になった時だけ読み込む
+  let messagingSdkPromise = null;
+  function loadMessagingSdk() {
+    if (firebase.messaging) return Promise.resolve();
+    if (!messagingSdkPromise) {
+      messagingSdkPromise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = MESSAGING_SDK_URL;
+        script.onload = () => resolve();
+        script.onerror = () => {
+          messagingSdkPromise = null;
+          reject(new Error("failed to load firebase messaging"));
+        };
+        document.head.appendChild(script);
+      });
+    }
+    return messagingSdkPromise;
+  }
+
+  async function fetchPushToken() {
+    await loadMessagingSdk();
+    // service-worker.js はindex.htmlでしか登録していないため、他のページから有効にした場合に備えて
+    // ここでも登録する（登録済みなら同じ登録がそのまま返る）
+    await navigator.serviceWorker.register("./service-worker.js");
+    const registration = await navigator.serviceWorker.ready;
+    return firebase.messaging().getToken({
+      vapidKey: PUSH_VAPID_KEY,
+      serviceWorkerRegistration: registration
+    });
+  }
+
+  async function savePushToken(uid, token) {
+    await firebase.firestore().collection("pushTokens").doc(token).set({
+      uid: uid,
+      token: token,
+      userAgent: (navigator.userAgent || "").slice(0, 300),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }
+
+  async function deletePushTokenDoc(token) {
+    if (!token) return;
+    try {
+      await firebase.firestore().collection("pushTokens").doc(token).delete();
+    } catch (e) {
+      console.warn("account-widgets: failed to delete push token", e);
+    }
+  }
+
+  // FCM側のトークン自体を無効にする（Firestoreから消せなかった場合でも、
+  // 無効になったトークンはCloud Functionsが送信時に自動で削除する）
+  async function deleteFcmToken() {
+    try {
+      await loadMessagingSdk();
+      await firebase.messaging().deleteToken();
+    } catch (e) {
+      console.warn("account-widgets: failed to delete FCM token", e);
+    }
+  }
+
+  function currentPushUid() {
+    try {
+      const user = window.firebase && firebase.apps && firebase.apps.length > 0 ? firebase.auth().currentUser : null;
+      if (user) return user.uid;
+      const savedUser = JSON.parse(localStorage.getItem("cachedUser"));
+      return savedUser && savedUser.uid;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // settings.html の表示用。
+  // "pc" / "unsupported" / "needs_install" / "not_configured" / "denied" / "enabled" / "disabled"
+  function getPushStatus() {
+    if (!isMobileDevice()) return "pc";
+    if (isIOSDevice() && !isStandaloneApp()) return "needs_install";
+    if (!isPushSupported()) return "unsupported";
+    if (!PUSH_VAPID_KEY) return "not_configured";
+    if (Notification.permission === "denied") return "denied";
+    const state = loadPushState();
+    if (state && state.uid === currentPushUid() && Notification.permission === "granted") return "enabled";
+    return "disabled";
+  }
+
+  async function enablePush() {
+    const user = firebase.auth().currentUser;
+    if (!user) throw new Error("ログインしてください");
+    // iOSでは許可を求めるダイアログはボタン操作の直後にしか出せないため、他の処理より先に呼ぶ
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return getPushStatus();
+
+    const token = await fetchPushToken();
+    const prev = loadPushState();
+    if (prev && prev.token && prev.token !== token && prev.uid === user.uid) {
+      await deletePushTokenDoc(prev.token);
+    }
+    await savePushToken(user.uid, token);
+    savePushState({ uid: user.uid, token: token, checkedAt: Date.now() });
+    return getPushStatus();
+  }
+
+  async function disablePush() {
+    const state = loadPushState();
+    clearPushState();
+    if (state && state.uid === currentPushUid()) {
+      await deletePushTokenDoc(state.token);
+    }
+    await deleteFcmToken();
+    return getPushStatus();
+  }
+
+  // ページを開いてログインが確認できた時に呼ぶ。トークンの更新や、
+  // 別のアカウントでログインし直された場合の後始末を行う。
+  async function syncPushToken(user) {
+    const state = loadPushState();
+    if (!state || !PUSH_VAPID_KEY || !isPushSupported()) return;
+
+    // 前のアカウントのトークンが残っていると、そのアカウント宛ての通知がこの端末に届き続けてしまう。
+    // 前のアカウントのpushTokensは今のアカウントでは削除できないため、FCMのトークンごと無効にする。
+    if (state.uid !== user.uid) {
+      clearPushState();
+      await deleteFcmToken();
+      return;
+    }
+    if (Notification.permission !== "granted") {
+      clearPushState();
+      await deletePushTokenDoc(state.token);
+      return;
+    }
+    if (state.checkedAt && Date.now() - state.checkedAt < PUSH_TOKEN_REFRESH_MS) return;
+
+    try {
+      const token = await fetchPushToken();
+      if (token !== state.token) await deletePushTokenDoc(state.token);
+      await savePushToken(user.uid, token);
+      savePushState({ uid: user.uid, token: token, checkedAt: Date.now() });
+    } catch (e) {
+      console.warn("account-widgets: failed to refresh push token", e);
+    }
+  }
+
+  // ログアウト後もこの端末に前のユーザー宛ての通知が届き続けないよう、
+  // サインアウトの直前（まだpushTokensを削除する権限がある間）にトークンを削除する。
+  // 各ページの logout() はそれぞれ auth.signOut() を呼んでいるため、ここで共通に差し込む。
+  function hookSignOutForPush(auth) {
+    if (auth.__vocaboostPushHooked) return;
+    auth.__vocaboostPushHooked = true;
+    const originalSignOut = auth.signOut.bind(auth);
+    auth.signOut = async function () {
+      const state = loadPushState();
+      if (state) {
+        clearPushState();
+        try {
+          await withTimeout(Promise.all([
+            state.uid === (auth.currentUser && auth.currentUser.uid) ? deletePushTokenDoc(state.token) : null,
+            deleteFcmToken()
+          ]), 4000);
+        } catch (e) {
+          console.warn("account-widgets: failed to unregister push before sign out", e);
+        }
+      }
+      return originalSignOut();
+    };
+  }
+
+  window.VOCABOOST_PUSH = {
+    getStatus: getPushStatus,
+    enable: enablePush,
+    disable: disablePush
+  };
+
+  // service-worker.js がプッシュ通知を受け取った時刻。これが通知ベルのキャッシュより新しければ、
+  // キャッシュの有効期限内でも通知一覧を読み直す
+  async function lastPushReceivedAt() {
+    try {
+      if (!window.caches) return 0;
+      const cache = await caches.open("pwa-sample-cache-meta");
+      const res = await cache.match("./__sw_meta__/last_push");
+      return res ? parseInt(await res.text(), 10) || 0 : 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
   let notifications = [];
   let readIds = [];
   let dropdownOpen = false;
@@ -796,8 +1045,25 @@
     const auth = firebase.auth();
     const db = firebase.firestore();
 
+    hookSignOutForPush(auth);
+
+    // ページを開いている間にプッシュ通知が届いたら、通知ベルをすぐに最新にする
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", async (event) => {
+        if (!event.data || event.data.type !== "vocaboost-push-received") return;
+        const user = auth.currentUser;
+        if (!user) return;
+        const isAdmin = ADMIN_EMAILS.includes(user.email);
+        await loadNotifications(user, isAdmin);
+        notifFetchedAt = Date.now();
+        saveNotifCache(user.uid, isAdmin);
+      });
+    }
+
     auth.onAuthStateChanged(async (user) => {
       if (!user) return;
+
+      syncPushToken(user);
 
       const isAdmin = ADMIN_EMAILS.includes(user.email);
 
@@ -849,7 +1115,8 @@
       // 通知一覧はページを移動するたびに最大60件を読み直していたため、
       // 直近(NOTIF_REFRESH_MS以内)に取得したキャッシュがあればそれを使い、通信を省く
       const cached = loadNotifCache(user.uid);
-      if (cached && cached.savedAt && Date.now() - cached.savedAt < NOTIF_REFRESH_MS && cached.isAdmin === isAdmin) {
+      if (cached && cached.savedAt && Date.now() - cached.savedAt < NOTIF_REFRESH_MS && cached.isAdmin === isAdmin &&
+        (await lastPushReceivedAt()) <= cached.savedAt) {
         notifications = cached.notifications || [];
         notifFetchedAt = cached.savedAt;
         updateBadge();
