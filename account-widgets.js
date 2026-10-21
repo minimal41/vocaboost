@@ -287,7 +287,7 @@
   // 送信の成否は通知の作成自体には影響させない（失敗してもベル・通知一覧には表示される）。
   // push-worker をデプロイしたときに表示されるURL（例: https://vocaboost-push.xxxx.workers.dev）。
   // 空のままの間は送信依頼をせず、設定ページのプッシュ通知も「準備中」として無効にする。
-  const PUSH_WORKER_URL = "";
+  const PUSH_WORKER_URL = "https://vocaboost-push.minimal41.workers.dev";
 
   window.VOCABOOST_SEND_PUSH = async function (notifId) {
     if (!PUSH_WORKER_URL || !notifId) return;
@@ -408,7 +408,7 @@
 
   // Firebaseコンソール →「プロジェクトの設定」→「Cloud Messaging」→「ウェブプッシュ証明書」で
   // 生成した鍵ペア（公開鍵）。空のままの間はプッシュ通知の設定を「準備中」として無効にする。
-  const PUSH_VAPID_KEY = "";
+  const PUSH_VAPID_KEY = "BGlIoxE8gDvs5rup7OfsTXmeFNn78t-jJNODcwDDd5C95oun-oq5Wx3xKvDJjvzVWuz6a7_gqjyRbwxhcp66VdE";
   const PUSH_STATE_KEY = "vocaboost_push";
   // トークンはFCM側で更新されることがあるため、1日に1回程度確認して保存し直す
   const PUSH_TOKEN_REFRESH_MS = 24 * 60 * 60 * 1000;
