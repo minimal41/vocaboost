@@ -1,0 +1,16 @@
+# プッシュ通知の送信用 Cloudflare Worker（push-worker/README.md を参照）
+name = "vocaboost-push"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# 送信先の端末が多い場合に、送信を複数の呼び出しに分けるための自分自身への接続
+# （無料プランでは1回の呼び出しで外部へ送れるリクエストが50件までのため）
+services = [
+  { binding = "SENDER", service = "vocaboost-push", entrypoint = "Sender" }
+]
+
+[vars]
+# 管理者のメールアドレス（account-widgets.js・admin.html・firestore.rules などと同じ一覧）
+ADMIN_EMAILS = "202301745@edu.nishiyamato.ed.jp,202305145@edu.nishiyamato.ed.jp"
+
+# FIREBASE_SERVICE_ACCOUNT（サービスアカウントの秘密鍵JSON）は wrangler secret で設定する

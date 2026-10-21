@@ -451,7 +451,7 @@
   <!-- 単語帳の描画処理がVOCABOOST_AVATAR_HTML等を使うため、共通スクリプトはメインスクリプトより先に読み込む
        （Firestoreのキャッシュから即座にデータが返ると、後から読み込んでいた場合に未定義エラーになっていた） -->
   <script src="offline-storage.js"></script>
-  <script src="account-widgets.js?v=20261021"></script>
+  <script src="account-widgets.js?v=20261021b"></script>
 
   <script>
     // 他ページと同じFirebase SDK(compatビルド, 9.23.0)で統一する。
@@ -1000,7 +1000,7 @@
 
         // 運営のヘッダー通知ベルにだけ届く通知（通報理由の中身は含めない）
         try {
-          await db.collection("notifications").add({
+          const notifRef = await db.collection("notifications").add({
             title: "新しい通報があります",
             body: `単語帳「${book.title || "(無題)"}」が通報されました`,
             target: "admin",
@@ -1008,6 +1008,8 @@
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             createdBy: currentUser.uid
           });
+          // スマホへのプッシュ通知（account-widgets.js）
+          if (window.VOCABOOST_SEND_PUSH) window.VOCABOOST_SEND_PUSH(notifRef.id);
         } catch (e) {
           console.error("admin notification failed", e);
         }

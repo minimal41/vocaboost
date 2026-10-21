@@ -159,8 +159,8 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // プッシュ通知の送信先（スマホ向け、account-widgets.jsのVOCABOOST_PUSH / functions/index.js）。
-    // ドキュメントIDはこの端末のFCMトークンそのもの。送信はCloud Functions(管理者権限)が
+    // プッシュ通知の送信先（スマホ向け、account-widgets.jsのVOCABOOST_PUSH / push-worker/）。
+    // ドキュメントIDはこの端末のFCMトークンそのもの。送信はCloudflare Worker(サービスアカウント)が
     // 読み取って行うため、クライアントからは本人の分しか読み書きできない。
     // 同じ端末で別のアカウントにログインし直した場合に同じトークンを登録し直せるよう、
     // 作成・更新は「自分のuidで、IDとtokenが一致する」ことだけを条件にする
@@ -172,6 +172,12 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.token == tokenId
         && request.resource.data.updatedAt == request.time;
+    }
+
+    // プッシュ通知の送信済み記録（push-worker/ が同じ通知を二度送らないために作成する）。
+    // サービスアカウントだけが読み書きし、クライアントからは一切アクセスさせない。
+    match /pushSent/{notifId} {
+      allow read, write: if false;
     }
 
     // 通報。単語帳・ユーザーの通報機能。内容は運営にのみ届く必要があるため、

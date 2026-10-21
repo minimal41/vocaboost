@@ -33,11 +33,14 @@
 通知（運営からのお知らせ・フォロー・お気に入り登録など）を、スマホにプッシュ通知としても届けられます。
 利用者は「設定」→「通知設定」でオンにします（PCでは項目が表示されません。iPhone・iPadはiOS 16.4以降で、ホーム画面に追加したアプリから開いた場合のみ）。
 
-有効にするには、運営側で次の作業が必要です。
+送信は Cloudflare Workers（無料プラン）で行うため、Firebase は Spark（無料）プランのままで使えます。
+有効にするには、運営側で次の作業が必要です（詳しい手順は [push-worker/README.md](./push-worker/README.md)）。
 
-1. **VAPIDキーの設定**: Firebaseコンソール →「プロジェクトの設定」→「Cloud Messaging」→「ウェブプッシュ証明書」で鍵ペアを生成し、公開鍵を `account-widgets.js` の `PUSH_VAPID_KEY` に貼り付ける（空のままだと設定画面に「準備中」と表示される）。
-2. **Firestoreルールの反映**: `firestore.rules` に追加した `pushTokens` のルールを公開する（`firebase deploy --only firestore:rules`）。
-3. **Cloud Functionsのデプロイ**: Firebaseプロジェクトを従量課金(Blaze)プランにしたうえで、`cd functions && npm install && cd .. && firebase deploy --only functions`。`notifications` に通知が追加されるたびに `functions/index.js` が宛先の端末へ送信する。
+1. **Workerのデプロイ**: `push-worker/` を Cloudflare Workers にデプロイし、表示されたURLを `account-widgets.js` の `PUSH_WORKER_URL` に貼り付ける。
+2. **VAPIDキーの設定**: Firebaseコンソール →「プロジェクトの設定」→「Cloud Messaging」→「ウェブプッシュ証明書」で鍵ペアを生成し、公開鍵を `account-widgets.js` の `PUSH_VAPID_KEY` に貼り付ける。
+3. **Firestoreルールの反映**: `firestore.rules` に追加した `pushTokens`・`pushSent` のルールを公開する。
+
+`PUSH_WORKER_URL`・`PUSH_VAPID_KEY` のどちらかが空の間は、設定画面に「準備中」と表示されます。
 
 ## 📅 更新履歴
 

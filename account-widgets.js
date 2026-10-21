@@ -280,6 +280,33 @@
   };
   window.VOCABOOST_IS_VALID_PHOTO_URL = isValidProfilePhotoUrl;
 
+  // ===== 通知のプッシュ送信依頼 =====
+  // 通知(notifications)を作成した直後に呼ぶと、Cloudflare Worker(push-worker/)が
+  // 宛先ユーザーのスマホへプッシュ通知を送る。Worker側でIDトークンを検証し、
+  // 呼び出した本人がその通知の作成者か管理者であることを確かめてから送信する。
+  // 送信の成否は通知の作成自体には影響させない（失敗してもベル・通知一覧には表示される）。
+  // push-worker をデプロイしたときに表示されるURL（例: https://vocaboost-push.xxxx.workers.dev）。
+  // 空のままの間は送信依頼をせず、設定ページのプッシュ通知も「準備中」として無効にする。
+  const PUSH_WORKER_URL = "";
+
+  window.VOCABOOST_SEND_PUSH = async function (notifId) {
+    if (!PUSH_WORKER_URL || !notifId) return;
+    try {
+      const user = firebase.auth().currentUser;
+      if (!user) return;
+      const idToken = await user.getIdToken();
+      // 送信直後にページを移動しても依頼が途中で切れないよう keepalive を付ける
+      await fetch(PUSH_WORKER_URL.replace(/\/$/, "") + "/notify", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + idToken, "Content-Type": "application/json" },
+        body: JSON.stringify({ notifId: notifId }),
+        keepalive: true
+      });
+    } catch (e) {
+      console.warn("account-widgets: failed to request push", e);
+    }
+  };
+
   // ===== フォロー中のユーザーが新しい単語帳を作成したときの通知 =====
   // create.html(新規作成)・edit.html(複製)から、公開状態の単語帳が新規に
   // 保存された直後に呼び出す。フォロワー一覧は、他人のusersドキュメントの
@@ -294,7 +321,7 @@
       const followerUids = snap.docs.map(d => d.id);
       if (followerUids.length === 0) return;
 
-      await db.collection("notifications").add({
+      const ref = await db.collection("notifications").add({
         title: "フォロー中のユーザーが単語帳を作成しました",
         body: `${ownerName || "名無し"}さんが「${bookTitle || "(無題)"}」を作成しました`,
         target: "follow_new_book",
@@ -303,6 +330,7 @@
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         createdBy: ownerUid
       });
+      window.VOCABOOST_SEND_PUSH(ref.id);
     } catch (e) {
       console.error("account-widgets: failed to notify followers of new book", e);
     }
@@ -314,7 +342,7 @@
   window.VOCABOOST_NOTIFY_FOLLOWED = async function (db, followerUid, followerName, targetUid) {
     if (followerUid === targetUid) return;
     try {
-      await db.collection("notifications").add({
+      const ref = await db.collection("notifications").add({
         title: "新しいフォロワーがいます",
         body: `${followerName || "名無し"}さんにフォローされました`,
         target: "follow",
@@ -323,6 +351,7 @@
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         createdBy: followerUid
       });
+      window.VOCABOOST_SEND_PUSH(ref.id);
     } catch (e) {
       console.error("account-widgets: failed to notify followed user", e);
     }
@@ -334,7 +363,7 @@
   window.VOCABOOST_NOTIFY_FAVORITED = async function (db, favoriterUid, favoriterName, bookOwnerUid, bookId, bookTitle) {
     if (favoriterUid === bookOwnerUid) return;
     try {
-      await db.collection("notifications").add({
+      const ref = await db.collection("notifications").add({
         title: "単語帳がお気に入りに登録されました",
         body: `${favoriterName || "名無し"}さんに「${bookTitle || "(無題)"}」がお気に入りに登録されました`,
         target: "favorite_book",
@@ -343,6 +372,7 @@
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         createdBy: favoriterUid
       });
+      window.VOCABOOST_SEND_PUSH(ref.id);
     } catch (e) {
       console.error("account-widgets: failed to notify book owner of favorite", e);
     }
@@ -371,7 +401,7 @@
   // ===== スマホ向けプッシュ通知 =====
   // 設定ページ(settings.html)でオンにすると、この端末のFirebase Cloud Messagingの
   // トークンを pushTokens/{トークン} に保存する。notificationsコレクションに通知が
-  // 追加されると、Cloud Functions(functions/index.js)が宛先ユーザーのトークンへ
+  // 追加されると、Cloudflare Worker(push-worker/、VOCABOOST_SEND_PUSHで依頼)が宛先ユーザーのトークンへ
   // プッシュ通知を送り、service-worker.js が受け取って表示する。
   // 対象はスマホ・タブレットのみ（PCでは設定項目自体を表示しない）。
   // iPhone・iPadはiOS 16.4以降で、ホーム画面に追加したアプリから開いた場合のみ利用できる。
@@ -483,7 +513,7 @@
   }
 
   // FCM側のトークン自体を無効にする（Firestoreから消せなかった場合でも、
-  // 無効になったトークンはCloud Functionsが送信時に自動で削除する）
+  // 無効になったトークンはpush-workerが送信時に自動で削除する）
   async function deleteFcmToken() {
     try {
       await loadMessagingSdk();
@@ -510,7 +540,7 @@
     if (!isMobileDevice()) return "pc";
     if (isIOSDevice() && !isStandaloneApp()) return "needs_install";
     if (!isPushSupported()) return "unsupported";
-    if (!PUSH_VAPID_KEY) return "not_configured";
+    if (!PUSH_VAPID_KEY || !PUSH_WORKER_URL) return "not_configured";
     if (Notification.permission === "denied") return "denied";
     const state = loadPushState();
     if (state && state.uid === currentPushUid() && Notification.permission === "granted") return "enabled";

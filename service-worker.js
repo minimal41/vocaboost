@@ -303,8 +303,8 @@ self.addEventListener('fetch', (event) => {
   );
 });
 // ===== プッシュ通知（スマホ向け） =====
-// 送信はFirebase Cloud Functions(functions/index.js)が、notificationsコレクションに
-// 通知が追加されたタイミングでFirebase Cloud Messaging経由で行う。
+// 送信はCloudflare Worker(push-worker/)が、notificationsコレクションに通知が
+// 追加された直後にページから依頼を受け、Firebase Cloud Messaging経由で行う。
 // 通知の表示は自前で行うため、FCMからは表示用のnotificationを含まない
 // dataメッセージ（title・body・link・notifId）として届く。
 // ページ側(account-widgets.js)が「最後にプッシュ通知を受け取った時刻」を見て

@@ -1255,7 +1255,7 @@
       msg.textContent = "送信しています...";
 
       try {
-        await db.collection("notifications").add({
+        const notifRef = await db.collection("notifications").add({
           title: title,
           body: body,
           target: target,
@@ -1263,6 +1263,8 @@
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           createdBy: currentUser.uid
         });
+        // スマホへのプッシュ通知（account-widgets.js）
+        if (window.VOCABOOST_SEND_PUSH) window.VOCABOOST_SEND_PUSH(notifRef.id);
       } catch (e) {
         console.error(e);
         msg.className = "notice";
@@ -1331,7 +1333,7 @@
     }
   </script>
 
-  <script src="account-widgets.js?v=20261021"></script>
+  <script src="account-widgets.js?v=20261021b"></script>
 </body>
 
 </html>
