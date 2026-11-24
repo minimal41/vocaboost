@@ -76,6 +76,33 @@
       flex-shrink: 0;
     }
 
+    .clearAllWrap {
+      display: none;
+      justify-content: flex-end;
+      margin-bottom: 10px;
+    }
+
+    .clearAllWrap.visible {
+      display: flex;
+    }
+
+    .clearAllBtn {
+      background: none;
+      border: 1px solid var(--color-danger);
+      color: var(--color-danger);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 0;
+    }
+
+    .clearAllBtn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
     .userRow {
       display: flex;
       align-items: center;
@@ -167,6 +194,9 @@
     <div id="tabPanel_books" class="tabPanel active">
       <div class="card">
         <h2>お気に入りの単語帳</h2>
+        <div id="clearAllWrap" class="clearAllWrap">
+          <button type="button" id="clearAllFavBtn" class="clearAllBtn" onclick="removeAllFavorites()">すべて解除</button>
+        </div>
         <div id="favBookList"><p class="emptyMsg">読み込み中...</p></div>
       </div>
     </div>
@@ -312,6 +342,13 @@
     }
 
     // ===== お気に入りの単語帳 =====
+    // 「すべて解除」ボタンは、一覧に単語帳が1件以上表示されているときだけ出す
+    function updateClearAllVisibility() {
+      const listEl = document.getElementById("favBookList");
+      const hasRows = !!(listEl && listEl.querySelector(".bookRow"));
+      document.getElementById("clearAllWrap").classList.toggle("visible", hasRows);
+    }
+
     async function loadFavorites(uid) {
       const listEl = document.getElementById("favBookList");
       try {
@@ -354,11 +391,37 @@
             <button type="button" class="unfavBtn" title="お気に入りから外す" onclick="removeFavorite('${b.id}')">♥</button>
           </div>
         `).join("");
+        updateClearAllVisibility();
       } catch (e) {
         console.error(e);
         listEl.innerHTML = `<p class="emptyMsg">読み込みに失敗しました</p>`;
       }
     }
+
+    // お気に入りを一括解除する。削除済みで一覧に出ていない単語帳のIDも含め、
+    // favoriteBookIdsを空配列にしてまとめて消す。
+    window.removeAllFavorites = async () => {
+      if (!currentUser) return;
+      const listEl = document.getElementById("favBookList");
+      const count = listEl ? listEl.querySelectorAll(".bookRow").length : 0;
+      if (count === 0) return;
+      if (!confirm(`お気に入りの単語帳${count}件をすべて解除しますか？\nこの操作は取り消せません。`)) return;
+
+      const btn = document.getElementById("clearAllFavBtn");
+      btn.disabled = true;
+      try {
+        await db.collection("users").doc(currentUser.uid).set({
+          favoriteBookIds: []
+        }, { merge: true });
+        listEl.innerHTML = `<p class="emptyMsg">お気に入りの単語帳はまだありません。単語帳ページの「♡ お気に入り」ボタンから登録できます。</p>`;
+        updateClearAllVisibility();
+      } catch (e) {
+        console.error(e);
+        alert("お気に入りの一括解除に失敗しました");
+      } finally {
+        btn.disabled = false;
+      }
+    };
 
     window.removeFavorite = async (bookId) => {
       if (!currentUser) return;
@@ -374,6 +437,7 @@
         if (listEl && !listEl.querySelector(".bookRow")) {
           listEl.innerHTML = `<p class="emptyMsg">お気に入りの単語帳はまだありません。単語帳ページの「♡ お気に入り」ボタンから登録できます。</p>`;
         }
+        updateClearAllVisibility();
       } catch (e) {
         console.error(e);
         alert("お気に入りの解除に失敗しました");
