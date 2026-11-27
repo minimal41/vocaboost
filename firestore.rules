@@ -103,6 +103,56 @@ service cloud.firestore {
         allow write: if isOwner(get(/databases/$(database)/documents/wordbooks/$(bookId)).data.owner)
           || isAdmin();
       }
+
+      // 利用履歴（誰がこの単語帳で暗記・テストをしたか）。ドキュメントIDは利用者のuid。
+      // flash.html / test.html（account-widgets.jsのVOCABOOST_RECORD_BOOK_USAGE）が書き込み、
+      // view.html で単語帳の作成者だけが一覧を見られる。
+      // 書き込みは「公開中の単語帳に、本人のuidのドキュメントとして」のみ許可し、
+      // 1回の書き込みで変えられるのは、最終利用日時(サーバー時刻)・モードと、
+      // そのモードの回数を+1することだけに制限する。
+      function bookData() {
+        return get(/databases/$(database)/documents/wordbooks/$(bookId)).data;
+      }
+
+      function isValidUsageMode(data) {
+        return data.lastMode in ["flash", "test"];
+      }
+
+      match /usage/{userId} {
+        allow read: if isOwner(bookData().owner) || isAdmin();
+
+        allow create: if isOwner(userId)
+          && bookData().isPublic == true
+          && bookData().owner != request.auth.uid
+          && request.resource.data.keys().hasOnly(['uid', 'lastUsedAt', 'lastMode', 'flashCount', 'testCount'])
+          && request.resource.data.uid == userId
+          && request.resource.data.lastUsedAt == request.time
+          && isValidUsageMode(request.resource.data)
+          && (
+            (request.resource.data.lastMode == "flash"
+              && request.resource.data.get('flashCount', 0) == 1
+              && request.resource.data.get('testCount', 0) == 0) ||
+            (request.resource.data.lastMode == "test"
+              && request.resource.data.get('testCount', 0) == 1
+              && request.resource.data.get('flashCount', 0) == 0)
+          );
+
+        allow update: if isOwner(userId)
+          && bookData().isPublic == true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastUsedAt', 'lastMode', 'flashCount', 'testCount'])
+          && request.resource.data.lastUsedAt == request.time
+          && isValidUsageMode(request.resource.data)
+          && (
+            (request.resource.data.lastMode == "flash"
+              && request.resource.data.get('flashCount', 0) == resource.data.get('flashCount', 0) + 1
+              && request.resource.data.get('testCount', 0) == resource.data.get('testCount', 0)) ||
+            (request.resource.data.lastMode == "test"
+              && request.resource.data.get('testCount', 0) == resource.data.get('testCount', 0) + 1
+              && request.resource.data.get('flashCount', 0) == resource.data.get('flashCount', 0))
+          );
+
+        allow delete: if isOwner(bookData().owner) || isAdmin();
+      }
     }
 
     // 通知。

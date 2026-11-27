@@ -398,6 +398,71 @@
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   };
 
+  // ===== 単語帳の利用履歴（作成者だけが見られる「使った人」一覧） =====
+  // wordbooks/{bookId}/usage/{利用者uid} に、利用者ごとに1件のドキュメントとして
+  // 最終利用日時(lastUsedAt)・最後に使ったモード(lastMode: "flash"|"test")・
+  // モード別の利用回数(flashCount / testCount)を記録する。
+  // flash.html / test.html で「スタート」を押したときに呼び出す（1ページ表示につき1回まで）。
+  // 作成者本人の利用と、公開されていない単語帳は記録しない（firestore.rules側でも
+  // 公開単語帳への本人名義の書き込みだけを許可している）。
+  // 読み取りはfirestore.rulesで単語帳の作成者と管理者に限定している。
+  const recordedUsage = {};
+  window.VOCABOOST_RECORD_BOOK_USAGE = async function (db, bookId, mode) {
+    if (!bookId || (mode !== "flash" && mode !== "test")) return;
+    const key = bookId + "_" + mode;
+    if (recordedUsage[key]) return;
+    recordedUsage[key] = true;
+    try {
+      let user = firebase.auth().currentUser;
+      if (!user) {
+        // 認証状態の復元がまだ終わっていない場合は、一度だけ待ってから判定する
+        user = await new Promise(resolve => {
+          const unsub = firebase.auth().onAuthStateChanged(u => { unsub(); resolve(u); });
+        });
+      }
+      if (!user) return;
+
+      const bookSnap = await db.collection("wordbooks").doc(bookId).get();
+      if (!bookSnap.exists) return;
+      const book = bookSnap.data();
+      if (book.owner === user.uid || book.isPublic !== true) return;
+
+      await db.collection("wordbooks").doc(bookId).collection("usage").doc(user.uid).set({
+        uid: user.uid,
+        lastUsedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        lastMode: mode,
+        [mode === "flash" ? "flashCount" : "testCount"]: firebase.firestore.FieldValue.increment(1)
+      }, { merge: true });
+    } catch (e) {
+      // 記録に失敗しても学習自体には影響させない
+      console.warn("account-widgets: failed to record wordbook usage", e);
+    }
+  };
+
+  // 単語帳の利用履歴を、最終利用日時の新しい順に取得する（作成者のみ、view.htmlから利用）。
+  // 名前・アイコンは記録時点ではなく現在のプロフィールを表示するため、users から取り直す。
+  window.VOCABOOST_FETCH_BOOK_USAGE = async function (db, bookId) {
+    const snap = await db.collection("wordbooks").doc(bookId).collection("usage")
+      .orderBy("lastUsedAt", "desc")
+      .limit(300)
+      .get();
+    const entries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const userSnaps = await Promise.allSettled(
+      entries.map(e => db.collection("users").doc(e.id).get())
+    );
+    return entries.map((e, idx) => {
+      const r = userSnaps[idx];
+      const u = (r.status === "fulfilled" && r.value.exists) ? r.value.data() : null;
+      return {
+        ...e,
+        username: u ? (u.username || "名無し") : "退会したユーザー",
+        photoURL: u ? (u.photoURL || null) : null,
+        cohort: u ? (u.cohort ?? cohortFromEmail(u.email)) : null,
+        exists: !!u
+      };
+    });
+  };
+
   // ===== スマホ向けプッシュ通知 =====
   // 設定ページ(settings.html)でオンにすると、この端末のFirebase Cloud Messagingの
   // トークンを pushTokens/{トークン} に保存する。notificationsコレクションに通知が

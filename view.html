@@ -236,6 +236,35 @@
       color: var(--color-text);
     }
 
+    /* 作成者にだけ表示する「◯人が利用」リンク（favoritersBtnと同じ見た目） */
+    #usageBtn {
+      display: none;
+      width: 100%;
+      text-align: center;
+      margin: -6px 0 10px;
+      font-size: 13px;
+      color: var(--color-text-sub);
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+
+    #usageBtn:hover {
+      text-decoration: underline;
+    }
+
+    #usageBtn strong {
+      color: var(--color-text);
+    }
+
+    .usageMeta {
+      display: block;
+      font-size: 12px;
+      color: var(--color-text-sub);
+      margin-top: 2px;
+    }
+
     .userRow {
       display: flex;
       align-items: center;
@@ -393,6 +422,7 @@
       <h2 id="title"></h2>
       <div id="detailInfo" class="detail-info"></div>
       <button type="button" id="favoritersBtn" onclick="openFavoritersModal()"></button>
+      <button type="button" id="usageBtn" onclick="openUsageModal()"></button>
       <button type="button" id="offlineSaveBtn" onclick="toggleOfflineSave()"></button>
       <button type="button" id="reportLink" onclick="openReportModal()">この単語帳を報告する</button>
       <div id="description" style="display:none"></div>
@@ -428,6 +458,17 @@
     </div>
   </div>
 
+  <div id="usageModal" class="modalOverlay" style="display:none;">
+    <div class="modalBox">
+      <h3>この単語帳を使った人</h3>
+      <p class="modalDesc">暗記・テストを始めた人の履歴です（あなただけに表示されます）。最近使った順に並んでいます。</p>
+      <div id="usageList"><p class="emptyMsg">読み込み中...</p></div>
+      <div class="modalActions">
+        <button type="button" onclick="closeUsageModal()">閉じる</button>
+      </div>
+    </div>
+  </div>
+
   <footer>
     <div class="footer-inner">
       <div><img src="./images/rogo.png" height="70vh"></div>
@@ -451,7 +492,7 @@
   <!-- 単語帳の描画処理がVOCABOOST_AVATAR_HTML等を使うため、共通スクリプトはメインスクリプトより先に読み込む
        （Firestoreのキャッシュから即座にデータが返ると、後から読み込んでいた場合に未定義エラーになっていた） -->
   <script src="offline-storage.js"></script>
-  <script src="account-widgets.js?v=20261022"></script>
+  <script src="account-widgets.js?v=20261127"></script>
 
   <script>
     // 他ページと同じFirebase SDK(compatビルド, 9.23.0)で統一する。
@@ -770,6 +811,7 @@
           editBtn.style.display = "inline";
           editBtn.href = `edit.html?id=${id}`;
           loadFavoriters();
+          loadUsage();
         } else {
           document.getElementById("reportLink").style.display = "block";
         }
@@ -908,6 +950,56 @@
 
     window.closeFavoritersModal = function () {
       document.getElementById("favoritersModal").style.display = "none";
+    };
+
+    // ===== 使った人の履歴（作成者のみ） =====
+    // flash.html / test.html が wordbooks/{id}/usage/{利用者uid} に記録したものを表示する
+    // （account-widgets.jsのVOCABOOST_FETCH_BOOK_USAGEを利用）。
+    let usageEntries = [];
+
+    function formatUsageDate(ts) {
+      if (!ts || !ts.toDate) return "";
+      const d = ts.toDate();
+      const pad = n => String(n).padStart(2, "0");
+      return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    async function loadUsage() {
+      const btn = document.getElementById("usageBtn");
+      if (!btn || !window.VOCABOOST_FETCH_BOOK_USAGE) return;
+      try {
+        usageEntries = await window.VOCABOOST_FETCH_BOOK_USAGE(db, id);
+        btn.innerHTML = `<strong>${usageEntries.length}</strong>人が利用`;
+        btn.style.display = "block";
+      } catch (e) {
+        console.error("利用履歴の取得に失敗しました", e);
+      }
+    }
+
+    window.openUsageModal = function () {
+      const listEl = document.getElementById("usageList");
+      if (usageEntries.length === 0) {
+        listEl.innerHTML = `<p class="emptyMsg">まだ誰も使っていません</p>`;
+      } else {
+        listEl.innerHTML = usageEntries.map(u => {
+          const modeLabel = u.lastMode === "test" ? "テスト" : "暗記";
+          const meta = `最終利用: ${escapeHtmlForFavoriters(formatUsageDate(u.lastUsedAt))}（${modeLabel}）・暗記${u.flashCount || 0}回・テスト${u.testCount || 0}回`;
+          const inner = `
+              ${window.VOCABOOST_AVATAR_HTML(u.photoURL, 36, u.cohort)}
+              <span>${escapeHtmlForFavoriters(u.username)}<span class="usageMeta">${meta}</span></span>`;
+          return `
+          <div class="userRow">
+            ${u.exists
+              ? `<a class="userLink" href="user.html?id=${encodeURIComponent(u.id)}">${inner}</a>`
+              : `<div class="userLink">${inner}</div>`}
+          </div>`;
+        }).join("");
+      }
+      document.getElementById("usageModal").style.display = "flex";
+    };
+
+    window.closeUsageModal = function () {
+      document.getElementById("usageModal").style.display = "none";
     };
 
     window.toggleFavorite = async () => {

@@ -1387,6 +1387,14 @@
         batch.delete(doc.ref);
       });
 
+      // 利用履歴(usage)も一緒に消す。ルール未反映などで取得できなくても単語帳の削除は続行する
+      try {
+        const usageSnap = await db.collection("wordbooks").doc(bookId).collection("usage").get();
+        usageSnap.forEach(doc => batch.delete(doc.ref));
+      } catch (e) {
+        console.warn("利用履歴の取得に失敗しました（単語帳の削除は続行します）", e);
+      }
+
       batch.delete(db.collection("wordbooks").doc(bookId));
       await batch.commit();
 
@@ -2272,7 +2280,7 @@ window.addEventListener("beforeunload", () => {
 });
   </script>
 
-  <script src="account-widgets.js?v=20261022"></script>
+  <script src="account-widgets.js?v=20261127"></script>
   <script src="analytics-tracker.js"></script>
 </body>
 

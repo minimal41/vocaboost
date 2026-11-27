@@ -854,11 +854,18 @@
     // 超える場合に備えて分割コミットする）
     async function deleteBookCascade(bookId) {
       const wordsSnap = await db.collection("wordbooks").doc(bookId).collection("words").get();
+      // 利用履歴(usage)も一緒に消す。ルール未反映などで取得できなくても単語帳の削除は続行する
+      let usageDocs = [];
+      try {
+        usageDocs = (await db.collection("wordbooks").doc(bookId).collection("usage").get()).docs;
+      } catch (e) {
+        console.warn("利用履歴の取得に失敗しました（単語帳の削除は続行します）", e);
+      }
       const BATCH_LIMIT = 450;
       let batch = db.batch();
       let opCount = 0;
 
-      for (const wDoc of wordsSnap.docs) {
+      for (const wDoc of [...wordsSnap.docs, ...usageDocs]) {
         batch.delete(wDoc.ref);
         opCount++;
         if (opCount >= BATCH_LIMIT) {
@@ -1333,7 +1340,7 @@
     }
   </script>
 
-  <script src="account-widgets.js?v=20261022"></script>
+  <script src="account-widgets.js?v=20261127"></script>
 </body>
 
 </html>

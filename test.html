@@ -678,6 +678,9 @@
       start.style.display = "none";
       quiz.style.display = "block";
       render();
+
+      // 単語帳の作成者向けの利用履歴に記録する（account-widgets.js、1ページ表示につき1回）
+      if (window.VOCABOOST_RECORD_BOOK_USAGE) window.VOCABOOST_RECORD_BOOK_USAGE(db, id, "test");
     };
 
 
@@ -965,7 +968,7 @@
       location.href = `view.html?id=${id}`;
     };
   </script>
-  <script src="account-widgets.js?v=20261022"></script>
+  <script src="account-widgets.js?v=20261127"></script>
   <script src="analytics-tracker.js"></script>
   <script>
     // 全画面表示：ヘッダーやフッターを隠してカードだけを表示する。
